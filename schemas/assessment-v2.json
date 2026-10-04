@@ -89,15 +89,21 @@
                   "type": "string"
                 },
                 "maximum": {
+                  "maximum": 1.7976931348623157e+308,
+                  "minimum": -1.7976931348623157e+308,
                   "type": "number"
                 },
                 "minimum": {
+                  "maximum": 1.7976931348623157e+308,
+                  "minimum": -1.7976931348623157e+308,
                   "type": "number"
                 },
                 "name": {
                   "type": "string"
                 },
                 "value": {
+                  "maximum": 1.7976931348623157e+308,
+                  "minimum": -1.7976931348623157e+308,
                   "type": "number"
                 }
               },
@@ -173,6 +179,7 @@
                 "type": "boolean"
               },
               "units": {
+                "maximum": 1.7976931348623157e+308,
                 "minimum": 0,
                 "type": "number"
               }
@@ -314,7 +321,10 @@
     },
     "version": {
       "const": 2,
-      "type": "integer"
+      "maximum": 9223372036854775807,
+      "minimum": -9223372036854775808,
+      "type": "integer",
+      "x-evaly-version": true
     },
     "view": {
       "type": "string"

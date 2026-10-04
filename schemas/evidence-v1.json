@@ -43,12 +43,16 @@
             ]
           },
           "sequence": {
+            "maximum": 9223372036854775807,
             "minimum": 1,
             "type": "integer"
           },
           "version": {
             "const": 1,
-            "type": "integer"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "type": "integer",
+            "x-evaly-version": true
           }
         },
         "required": [
@@ -66,6 +70,8 @@
     },
     "gaps": {
       "items": {
+        "maximum": 9223372036854775807,
+        "minimum": -9223372036854775808,
         "type": "integer"
       },
       "maxItems": 32,
@@ -78,6 +84,8 @@
       "type": "string"
     },
     "redactions": {
+      "maximum": 9223372036854775807,
+      "minimum": -9223372036854775808,
       "type": "integer"
     },
     "replay_available": {
@@ -98,7 +106,10 @@
     },
     "version": {
       "const": 1,
-      "type": "integer"
+      "maximum": 9223372036854775807,
+      "minimum": -9223372036854775808,
+      "type": "integer",
+      "x-evaly-version": true
     }
   },
   "required": [

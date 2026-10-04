@@ -1,7 +1,6 @@
 package evaly
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -161,8 +160,8 @@ func (s *FileStore) Put(ctx context.Context, e Envelope) error {
 	if err != nil {
 		return err
 	}
-	var validated Envelope
-	if err = json.Unmarshal(read, &validated); err != nil {
+	validated, err := DecodeWire[Envelope](read)
+	if err != nil {
 		return err
 	}
 	if err = ValidateEnvelope(validated); err != nil {
@@ -235,9 +234,8 @@ func (s *FileStore) Get(ctx context.Context, id string) (Envelope, error) {
 	if _, err = CanonicalJSON(b); err != nil {
 		return out, ErrCorrupt
 	}
-	d := json.NewDecoder(bytes.NewReader(b))
-	d.DisallowUnknownFields()
-	if err = d.Decode(&out); err != nil {
+	out, err = DecodeWire[Envelope](b)
+	if err != nil {
 		return out, fmt.Errorf("%w: envelope", ErrCorrupt)
 	}
 	if err = ValidateEnvelope(out); err != nil {
@@ -266,8 +264,8 @@ func LoadExperiment(ctx context.Context, s ArtifactStore, id string) (Experiment
 	if env.Kind != "experiment" {
 		return Experiment{}, ErrUnsupported
 	}
-	var r ExperimentRecord
-	if err = json.Unmarshal(env.Data, &r); err != nil {
+	r, err := DecodeWire[ExperimentRecord](env.Data)
+	if err != nil {
 		return Experiment{}, ErrCorrupt
 	}
 	e, err := RestoreExperiment(r)

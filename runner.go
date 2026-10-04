@@ -72,9 +72,8 @@ type TrialContext[E any] struct {
 	Budget           Budget
 }
 type TargetResult[O any] struct {
-	Output      O
-	Usage       Usage
-	OutcomeRefs []string
+	Output O
+	Usage  Usage
 }
 type Target[I, O, E any] interface {
 	Run(context.Context, I, TrialContext[E]) (TargetResult[O], error)

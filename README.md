@@ -14,6 +14,15 @@ receive seed, mode and step directly. See the normative
 [execution contract](docs/execution-contract.md). Experiment, assessment, scenario,
 observation-result and search formats use revision 2; old formats are unsupported.
 
+HTTP request/response revision 2 declares evidence delivery completeness separately
+from target success and preserves delivered events on target failure. Wire readers
+use `DecodeWire[T]` for published service envelopes, followed by semantic validation;
+host domain codecs stay independent. References reject malformed syntax, fragments,
+userinfo and recognized credential query keys, while host policy owns retention and
+domain classification. Export reports invalid/conflict/unsupported/cancelled/delivery
+failure without selecting retries. See [wire contracts](docs/wire-contract.md),
+[evidence and export](docs/evidence-contract.md), and [HTTP protocol](docs/http-protocol.md).
+
 ```go
 codec := evaly.JSONCodec[int]{ID: "integer", Version: "1"}
 dataset, err := (evaly.DatasetDraft[int, int]{

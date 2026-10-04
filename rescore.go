@@ -375,8 +375,8 @@ func LoadSavedView[I, O, R any](
 	if env.Kind != "view" {
 		return SavedView[I, O, R]{}, ErrUnsupported
 	}
-	var r SavedViewRecord
-	if e = json.Unmarshal(env.Data, &r); e != nil {
+	r, e := DecodeWire[SavedViewRecord](env.Data)
+	if e != nil {
 		return SavedView[I, O, R]{}, ErrCorrupt
 	}
 	return RestoreSavedView(r, ic, oc, rc)

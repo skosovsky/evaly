@@ -2,6 +2,7 @@ package evaly
 
 import (
 	"context"
+	"errors"
 	"sync"
 )
 
@@ -28,8 +29,12 @@ type Delivery struct {
 // Export never mutates the source artifact's verdict. Retry keeps observation ID.
 func Export(ctx context.Context, s ExportSink, r DeliveryRecord) Delivery {
 	out := Delivery{ID: r.ObservationID, State: "failed", Semantics: "at_least_once_with_possible_duplicates"}
-	if s == nil || r.ObservationID == "" {
-		out.Reason = "invalid_delivery"
+	if ValidatePort(s) != nil || r.ObservationID == "" {
+		out.Reason = "invalid"
+		return out
+	}
+	if ctx.Err() != nil {
+		out.Reason = "cancelled"
 		return out
 	}
 	caps := s.Capabilities()
@@ -37,19 +42,43 @@ func Export(ctx context.Context, s ExportSink, r DeliveryRecord) Delivery {
 		out.Semantics = "deduplicated_by_observation_identity"
 	}
 	if caps.EnvelopeVersion != 1 || caps.BooleanOnly {
-		out.Reason = "unsupported_lossy_mapping"
+		out.Reason = "unsupported"
 		return out
 	}
 	if e := ValidateEnvelope(r.Artifact); e != nil {
-		out.Reason = "invalid_artifact"
+		out.Reason = deliveryReason(e)
 		return out
 	}
-	if e := s.Deliver(ctx, r); e != nil {
-		out.Reason = "sink_unavailable"
+	copy, err := cloneJSON(r)
+	if err != nil {
+		out.Reason = "invalid"
+		return out
+	}
+	if ctx.Err() != nil {
+		out.Reason = "cancelled"
+		return out
+	}
+	if e := s.Deliver(ctx, copy); e != nil {
+		out.Reason = deliveryReason(e)
 		return out
 	}
 	out.State = "delivered"
 	return out
+}
+
+func deliveryReason(err error) string {
+	switch {
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return "cancelled"
+	case errors.Is(err, ErrConflict):
+		return "conflict"
+	case errors.Is(err, ErrUnsupported):
+		return "unsupported"
+	case errors.Is(err, ErrInvalid), errors.Is(err, ErrCorrupt), errors.Is(err, ErrUnsealed):
+		return "invalid"
+	default:
+		return "delivery_failure"
+	}
 }
 
 // MemoryExport is a local reference sink with explicit optional deduplication.
@@ -70,7 +99,7 @@ func (s *MemoryExport) Deliver(ctx context.Context, r DeliveryRecord) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.Fail {
-		return ErrUnsupported
+		return ErrDelivery
 	}
 	if s.Dedup {
 		for _, old := range s.records {

@@ -11,4 +11,6 @@ var (
 	ErrIncomplete  = errors.New("evaly: insufficient evidence")
 	ErrClosed      = errors.New("evaly: closed")
 	ErrCorrupt     = errors.New("evaly: corrupt artifact")
+	ErrTarget      = errors.New("evaly: target failure")
+	ErrDelivery    = errors.New("evaly: delivery failure")
 )

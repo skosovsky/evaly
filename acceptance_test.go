@@ -208,7 +208,7 @@ func TestSecretAbsentInJudgeExportAndVerdictUnchanged(t *testing.T) {
 	}
 	lossy := &booleanSink{}
 	unsupported := evaly.Export(context.Background(), lossy, evaly.DeliveryRecord{ObservationID: "same", Artifact: env})
-	if unsupported.State != "failed" || unsupported.Reason != "unsupported_lossy_mapping" || lossy.called {
+	if unsupported.State != "failed" || unsupported.Reason != "unsupported" || lossy.called {
 		t.Fatal(unsupported, lossy)
 	}
 }

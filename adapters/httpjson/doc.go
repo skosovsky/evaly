@@ -1,3 +1,3 @@
-// Package httpjson provides an optional bounded JSON v1 target bridge using
-// explicit caller codecs. It makes no claim of compatibility with vendor SDKs.
+// Package httpjson provides an optional bounded JSON v2 target bridge using
+// caller-owned codecs and explicit host evidence-delivery declarations.
 package httpjson

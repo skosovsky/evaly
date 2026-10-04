@@ -16,6 +16,8 @@
       "additionalProperties": false,
       "properties": {
         "OutcomeDelay": {
+          "maximum": 9223372036854775807,
+          "minimum": -9223372036854775808,
           "type": "integer"
         },
         "Population": {
@@ -24,6 +26,8 @@
         "Probability": {
           "anyOf": [
             {
+              "maximum": 1.7976931348623157e+308,
+              "minimum": -1.7976931348623157e+308,
               "type": "number"
             },
             {
@@ -53,7 +57,10 @@
     },
     "Version": {
       "const": 1,
-      "type": "integer"
+      "maximum": 9223372036854775807,
+      "minimum": -9223372036854775808,
+      "type": "integer",
+      "x-evaly-version": true
     },
     "View": {
       "type": "string"

@@ -10,15 +10,23 @@
       "additionalProperties": false,
       "properties": {
         "all_repeats_success": {
+          "maximum": 9223372036854775807,
+          "minimum": -9223372036854775808,
           "type": "integer"
         },
         "cleanup_failures": {
+          "maximum": 9223372036854775807,
+          "minimum": -9223372036854775808,
           "type": "integer"
         },
         "coverage": {
+          "maximum": 1.7976931348623157e+308,
+          "minimum": -1.7976931348623157e+308,
           "type": "number"
         },
         "eligible": {
+          "maximum": 9223372036854775807,
+          "minimum": -9223372036854775808,
           "type": "integer"
         },
         "excluded": {
@@ -31,24 +39,38 @@
           ]
         },
         "grader_failures": {
+          "maximum": 9223372036854775807,
+          "minimum": -9223372036854775808,
           "type": "integer"
         },
         "mean_pass_rate": {
+          "maximum": 1.7976931348623157e+308,
+          "minimum": -1.7976931348623157e+308,
           "type": "number"
         },
         "scored": {
+          "maximum": 9223372036854775807,
+          "minimum": -9223372036854775808,
           "type": "integer"
         },
         "setup_failures": {
+          "maximum": 9223372036854775807,
+          "minimum": -9223372036854775808,
           "type": "integer"
         },
         "success_at_least_once": {
+          "maximum": 9223372036854775807,
+          "minimum": -9223372036854775808,
           "type": "integer"
         },
         "success_denominator": {
+          "maximum": 9223372036854775807,
+          "minimum": -9223372036854775808,
           "type": "integer"
         },
         "target_failures": {
+          "maximum": 9223372036854775807,
+          "minimum": -9223372036854775808,
           "type": "integer"
         }
       },
@@ -75,15 +97,23 @@
       "additionalProperties": false,
       "properties": {
         "all_repeats_success": {
+          "maximum": 9223372036854775807,
+          "minimum": -9223372036854775808,
           "type": "integer"
         },
         "cleanup_failures": {
+          "maximum": 9223372036854775807,
+          "minimum": -9223372036854775808,
           "type": "integer"
         },
         "coverage": {
+          "maximum": 1.7976931348623157e+308,
+          "minimum": -1.7976931348623157e+308,
           "type": "number"
         },
         "eligible": {
+          "maximum": 9223372036854775807,
+          "minimum": -9223372036854775808,
           "type": "integer"
         },
         "excluded": {
@@ -96,24 +126,38 @@
           ]
         },
         "grader_failures": {
+          "maximum": 9223372036854775807,
+          "minimum": -9223372036854775808,
           "type": "integer"
         },
         "mean_pass_rate": {
+          "maximum": 1.7976931348623157e+308,
+          "minimum": -1.7976931348623157e+308,
           "type": "number"
         },
         "scored": {
+          "maximum": 9223372036854775807,
+          "minimum": -9223372036854775808,
           "type": "integer"
         },
         "setup_failures": {
+          "maximum": 9223372036854775807,
+          "minimum": -9223372036854775808,
           "type": "integer"
         },
         "success_at_least_once": {
+          "maximum": 9223372036854775807,
+          "minimum": -9223372036854775808,
           "type": "integer"
         },
         "success_denominator": {
+          "maximum": 9223372036854775807,
+          "minimum": -9223372036854775808,
           "type": "integer"
         },
         "target_failures": {
+          "maximum": 9223372036854775807,
+          "minimum": -9223372036854775808,
           "type": "integer"
         }
       },
@@ -142,12 +186,18 @@
         "additionalProperties": false,
         "properties": {
           "Baseline": {
+            "maximum": 1.7976931348623157e+308,
+            "minimum": -1.7976931348623157e+308,
             "type": "number"
           },
           "Candidate": {
+            "maximum": 1.7976931348623157e+308,
+            "minimum": -1.7976931348623157e+308,
             "type": "number"
           },
           "Difference": {
+            "maximum": 1.7976931348623157e+308,
+            "minimum": -1.7976931348623157e+308,
             "type": "number"
           },
           "case_id": {
@@ -171,6 +221,8 @@
       "additionalProperties": false,
       "properties": {
         "bootstrap_samples": {
+          "maximum": 9223372036854775807,
+          "minimum": -9223372036854775808,
           "type": "integer"
         },
         "maximum_regression": {
@@ -192,6 +244,8 @@
           "type": "string"
         },
         "seed": {
+          "maximum": 9223372036854775807,
+          "minimum": -9223372036854775808,
           "type": "integer"
         }
       },
@@ -222,6 +276,8 @@
         "additionalProperties": false,
         "properties": {
           "Attempt": {
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
             "type": "integer"
           },
           "CaseID": {
@@ -260,12 +316,16 @@
             "type": "string"
           },
           "Repeat": {
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
             "type": "integer"
           },
           "Reset": {
             "type": "string"
           },
           "Seed": {
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
             "type": "integer"
           },
           "Status": {
@@ -306,15 +366,23 @@
           "additionalProperties": false,
           "properties": {
             "Lower": {
+              "maximum": 1.7976931348623157e+308,
+              "minimum": -1.7976931348623157e+308,
               "type": "number"
             },
             "Upper": {
+              "maximum": 1.7976931348623157e+308,
+              "minimum": -1.7976931348623157e+308,
               "type": "number"
             },
             "cases": {
+              "maximum": 9223372036854775807,
+              "minimum": -9223372036854775808,
               "type": "integer"
             },
             "confidence": {
+              "maximum": 1.7976931348623157e+308,
+              "minimum": -1.7976931348623157e+308,
               "type": "number"
             },
             "limitation": {
@@ -357,7 +425,10 @@
     },
     "version": {
       "const": 1,
-      "type": "integer"
+      "maximum": 9223372036854775807,
+      "minimum": -9223372036854775808,
+      "type": "integer",
+      "x-evaly-version": true
     }
   },
   "required": [

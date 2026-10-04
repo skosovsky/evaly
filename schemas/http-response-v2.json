@@ -1,5 +1,5 @@
 {
-  "$id": "urn:evaly:http-response:1",
+  "$id": "urn:evaly:http-response:2",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
@@ -23,7 +23,10 @@
         },
         "Version": {
           "const": 1,
-          "type": "integer"
+          "maximum": 9223372036854775807,
+          "minimum": -9223372036854775808,
+          "type": "integer",
+          "x-evaly-version": true
         }
       },
       "required": [
@@ -57,12 +60,16 @@
             ]
           },
           "sequence": {
+            "maximum": 9223372036854775807,
             "minimum": 1,
             "type": "integer"
           },
           "version": {
             "const": 1,
-            "type": "integer"
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "type": "integer",
+            "x-evaly-version": true
           }
         },
         "required": [
@@ -77,6 +84,22 @@
         "array",
         "null"
       ]
+    },
+    "evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "complete": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "complete",
+        "reason"
+      ],
+      "type": "object"
     },
     "output": {},
     "status": {
@@ -93,6 +116,7 @@
           "type": "boolean"
         },
         "units": {
+          "maximum": 1.7976931348623157e+308,
           "minimum": 0,
           "type": "number"
         }
@@ -104,8 +128,11 @@
       "type": "object"
     },
     "version": {
-      "const": 1,
-      "type": "integer"
+      "const": 2,
+      "maximum": 9223372036854775807,
+      "minimum": -9223372036854775808,
+      "type": "integer",
+      "x-evaly-version": true
     }
   },
   "required": [
@@ -113,7 +140,8 @@
     "status",
     "usage",
     "events",
-    "capabilities"
+    "capabilities",
+    "evidence"
   ],
   "type": "object"
 }

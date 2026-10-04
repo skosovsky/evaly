@@ -1,0 +1,9 @@
+# Structural wire contract
+
+Service envelopes use `DecodeWire[T]` before semantic Restore/Validate checks. The supported roots are the fourteen published schema kinds; arbitrary host types are rejected. Domain codecs and opaque `json.RawMessage` values remain host-owned. Reflection describes explicit service envelope fields only.
+
+JSON tags define presence: fields without `omitempty` are required even at zero. Scalar values and structs forbid null; pointers, slices and maps permit null. RawMessage accepts any JSON unless an explicit field rule narrows it. Unknown struct properties, duplicate keys, trailing JSON, invalid scalar types, integer overflow, unsupported versions, declared enums and collection limits are rejected. Signed/unsigned integers have their Go storage range; integral decimal/exponent numbers are accepted and normalized for decoding. Zero is valid unless a field rule specifies a positive minimum or constant. Maps permit arbitrary keys with values constrained by their element type; extension and domain JSON stay opaque.
+
+`internal/wirecontract` produces both runtime structural validation and generated schemas from these same definitions. JSON Schema validates shape, not checksums, identity relationships, evidence trust, assessment plans, or state transitions. Typed Restore/Validate functions perform these additional semantic checks. A typed struct passed directly to Restore has no original JSON presence information; callers reading bytes must first use DecodeWire. Size limits remain explicit at transport/store boundaries rather than a hidden global decoder limit.
+
+HTTP request and response major versions are 2. Complete evidence delivery requires an empty reason; incomplete delivery requires a reason. These relationships, codec compatibility and target-error/output relationships are protocol semantics checked after structural decoding. Earlier HTTP versions are unsupported. No runtime validator dependency is introduced.

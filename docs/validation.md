@@ -1,5 +1,31 @@
 # Validation record
 
+## 5 October 2026 — evidence and HTTP revision 2
+
+Authority: `.cursor/task/02-evidence-and-wire-contracts.md`, common README,
+`docs/evidence-contract.md`, `docs/wire-contract.md` and `docs/http-protocol.md`.
+
+- `env GOCACHE=/private/tmp/evaly-final-1.27.1-cache make validate` — PASS on
+  Go 1.27.1 darwin/arm64. Formatter, vet and race tests in both modules; output
+  `/private/tmp/evaly-evidence-validation.log` (contracttest race: 62.454 s).
+- All six runnable examples — exit 0, logs
+  `/private/tmp/evaly-evidence-example-{calculation,crm,protocols,http,observation,optimizer}.log`.
+  Expected demonstration quality failures remain unchanged.
+- Independent JSON Schema engine and runtime decoder agree on all 14 produced
+  service envelope types and 4124 structural field mutations. Duplicate-key byte
+  tests cover each root separately; seven public restore paths and two semantic
+  checksum/revision failures distinguish structure from semantic validity.
+- Schema generation runs in a temporary directory and compares the exact
+  inventory and bytes; it does not rewrite the checked-out schemas.
+- `git diff --check` — PASS. Root source fingerprint after checks:
+  `aabce87e5dec89ddeaeaae3592c44f0319d23260e150ec63242f9c63819c27b0`
+  (93 files; review reports and this journal excluded).
+
+Final independent acceptance is recorded in `docs/reviews/evidence-completeness.md`
+and `evidence-correctness.md`. A source repair requires a new fingerprint and
+both reviewers' rechecks; this entry records actual checks, not an unconditional
+claim of acceptance.
+
 ## 5 October 2026 — execution revision 2
 
 Current task authority: `.cursor/task/01-execution-and-assessments.md`, common

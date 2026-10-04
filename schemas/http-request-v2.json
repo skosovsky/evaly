@@ -1,5 +1,5 @@
 {
-  "$id": "urn:evaly:http-request:1",
+  "$id": "urn:evaly:http-request:2",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
@@ -52,6 +52,8 @@
           "type": "string"
         },
         "seed": {
+          "maximum": 9223372036854775807,
+          "minimum": -9223372036854775808,
           "type": "integer"
         }
       },
@@ -65,8 +67,11 @@
       "type": "object"
     },
     "version": {
-      "const": 1,
-      "type": "integer"
+      "const": 2,
+      "maximum": 9223372036854775807,
+      "minimum": -9223372036854775808,
+      "type": "integer",
+      "x-evaly-version": true
     }
   },
   "required": [

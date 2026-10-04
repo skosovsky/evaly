@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"unicode"
+	"unicode/utf8"
 )
 
 type Event struct {
@@ -87,17 +89,33 @@ func (p FieldPolicy) Project(ctx context.Context, e Event) (Event, error) {
 	return out, nil
 }
 func safeReference(ref string) bool {
-	if strings.ContainsAny(ref, "\r\n") {
+	if ref == "" || !utf8.ValidString(ref) || strings.Contains(ref, "#") || strings.IndexFunc(ref, func(r rune) bool {
+		return unicode.IsSpace(r) || unicode.IsControl(r)
+	}) >= 0 {
+		return false
+	}
+	// url.Parse does not validate percent escapes inside an opaque URI.
+	if _, err := url.PathUnescape(ref); err != nil {
 		return false
 	}
 	u, e := url.Parse(ref)
 	if e != nil || u.User != nil {
 		return false
 	}
-	for k := range u.Query() {
+	if (strings.EqualFold(u.Scheme, "http") || strings.EqualFold(u.Scheme, "https")) &&
+		(u.Hostname() == "" || u.Opaque != "") {
+		return false
+	}
+	query, err := url.ParseQuery(u.RawQuery)
+	if err != nil {
+		return false
+	}
+	for k := range query {
 		key := strings.ToLower(k)
 		if strings.Contains(key, "token") || strings.Contains(key, "secret") || strings.Contains(key, "key") ||
-			strings.Contains(key, "password") {
+			strings.Contains(key, "password") || strings.Contains(key, "passwd") ||
+			strings.Contains(key, "credential") || strings.Contains(key, "authorization") ||
+			strings.Contains(key, "signature") || key == "auth" || key == "pwd" || key == "sig" {
 			return false
 		}
 	}

@@ -220,4 +220,28 @@ func Export(t *testing.T, s evaly.ExportSink, count func() int) {
 	if count() != expected {
 		t.Fatal("advertised dedup mismatch", count(), expected)
 	}
+	// Arrange: a cancelled delivery must not reach the sink or alter source data.
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	// Act / Assert: cancellation is classified separately from transient delivery.
+	delivery := evaly.Export(cancelled, s, r)
+	if delivery.State != "failed" || delivery.Reason != "cancelled" || count() != expected {
+		t.Fatal("cancelled delivery dispatched or misclassified", delivery, count())
+	}
+	if s.Capabilities().Deduplication {
+		// Arrange: the same delivery identity now carries different artifact bytes.
+		other, err := evaly.NewEnvelope("evidence", "export-conformance", map[string]string{"state": "incomplete"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Act / Assert: a conflict cannot be treated as a temporary sink outage.
+		conflict := evaly.Export(
+			context.Background(),
+			s,
+			evaly.DeliveryRecord{ObservationID: r.ObservationID, Artifact: other},
+		)
+		if conflict.State != "failed" || conflict.Reason != "conflict" || count() != expected {
+			t.Fatal("immutable delivery identity conflict not preserved", conflict, count())
+		}
+	}
 }

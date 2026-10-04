@@ -1,4 +1,4 @@
-# evaly contract v1
+# evaly contracts
 
 Status: implementation contract. Original requirement authority: `.cursor/tasks/task1.md`.
 Current execution changes are governed by `.cursor/task/01-execution-and-assessments.md`
@@ -6,6 +6,13 @@ and the normative [execution contract revision 2](execution-contract.md).
 Experiment, scenario, assessment, observation-result and search formats now use
 revision 2; their old formats are unsupported. Other unaffected formats retain
 their declared revisions. No compatibility reader or migration layer is supplied.
+
+Task 02 is governed by the normative [evidence and export contract](evidence-contract.md),
+[wire validation contract](wire-contract.md), and [HTTP protocol](http-protocol.md).
+HTTP requests and responses move to revision 2. A remote invocation explicitly
+declares event delivery completeness independently of target success. Runtime
+wire decoding checks required presence before callbacks; domain payloads remain
+the responsibility of host codecs.
 
 ## Ownership and package boundaries
 
@@ -81,8 +88,11 @@ independent comparison. Seeds do not guarantee provider determinism.
 Capture states: open -> sealed or incomplete. Evidence events are ordered,
 versioned, correlated and projected by a host `CapturePolicy` BEFORE retention.
 The default policy drops payload and references. Allowlisting fields is an explicit
-host choice; callers must classify sensitive data. URLs containing credentials are
-rejected. Unknown event versions/types, sequence gaps, recording errors, explicit
+host choice; callers must classify sensitive data. Reference syntax excludes
+userinfo, fragments, malformed query strings and recognized credential query keys;
+this bounded check does not detect arbitrary secrets. Safe artifact IDs and non-HTTP
+URIs remain available under host retention policy. Outcome references use this
+same capture path. Unknown event versions/types, sequence gaps, recording errors, explicit
 truncation and missing required coverage prevent completeness. Completeness is per
 event kind, never inferred from sampled telemetry. Sink bounds event count, raw/retained payload bytes and diagnostics (at most 32
 errors and 32 gap markers). Seal is irreversible, snapshots and policy inputs are copied.
@@ -158,7 +168,9 @@ Human report shares permitted records and names IDs, denominators, reasons and
 replay command. Export uses the same stable observation ID; delivery is separate
 from verdict. Backend advertises dedup capability; absent it retries may duplicate.
 Interop capability mappings report lost outcome/reset/evidence/status/scale; a
-boolean-only sink cannot silently consume incomplete/error records. HTTP JSON v1
+boolean-only sink cannot silently consume incomplete/error records. Export rejection
+distinguishes invalid, conflict, unsupported, cancelled and delivery failure; it
+does not choose retries or alter quality verdicts. HTTP JSON v2
 is optional, bounded request/response and context-aware, with explicit domain
 codecs and status mapping. No advertised SDK compatibility.
 

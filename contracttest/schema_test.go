@@ -20,9 +20,10 @@ import (
 func compile(t *testing.T, name string) *jsonschema.Schema {
 	t.Helper()
 	compiler := jsonschema.NewCompiler()
+	compiler.AssertFormat()
 	version := "1"
 	switch name {
-	case "experiment", "scenario", "assessment", "observation-result", "search":
+	case "experiment", "scenario", "assessment", "observation-result", "search", "http-request", "http-response":
 		version = "2"
 	}
 	s, e := compiler.Compile(filepath.Join("..", "schemas", name+"-v"+version+".json"))
@@ -50,7 +51,8 @@ func (steps) Revision() string { return "steps-v1" }
 func (steps) Step(ctx context.Context, s int, execution evaly.ScenarioContext) (int, int, bool, error) {
 	return s + 1, s + 1, false, ctx.Err()
 }
-func TestGeneratedArtifactsAgainstWireSchemas(t *testing.T) {
+func generatedWireValues(t *testing.T) map[string]any {
+	t.Helper()
 	// Arrange: execute real core paths; validate with an independent JSON Schema engine.
 	ctx := context.Background()
 	c, e := fixtures.CalculationConfig("contract-baseline", "good", "")
@@ -152,7 +154,7 @@ func TestGeneratedArtifactsAgainstWireSchemas(t *testing.T) {
 		"observation-result": result,
 		"search":             searchResult(t),
 		"http-request": httpjson.Request{
-			Version:     1,
+			Version:     2,
 			InputCodec:  fixtures.InputCodec().Identity(),
 			OutputCodec: fixtures.OutputCodec().Identity(),
 			Trial: httpjson.Trial{
@@ -164,11 +166,12 @@ func TestGeneratedArtifactsAgainstWireSchemas(t *testing.T) {
 			Input: json.RawMessage(`{"left":1,"right":2}`),
 		},
 		"http-response": httpjson.Response{
-			Version: 1,
-			Status:  "completed",
-			Output:  json.RawMessage(`{"sum":3}`),
-			Usage:   evaly.Usage{Known: true, Units: 1},
-			Events:  []evaly.Event{},
+			Version:  2,
+			Evidence: httpjson.EvidenceDelivery{Complete: true},
+			Status:   "completed",
+			Output:   json.RawMessage(`{"sum":3}`),
+			Usage:    evaly.Usage{Known: true, Units: 1},
+			Events:   []evaly.Event{},
 			Capabilities: evaly.InteropCapabilities{
 				Version:       1,
 				Outcome:       true,
@@ -179,6 +182,13 @@ func TestGeneratedArtifactsAgainstWireSchemas(t *testing.T) {
 			},
 		},
 	}
+	return values
+}
+
+func TestGeneratedArtifactsAgainstWireSchemas(t *testing.T) {
+	// Arrange.
+	values := generatedWireValues(t)
+	var e error
 	// Act / Assert.
 	for name, value := range values {
 		t.Run(name, func(t *testing.T) {
@@ -192,7 +202,7 @@ func TestGeneratedArtifactsAgainstWireSchemas(t *testing.T) {
 	schema := compile(t, "experiment")
 	for _, variant := range []string{"negative_usage", "unknown_cleanup", "unknown_grade", "invalid_plan", "unknown_version"} {
 		t.Run(variant, func(t *testing.T) {
-			doc := instance(t, experiment.Record()).(map[string]any)
+			doc := instance(t, values["experiment"]).(map[string]any)
 			manifest := doc["manifest"].(map[string]any)
 			trial := doc["trials"].([]any)[0].(map[string]any)
 			switch variant {
@@ -219,6 +229,7 @@ func TestGeneratedArtifactsAgainstWireSchemas(t *testing.T) {
 	}
 	for _, path := range paths {
 		compiler := jsonschema.NewCompiler()
+		compiler.AssertFormat()
 		if _, e = compiler.Compile(path); e != nil {
 			t.Fatal(path, e)
 		}

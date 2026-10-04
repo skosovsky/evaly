@@ -21,16 +21,17 @@ func main() {
 			fixtures.InputCodec(),
 			fixtures.OutputCodec(),
 			4096,
-			func(ctx context.Context, i fixtures.Calculation, t httpjson.Trial) (fixtures.CalculationOutput, evaly.Usage, []evaly.Event, error) {
+			func(ctx context.Context, i fixtures.Calculation, t httpjson.Trial) (httpjson.Invocation[fixtures.CalculationOutput], error) {
 				if t.Fixture != "calculation-v1" || t.Reset != "empty-v1" {
-					return fixtures.CalculationOutput{}, evaly.Usage{}, nil, evaly.ErrUnsupported
+					return httpjson.Invocation[fixtures.CalculationOutput]{
+						Evidence: httpjson.EvidenceDelivery{Complete: true},
+					}, evaly.ErrUnsupported
 				}
-				return fixtures.CalculationOutput{
-					Sum: i.Left + i.Right,
-				}, evaly.Usage{
-					Known: true,
-					Units: 1,
-				}, nil, ctx.Err()
+				return httpjson.Invocation[fixtures.CalculationOutput]{
+					Output:   fixtures.CalculationOutput{Sum: i.Left + i.Right},
+					Usage:    evaly.Usage{Known: true, Units: 1},
+					Evidence: httpjson.EvidenceDelivery{Complete: true},
+				}, ctx.Err()
 			},
 		),
 	)

@@ -19,11 +19,17 @@ func TestHTTPReferenceConformance(t *testing.T) {
 		fixtures.InputCodec(),
 		fixtures.OutputCodec(),
 		4096,
-		func(ctx context.Context, i fixtures.Calculation, trial httpjson.Trial) (fixtures.CalculationOutput, evaly.Usage, []evaly.Event, error) {
+		func(ctx context.Context, i fixtures.Calculation, trial httpjson.Trial) (httpjson.Invocation[fixtures.CalculationOutput], error) {
 			if trial.Fixture != "calculation-v1" || trial.Reset != "empty-v1" {
-				return fixtures.CalculationOutput{}, evaly.Usage{}, nil, evaly.ErrUnsupported
+				return httpjson.Invocation[fixtures.CalculationOutput]{
+					Evidence: httpjson.EvidenceDelivery{Complete: true},
+				}, evaly.ErrUnsupported
 			}
-			return fixtures.CalculationOutput{Sum: i.Left + i.Right}, evaly.Usage{Known: true, Units: 1}, nil, ctx.Err()
+			return httpjson.Invocation[fixtures.CalculationOutput]{
+				Output:   fixtures.CalculationOutput{Sum: i.Left + i.Right},
+				Usage:    evaly.Usage{Known: true, Units: 1},
+				Evidence: httpjson.EvidenceDelivery{Complete: true},
+			}, ctx.Err()
 		},
 	)
 	server := httptest.NewServer(handler)
@@ -45,12 +51,13 @@ func TestHTTPReferenceConformance(t *testing.T) {
 	conformance.Target(t, c)
 }
 func TestHTTPRejectsLossAndUnknownVersion(t *testing.T) {
-	for _, version := range []int{1, 2} {
+	for _, version := range []int{1, 2, 99} {
 		t.Run(string(rune('0'+version)), func(t *testing.T) {
 			// Arrange.
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
 				_ = json.NewEncoder(w).
-					Encode(httpjson.Response{Version: version, Status: "completed", Output: json.RawMessage(`{"sum":3}`), Capabilities: evaly.InteropCapabilities{Version: 1, Outcome: false, ResetIdentity: true, Evidence: true, RichStatus: true, MetricScales: true}})
+					Encode(httpjson.Response{Version: version, Status: "completed", Output: json.RawMessage(`{"sum":3}`), Evidence: httpjson.EvidenceDelivery{Complete: true}, Capabilities: evaly.InteropCapabilities{Version: 1, Outcome: false, ResetIdentity: true, Evidence: true, RichStatus: true, MetricScales: true}})
 			}))
 			defer server.Close()
 			c, e := fixtures.CalculationConfig("http-loss", "good", "")

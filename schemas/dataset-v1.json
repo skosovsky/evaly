@@ -35,6 +35,8 @@
                     "type": "string"
                   },
                   "seed": {
+                    "maximum": 9223372036854775807,
+                    "minimum": -9223372036854775808,
                     "type": "integer"
                   },
                   "trajectory_revision": {
@@ -142,7 +144,10 @@
     },
     "version": {
       "const": 1,
-      "type": "integer"
+      "maximum": 9223372036854775807,
+      "minimum": -9223372036854775808,
+      "type": "integer",
+      "x-evaly-version": true
     }
   },
   "required": [
