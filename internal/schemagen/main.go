@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -43,12 +44,21 @@ func main() {
 	for name, value := range types {
 		document := fromType(reflect.TypeOf(value))
 		document["$schema"] = "https://json-schema.org/draft/2020-12/schema"
-		document["$id"] = "urn:evaly:" + name + ":1"
+		version := 1
+		switch name {
+		case "experiment", "scenario", "assessment", "observation-result", "search":
+			version = 2
+		}
+		document["$id"] = "urn:evaly:" + name + ":" + strconv.Itoa(version)
 		b, e := json.MarshalIndent(document, "", "  ")
 		if e != nil {
 			panic(e)
 		}
-		if e = os.WriteFile(filepath.Join(directory, name+"-v1.json"), append(b, '\n'), 0600); e != nil {
+		if e = os.WriteFile(
+			filepath.Join(directory, name+"-v"+strconv.Itoa(version)+".json"),
+			append(b, '\n'),
+			0600,
+		); e != nil {
 			panic(e)
 		}
 	}
@@ -140,6 +150,10 @@ func fromType(t reflect.Type) schema {
 func constrain(parent, name string, s schema) {
 	if name == "Version" && s["type"] == "integer" {
 		s["const"] = 1
+		if parent == "ExperimentManifest" || parent == "ScenarioRecord" || parent == "Assessment" ||
+			parent == "Result" {
+			s["const"] = 2
+		}
 	}
 	switch parent + "." + name {
 	case "Envelope.Kind":
@@ -169,8 +183,17 @@ func constrain(parent, name string, s schema) {
 		s["const"] = "controlled"
 	case "Grade.Status":
 		s["enum"] = []string{"scored", "not_applicable", "insufficient_evidence", "grader_error"}
+	case "TrialRecord.GradingState":
+		s["enum"] = []string{"complete", "partial"}
 	case "TrialRecord.Status":
-		s["enum"] = []string{"completed", "target_error", "setup_error", "cancelled", "budget_exhausted"}
+		s["enum"] = []string{
+			"completed",
+			"target_error",
+			"setup_error",
+			"cancelled",
+			"budget_exhausted",
+			"infrastructure_stop",
+		}
 	case "LifecycleIdentity.Isolation":
 		s["enum"] = []string{"isolated", "serial/shared"}
 	case "Metric.Direction":
@@ -185,6 +208,8 @@ func constrain(parent, name string, s schema) {
 		s["enum"] = []string{"completed", "step_limit", "deadline", "error", "codec_error"}
 	case "Response.Status":
 		s["enum"] = []string{"completed", "target_error"}
+	case "Assessment.State":
+		s["enum"] = []string{"complete", "partial"}
 	case "Assessment.Mode":
 		s["enum"] = []string{"rescore", "observation"}
 	case "RunPlan.AssertionPolicy":

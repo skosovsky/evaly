@@ -125,6 +125,9 @@ type Capture struct {
 }
 
 func NewCapture(c CaptureConfig) (*Capture, error) {
+	if err := ValidatePort(c.Policy); err != nil {
+		return nil, err
+	}
 	if c.Policy == nil || c.Policy.Revision() == "" || c.MaxEvents <= 0 || c.MaxBytes <= 0 {
 		return nil, ErrInvalid
 	}

@@ -80,6 +80,7 @@ type Config[I, O, R any] struct {
 	GraderUnits           float64
 }
 type Result struct {
+	Version     int `json:"version"`
 	State       string
 	Observation Record
 	Assessment  evaly.Assessment
@@ -107,6 +108,14 @@ type Worker[I, O, R any] struct {
 }
 
 func Start[I, O, R any](ctx context.Context, c Config[I, O, R]) (*Worker[I, O, R], error) {
+	if err := evaly.ValidatePort(c.Clock); err != nil {
+		return nil, err
+	}
+	if c.Budget != nil {
+		if err := evaly.ValidatePort(c.Budget); err != nil {
+			return nil, err
+		}
+	}
 	if c.Capacity <= 0 || c.Capacity > 100000 || c.Concurrency <= 0 || c.Concurrency > 1024 || c.Deadline <= 0 ||
 		c.Clock == nil ||
 		len(c.Graders) == 0 ||
@@ -115,10 +124,15 @@ func Start[I, O, R any](ctx context.Context, c Config[I, O, R]) (*Worker[I, O, R
 		math.IsInf(c.GraderUnits, 0) {
 		return nil, evaly.ErrInvalid
 	}
-	for _, g := range c.Graders {
-		if g == nil {
-			return nil, evaly.ErrInvalid
+	revisions := make([]evaly.GraderRevision, len(c.Graders))
+	for i, g := range c.Graders {
+		if e := evaly.ValidatePort(g); e != nil {
+			return nil, e
 		}
+		revisions[i] = g.Revision()
+	}
+	if e := evaly.ValidateGraderRevisions(revisions); e != nil {
+		return nil, e
 	}
 	c.Graders = append([]evaly.Grader[I, O, R](nil), c.Graders...)
 	runctx, cancel := context.WithCancel(ctx)
@@ -192,7 +206,7 @@ func (w *Worker[I, O, R]) loop() {
 				case t := <-w.queue:
 					w.finish(
 						t,
-						Result{State: "cancelled", Observation: t.observation.Record(), Reason: "worker_cancelled"},
+						w.cancelledResult(t),
 					)
 				default:
 					return
@@ -203,8 +217,49 @@ func (w *Worker[I, O, R]) loop() {
 		}
 	}
 }
-func (w *Worker[I, O, R]) evaluate(t task[I, O, R]) Result {
-	r := Result{Observation: t.observation.Record()}
+func (w *Worker[I, O, R]) cancelledResult(t task[I, O, R]) Result {
+	return w.sealResult(
+		t,
+		Result{Version: 2, State: "cancelled", Observation: t.observation.Record(), Reason: "worker_cancelled"},
+	)
+}
+func (w *Worker[I, O, R]) sealResult(t task[I, O, R], r Result) Result {
+	a := evaly.Assessment{
+		Version: 2,
+		Source:  t.observation.record.ID,
+		Parent:  t.observation.record.Parent,
+		View:    t.observation.saved.Revision(),
+		Mode:    "observation",
+		Grades:  r.Assessment.Grades,
+		State:   "complete",
+	}
+	seen := map[string]bool{}
+	for _, g := range a.Grades {
+		seen[g.Revision.ID] = true
+	}
+	for _, g := range w.config.Graders {
+		rev := g.Revision()
+		a.Planned = append(a.Planned, rev)
+		if !seen[rev.ID] {
+			a.Skipped = append(a.Skipped, evaly.SkippedGrader{Revision: rev, Reason: r.Reason})
+		}
+	}
+	if r.State != "graded" {
+		a.State = "partial"
+		a.StopReason = r.Reason
+	}
+	sealed, e := evaly.SealAssessment(a)
+	if e != nil {
+		r.State = "failed"
+		r.Reason = "assessment_encoding"
+		return r
+	}
+	r.Assessment = sealed
+	return r
+}
+func (w *Worker[I, O, R]) evaluate(t task[I, O, R]) (r Result) {
+	r = Result{Version: 2, Observation: t.observation.Record()}
+	defer func() { r = w.sealResult(t, r) }()
 	if w.ctx.Err() != nil {
 		r.State = "cancelled"
 		r.Reason = "worker_cancelled"
@@ -235,11 +290,14 @@ func (w *Worker[I, O, R]) evaluate(t task[I, O, R]) Result {
 	}()
 	defer close(watchDone)
 	defer cancel()
-	grades := []evaly.Grade{}
 	for _, g := range w.config.Graders {
 		if !w.config.Clock.Now().Before(t.expires) || ctx.Err() != nil {
 			r.State = "expired"
 			r.Reason = "observation_deadline"
+			if w.ctx.Err() != nil {
+				r.State = "cancelled"
+				r.Reason = "worker_cancelled"
+			}
 			return r
 		}
 		var reservation evaly.Reservation
@@ -266,6 +324,10 @@ func (w *Worker[I, O, R]) evaluate(t task[I, O, R]) Result {
 		if ctx.Err() != nil || !w.config.Clock.Now().Before(t.expires) {
 			r.State = "expired"
 			r.Reason = "observation_deadline"
+			if w.ctx.Err() != nil {
+				r.State = "cancelled"
+				r.Reason = "worker_cancelled"
+			}
 			return r
 		}
 		a, e := evaly.Rescore(
@@ -281,7 +343,27 @@ func (w *Worker[I, O, R]) evaluate(t task[I, O, R]) Result {
 			r.Reason = "invalid_observation"
 			return r
 		}
-		grades = append(grades, a.Grades...)
+		r.Assessment.Grades = append(r.Assessment.Grades, a.Grades...)
+		if len(a.Grades) == 0 {
+			r.State = "failed"
+			r.Reason = a.StopReason
+			if a.StopReason == "context_cancelled" {
+				r.State = "expired"
+				r.Reason = "observation_deadline"
+			}
+			if w.ctx.Err() != nil {
+				r.State = "cancelled"
+				r.Reason = "worker_cancelled"
+			}
+			// A claimed reservation retains unknown liability; never release a claim.
+			if w.config.Budget != nil {
+				reconcileCtx, done := context.WithTimeout(context.WithoutCancel(w.ctx), w.config.Deadline)
+				_ = w.config.Budget.Reconcile(reconcileCtx, reservation, evaly.Usage{})
+				done()
+			}
+			return r
+		}
+
 		if w.config.Budget != nil {
 			reconcileCtx, done := context.WithTimeout(context.WithoutCancel(w.ctx), w.config.Deadline)
 			e = w.config.Budget.Reconcile(reconcileCtx, reservation, a.Grades[0].Usage)
@@ -293,27 +375,14 @@ func (w *Worker[I, O, R]) evaluate(t task[I, O, R]) Result {
 			}
 		}
 	}
-	r.Assessment = evaly.Assessment{
-		Version: 1,
-		Source:  t.observation.record.ID,
-		Parent:  t.observation.record.Parent,
-		View:    t.observation.saved.Revision(),
-		Mode:    "observation",
-		Grades:  grades,
-	}
-	b, _ := json.Marshal(r.Assessment)
-	canonical, e := evaly.CanonicalJSON(b)
-	if e != nil {
-		r.State = "failed"
-		r.Reason = "assessment_encoding"
-		return r
-	}
-	hash := sha256.Sum256(canonical)
-	r.Assessment.Revision = hex.EncodeToString(hash[:])
 	r.State = "graded"
 	if ctx.Err() != nil || !w.config.Clock.Now().Before(t.expires) {
 		r.State = "expired"
 		r.Reason = "observation_deadline"
+		if w.ctx.Err() != nil {
+			r.State = "cancelled"
+			r.Reason = "worker_cancelled"
+		}
 	}
 	return r
 }

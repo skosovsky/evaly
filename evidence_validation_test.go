@@ -49,7 +49,7 @@ func TestRestoredEvidenceRejectsFalseCompleteness(t *testing.T) {
 				"tool",
 				func(Event) bool { return false },
 			)
-			grade := Assess(context.Background(), []Grader[int, int, int]{g}, View[int, int, int]{Evidence: r})[0]
+			grade := Assess(context.Background(), []Grader[int, int, int]{g}, func() (View[int, int, int], error) { return View[int, int, int]{Evidence: r}, nil })[0]
 			// Assert: checksums cannot confer validity on malformed capture claims.
 			if err == nil || grade.Status == Scored {
 				t.Fatalf("malformed %s accepted: validate=%v grade=%+v", variant, err, grade)
@@ -80,7 +80,7 @@ func TestCaptureDiagnosticsAreBounded(t *testing.T) {
 type deadlineStep struct{}
 
 func (deadlineStep) Revision() string { return "deadline-step-v1" }
-func (deadlineStep) Step(ctx context.Context, s int) (int, int, bool, error) {
+func (deadlineStep) Step(ctx context.Context, s int, execution ScenarioContext) (int, int, bool, error) {
 	<-ctx.Done()
 	return s + 1, 1, true, nil
 }
@@ -133,7 +133,11 @@ func TestAssessNilGraderReturnsTypedError(t *testing.T) {
 		}
 	}()
 	// Act.
-	grades := Assess(context.Background(), []Grader[int, int, int]{nil}, View[int, int, int]{})
+	grades := Assess(
+		context.Background(),
+		[]Grader[int, int, int]{nil},
+		func() (View[int, int, int], error) { return View[int, int, int]{}, nil },
+	)
 	// Assert.
 	if len(grades) != 1 || grades[0].Status != GraderError {
 		t.Fatalf("invalid grader outcome: %+v", grades)

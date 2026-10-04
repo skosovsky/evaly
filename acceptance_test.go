@@ -230,7 +230,9 @@ func (abstainer) JudgePair(ctx context.Context, r evaly.PairRequest[string]) (ev
 }
 func TestPairAbstentionIsVisible(t *testing.T) {
 	// Arrange / Act.
-	result := evaly.CheckPair(context.Background(), abstainer{}, "trusted", "a", "b")
+	pairA, _ := evaly.SealSnapshot("a", evaly.JSONCodec[string]{ID: "pair", Version: "1"})
+	pairB, _ := evaly.SealSnapshot("b", evaly.JSONCodec[string]{ID: "pair", Version: "1"})
+	result := evaly.CheckPair(context.Background(), abstainer{}, "trusted", pairA, pairB)
 	// Assert.
 	if !result.Abstention || result.Disagreement || result.Reviewed != 2 || result.Forward.Preferred != "abstain" ||
 		result.Reverse.Preferred != "abstain" {

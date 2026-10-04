@@ -1,5 +1,5 @@
 {
-  "$id": "urn:evaly:observation-result:1",
+  "$id": "urn:evaly:observation-result:2",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
@@ -66,6 +66,9 @@
                   "array",
                   "null"
                 ]
+              },
+              "dispatched": {
+                "type": "boolean"
               },
               "evidence_refs": {
                 "items": {
@@ -185,6 +188,7 @@
               }
             },
             "required": [
+              "dispatched",
               "revision",
               "status",
               "usage"
@@ -206,14 +210,113 @@
         "parent": {
           "type": "string"
         },
+        "planned": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "configuration": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "implementation": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              },
+              "prompt": {
+                "type": "string"
+              },
+              "rubric": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "implementation",
+              "rubric",
+              "model",
+              "prompt",
+              "configuration"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "revision": {
           "type": "string"
+        },
+        "skipped": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "reason": {
+                "type": "string"
+              },
+              "revision": {
+                "additionalProperties": false,
+                "properties": {
+                  "configuration": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "implementation": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "prompt": {
+                    "type": "string"
+                  },
+                  "rubric": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "implementation",
+                  "rubric",
+                  "model",
+                  "prompt",
+                  "configuration"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "revision",
+              "reason"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "source": {
           "type": "string"
         },
+        "state": {
+          "enum": [
+            "complete",
+            "partial"
+          ],
+          "type": "string"
+        },
+        "stop_reason": {
+          "type": "string"
+        },
         "version": {
-          "const": 1,
+          "const": 2,
           "type": "integer"
         },
         "view": {
@@ -227,7 +330,11 @@
         "source",
         "view",
         "mode",
-        "grades"
+        "planned",
+        "grades",
+        "state",
+        "stop_reason",
+        "skipped"
       ],
       "type": "object"
     },
@@ -305,9 +412,14 @@
     },
     "State": {
       "type": "string"
+    },
+    "version": {
+      "const": 2,
+      "type": "integer"
     }
   },
   "required": [
+    "version",
     "State",
     "Observation",
     "Assessment",

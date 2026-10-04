@@ -13,6 +13,22 @@ import (
 	"github.com/skosovsky/evaly"
 )
 
+// Structural verifies repeatable local validation of configured and invalid ports.
+// The host supplies capabilities with known validity, without invoking paid work.
+func Structural(t *testing.T, valid evaly.StructuralValidator, invalid ...any) {
+	t.Helper()
+	for range 2 {
+		if err := evaly.ValidatePort(valid); err != nil {
+			t.Fatal("configured port rejected", err)
+		}
+		for _, port := range invalid {
+			if err := evaly.ValidatePort(port); err == nil {
+				t.Fatal("invalid port accepted")
+			}
+		}
+	}
+}
+
 // Artifact checks publication, immutable identity, checksum rejection and reopen.
 func Artifact(t *testing.T, open func() (evaly.ArtifactStore, error)) {
 	t.Helper()
@@ -151,16 +167,16 @@ func Target[I, O, R, E any](t *testing.T, c evaly.RunConfig[I, O, R, E]) {
 		}
 	}
 }
-func Grader[I, O, R any](t *testing.T, g evaly.Grader[I, O, R], view evaly.View[I, O, R]) {
+func Grader[I, O, R any](t *testing.T, g evaly.Grader[I, O, R], factory func() (evaly.View[I, O, R], error)) {
 	t.Helper()
-	grades := evaly.Assess(context.Background(), []evaly.Grader[I, O, R]{g}, view)
+	grades := evaly.Assess(context.Background(), []evaly.Grader[I, O, R]{g}, factory)
 	if len(grades) != 1 || evaly.ValidateGrade(grades[0]) != nil || grades[0].Revision != g.Revision() {
 		t.Fatal(grades)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
 	defer cancel()
 	<-ctx.Done()
-	result := evaly.Assess(ctx, []evaly.Grader[I, O, R]{g}, view)[0]
+	result := evaly.Assess(ctx, []evaly.Grader[I, O, R]{g}, factory)[0]
 	if result.Status != evaly.GraderError || len(result.Metrics) != 0 {
 		t.Fatal("timeout collapsed into score", result)
 	}

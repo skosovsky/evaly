@@ -36,6 +36,7 @@ type Assertion struct {
 	Reason string `json:"reason"`
 }
 type Grade struct {
+	Dispatched   bool           `json:"dispatched"`
 	Revision     GraderRevision `json:"revision"`
 	Status       GradeStatus    `json:"status"`
 	Metrics      []Metric       `json:"metrics,omitempty"`
@@ -60,6 +61,12 @@ type GraderFunc[I, O, R any] struct {
 	Evaluate func(context.Context, View[I, O, R]) (Grade, error)
 }
 
+func (g GraderFunc[I, O, R]) Validate() error {
+	if g.Evaluate == nil {
+		return ErrInvalid
+	}
+	return ValidateGraderRevisions([]GraderRevision{g.Identity})
+}
 func (g GraderFunc[I, O, R]) Revision() GraderRevision { return g.Identity }
 func (g GraderFunc[I, O, R]) Grade(ctx context.Context, v View[I, O, R]) (Grade, error) {
 	if g.Evaluate == nil {
@@ -116,37 +123,67 @@ func ValidateGrade(g Grade) error {
 }
 
 // Assess preserves errors as distinct grading results. It never calls a target.
-func Assess[I, O, R any](ctx context.Context, graders []Grader[I, O, R], view View[I, O, R]) []Grade {
+// The factory must return a fresh, permitted snapshot for each grader; evaly
+// supplies no target capability and cannot sandbox arbitrary caller closures.
+func Assess[I, O, R any](
+	ctx context.Context,
+	graders []Grader[I, O, R],
+	factory func() (View[I, O, R], error),
+) []Grade {
 	out := make([]Grade, 0, len(graders))
-	for _, g := range graders {
-		if g == nil {
-			out = append(
-				out,
-				Grade{
-					Revision: GraderRevision{ID: "invalid", Implementation: "invalid", Rubric: "invalid"},
-					Status:   GraderError,
-					Reasons:  []string{"invalid_grader"},
-				},
-			)
-			continue
+	revisions := make([]GraderRevision, len(graders))
+	valid := factory != nil
+	for i, g := range graders {
+		if ValidatePort(g) != nil {
+			valid = false
+			revisions[i] = GraderRevision{ID: "invalid", Implementation: "invalid", Rubric: "invalid"}
+		} else {
+			revisions[i] = g.Revision()
 		}
+	}
+	if ValidateGraderRevisions(revisions) != nil {
+		valid = false
+	}
+	if !valid {
+		for _, rev := range revisions {
+			out = append(out, Grade{Revision: rev, Status: GraderError, Reasons: []string{"invalid_grading_plan"}})
+		}
+		return out
+	}
+	for _, g := range graders {
 		rev := g.Revision()
 		var result Grade
+		dispatched := false
 		var e error
 		if ctx.Err() != nil {
 			e = ctx.Err()
 		} else {
-			result, e = g.Grade(ctx, view)
+			var view View[I, O, R]
+			view, e = factory()
+			if e == nil {
+				e = ctx.Err()
+			}
+			if e == nil {
+				dispatched = true
+				result, e = g.Grade(ctx, view)
+			}
 		}
 		if e == nil {
 			e = ctx.Err()
 		}
 		result.Revision = rev
+		result.Dispatched = dispatched
 		if e == nil {
 			e = ValidateGrade(result)
 		}
 		if e != nil {
-			result = Grade{Revision: rev, Status: GraderError, Reasons: []string{"grader_failure"}, Usage: result.Usage}
+			result = Grade{
+				Dispatched: dispatched,
+				Revision:   rev,
+				Status:     GraderError,
+				Reasons:    []string{"grader_failure"},
+				Usage:      result.Usage,
+			}
 			if !finiteNonnegative(result.Usage.Units) {
 				result.Usage = Usage{}
 			}
@@ -220,6 +257,15 @@ type LLMGrader[I, O, R any] struct {
 	Port         Judge[I, O, R]
 }
 
+func (g LLMGrader[I, O, R]) Validate() error {
+	if g.Instructions == "" {
+		return ErrInvalid
+	}
+	if e := ValidateGraderRevisions([]GraderRevision{g.Identity}); e != nil {
+		return e
+	}
+	return ValidatePort(g.Port)
+}
 func (g LLMGrader[I, O, R]) Revision() GraderRevision { return g.Identity }
 func (g LLMGrader[I, O, R]) Grade(ctx context.Context, v View[I, O, R]) (Grade, error) {
 	if g.Port == nil || g.Instructions == "" {
@@ -233,6 +279,12 @@ type ScriptedJudge[I, O, R any] struct {
 	Evaluate func(context.Context, JudgeRequest[I, O, R]) (Grade, error)
 }
 
+func (s ScriptedJudge[I, O, R]) Validate() error {
+	if s.Evaluate == nil {
+		return ErrInvalid
+	}
+	return nil
+}
 func (s ScriptedJudge[I, O, R]) Judge(ctx context.Context, r JudgeRequest[I, O, R]) (Grade, error) {
 	if s.Evaluate == nil {
 		return Grade{}, ErrInvalid
@@ -253,35 +305,59 @@ type PairJudge[T any] interface {
 	JudgePair(context.Context, PairRequest[T]) (PairJudgment, error)
 }
 type PairCheck struct {
-	Forward, Reverse         PairJudgment
-	Disagreement, Abstention bool
-	Errors                   []string
-	Reviewed                 int
+	Forward, Reverse                     PairJudgment
+	ForwardDispatched, ReverseDispatched bool
+	Disagreement, Abstention             bool
+	Errors                               []string
+	Reviewed                             int
 }
 
-func CheckPair[T any](ctx context.Context, j PairJudge[T], instructions string, a, b T) PairCheck {
+func CheckPair[T any](ctx context.Context, j PairJudge[T], instructions string, a, b Snapshot[T]) PairCheck {
 	r := PairCheck{}
-	if j == nil || instructions == "" {
+	if ValidatePort(j) != nil || instructions == "" || a.Validate() != nil || b.Validate() != nil {
 		r.Errors = []string{"invalid_pair_protocol"}
 		return r
 	}
-	run := func(a, b T) PairJudgment {
-		v, e := j.JudgePair(ctx, PairRequest[T]{instructions, a, b})
+	run := func(a, b Snapshot[T], dispatched *bool) PairJudgment {
+		if ctx.Err() != nil {
+			r.Errors = append(r.Errors, "pair_cancelled_before_dispatch")
+			return PairJudgment{}
+		}
+		av, e := a.Value()
+		if e != nil {
+			r.Errors = append(r.Errors, "pair_snapshot_failure")
+			return PairJudgment{}
+		}
+		bv, e := b.Value()
+		if e != nil {
+			r.Errors = append(r.Errors, "pair_snapshot_failure")
+			return PairJudgment{}
+		}
+		if ctx.Err() != nil {
+			r.Errors = append(r.Errors, "pair_cancelled_before_dispatch")
+			return PairJudgment{}
+		}
+		*dispatched = true
+		v, e := j.JudgePair(ctx, PairRequest[T]{instructions, av, bv})
 		if e == nil {
 			e = ctx.Err()
 		}
-		if e != nil || (v.Preferred != "A" && v.Preferred != "B" && v.Preferred != "abstain") ||
-			!finiteNonnegative(v.Usage.Units) {
+		if !finiteNonnegative(v.Usage.Units) {
+			v.Usage = Usage{}
+			e = ErrInvalid
+		}
+		if e != nil || (v.Preferred != "A" && v.Preferred != "B" && v.Preferred != "abstain") {
 			r.Errors = append(r.Errors, "pair_judge_failure")
-			return PairJudgment{Preferred: "abstain"}
+			v.Preferred = ""
+			return v
 		}
 		r.Reviewed++
 		return v
 	}
-	r.Forward = run(a, b)
-	r.Reverse = run(b, a)
+	r.Forward = run(a, b, &r.ForwardDispatched)
+	r.Reverse = run(b, a, &r.ReverseDispatched)
 	r.Abstention = r.Forward.Preferred == "abstain" || r.Reverse.Preferred == "abstain"
-	r.Disagreement = !r.Abstention && r.Forward.Preferred == r.Reverse.Preferred
+	r.Disagreement = r.Reviewed == 2 && !r.Abstention && r.Forward.Preferred == r.Reverse.Preferred
 	return r
 }
 

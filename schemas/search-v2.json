@@ -1,5 +1,5 @@
 {
-  "$id": "urn:evaly:search:1",
+  "$id": "urn:evaly:search:2",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
@@ -742,7 +742,7 @@
                         ]
                       },
                       "version": {
-                        "const": 1,
+                        "const": 2,
                         "type": "integer"
                       }
                     },
@@ -981,6 +981,9 @@
                                   "null"
                                 ]
                               },
+                              "dispatched": {
+                                "type": "boolean"
+                              },
                               "evidence_refs": {
                                 "items": {
                                   "type": "string"
@@ -1099,6 +1102,7 @@
                               }
                             },
                             "required": [
+                              "dispatched",
                               "revision",
                               "status",
                               "usage"
@@ -1109,6 +1113,16 @@
                             "array",
                             "null"
                           ]
+                        },
+                        "grading_state": {
+                          "enum": [
+                            "complete",
+                            "partial"
+                          ],
+                          "type": "string"
+                        },
+                        "grading_stop_reason": {
+                          "type": "string"
                         },
                         "id": {
                           "type": "string"
@@ -1121,6 +1135,57 @@
                         },
                         "seed": {
                           "type": "integer"
+                        },
+                        "skipped_graders": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "reason": {
+                                "type": "string"
+                              },
+                              "revision": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "configuration": {
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "implementation": {
+                                    "type": "string"
+                                  },
+                                  "model": {
+                                    "type": "string"
+                                  },
+                                  "prompt": {
+                                    "type": "string"
+                                  },
+                                  "rubric": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "implementation",
+                                  "rubric",
+                                  "model",
+                                  "prompt",
+                                  "configuration"
+                                ],
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "revision",
+                              "reason"
+                            ],
+                            "type": "object"
+                          },
+                          "type": [
+                            "array",
+                            "null"
+                          ]
                         },
                         "states": {
                           "items": {
@@ -1137,7 +1202,8 @@
                             "target_error",
                             "setup_error",
                             "cancelled",
-                            "budget_exhausted"
+                            "budget_exhausted",
+                            "infrastructure_stop"
                           ],
                           "type": "string"
                         },
@@ -1173,7 +1239,8 @@
                         "status",
                         "cleanup",
                         "evidence",
-                        "target_usage"
+                        "target_usage",
+                        "grading_state"
                       ],
                       "type": "object"
                     },
@@ -1521,7 +1588,7 @@
                   ]
                 },
                 "version": {
-                  "const": 1,
+                  "const": 2,
                   "type": "integer"
                 }
               },
@@ -1760,6 +1827,9 @@
                             "null"
                           ]
                         },
+                        "dispatched": {
+                          "type": "boolean"
+                        },
                         "evidence_refs": {
                           "items": {
                             "type": "string"
@@ -1878,6 +1948,7 @@
                         }
                       },
                       "required": [
+                        "dispatched",
                         "revision",
                         "status",
                         "usage"
@@ -1888,6 +1959,16 @@
                       "array",
                       "null"
                     ]
+                  },
+                  "grading_state": {
+                    "enum": [
+                      "complete",
+                      "partial"
+                    ],
+                    "type": "string"
+                  },
+                  "grading_stop_reason": {
+                    "type": "string"
                   },
                   "id": {
                     "type": "string"
@@ -1900,6 +1981,57 @@
                   },
                   "seed": {
                     "type": "integer"
+                  },
+                  "skipped_graders": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "reason": {
+                          "type": "string"
+                        },
+                        "revision": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "configuration": {
+                              "type": "string"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "implementation": {
+                              "type": "string"
+                            },
+                            "model": {
+                              "type": "string"
+                            },
+                            "prompt": {
+                              "type": "string"
+                            },
+                            "rubric": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "implementation",
+                            "rubric",
+                            "model",
+                            "prompt",
+                            "configuration"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "revision",
+                        "reason"
+                      ],
+                      "type": "object"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
                   },
                   "states": {
                     "items": {
@@ -1916,7 +2048,8 @@
                       "target_error",
                       "setup_error",
                       "cancelled",
-                      "budget_exhausted"
+                      "budget_exhausted",
+                      "infrastructure_stop"
                     ],
                     "type": "string"
                   },
@@ -1952,7 +2085,8 @@
                   "status",
                   "cleanup",
                   "evidence",
-                  "target_usage"
+                  "target_usage",
+                  "grading_state"
                 ],
                 "type": "object"
               },
@@ -2363,6 +2497,23 @@
     "ProposalRevision": {
       "type": "string"
     },
+    "ProposalUsage": {
+      "additionalProperties": false,
+      "properties": {
+        "known": {
+          "type": "boolean"
+        },
+        "units": {
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "known",
+        "units"
+      ],
+      "type": "object"
+    },
     "Ranking": {
       "items": {
         "type": "string"
@@ -2400,7 +2551,7 @@
       "type": "string"
     },
     "Version": {
-      "const": 1,
+      "const": 2,
       "type": "integer"
     },
     "Winner": {
@@ -2424,6 +2575,7 @@
     "HoldoutComparison",
     "Contaminated",
     "ProposalRevision",
+    "ProposalUsage",
     "States"
   ],
   "type": "object"

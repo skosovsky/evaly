@@ -8,8 +8,10 @@ import (
 
 type completedStep struct{}
 
-func (completedStep) Revision() string                                  { return "completed-step-v1" }
-func (completedStep) Step(context.Context, int) (int, int, bool, error) { return 1, 1, true, nil }
+func (completedStep) Revision() string { return "completed-step-v1" }
+func (completedStep) Step(context.Context, int, ScenarioContext) (int, int, bool, error) {
+	return 1, 1, true, nil
+}
 
 func TestScenarioRestoreRejectsContradictoryTrajectory(t *testing.T) {
 	// Arrange: a complete encoded scenario with a valid codec contract.

@@ -1,5 +1,5 @@
 {
-  "$id": "urn:evaly:scenario:1",
+  "$id": "urn:evaly:scenario:2",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
@@ -128,6 +128,9 @@
       ],
       "type": "object"
     },
+    "state_step": {
+      "type": "integer"
+    },
     "steps": {
       "type": "integer"
     },
@@ -142,7 +145,7 @@
       "type": "string"
     },
     "version": {
-      "const": 1,
+      "const": 2,
       "type": "integer"
     }
   },
@@ -156,6 +159,7 @@
     "state",
     "outputs",
     "steps",
+    "state_step",
     "stop"
   ],
   "type": "object"

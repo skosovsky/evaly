@@ -1,3 +1,12 @@
+# Current execution revision 2 acceptance
+
+The original matrix below is historical scope coverage, not acceptance of current
+changes. Task 01 is governed by `.cursor/task/01-execution-and-assessments.md` and
+`docs/execution-contract.md`; its independent completeness and correctness reports
+are saved in `docs/reviews/execution-completeness.md` and
+`docs/reviews/execution-correctness.md` after review. No current acceptance is
+claimed until both reviewers approve the same implementation fingerprint.
+
 # Acceptance matrix
 
 Authority: the entire `.cursor/tasks/task1.md`. Each row is a requirement, not a coverage line. Status: final independent acceptance 171/171 (100%), all seven EVL cards and all ten mandatory synthetic fixtures complete; all fourteen confirmed correctness defects closed. Initial audit was 150/171; the denominator is unchanged. A partially implemented row is not complete. Auditors must inspect source requirements and may identify omissions; no row may be removed to increase completeness.

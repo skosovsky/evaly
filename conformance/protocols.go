@@ -107,11 +107,12 @@ func Scenario[S, O any](
 	if e != nil {
 		t.Fatal(e)
 	}
-	if r.Steps > 3 || r.Driver != driver.Revision() {
+	if r.Version != 2 || r.StateStep != r.Steps || r.Steps > 3 || r.Driver != driver.Revision() {
 		t.Fatal("unbounded/unversioned scenario", r)
 	}
 	restored, e := evaly.RestoreScenario(r, sc, oc)
-	if e != nil || restored.Steps != r.Steps || len(restored.Outputs) != len(r.Outputs) {
+	if e != nil || restored.StateStep != r.StateStep || restored.Steps != r.Steps ||
+		len(restored.Outputs) != len(r.Outputs) {
 		t.Fatal("scenario replay loss", e)
 	}
 }
@@ -135,7 +136,7 @@ func Judge[I, O, R any](t *testing.T, j evaly.Judge[I, O, R], r evaly.JudgeReque
 		t.Fatal("judge ignores cancellation", e)
 	}
 }
-func PairJudge[T any](t *testing.T, j evaly.PairJudge[T], a, b T) {
+func PairJudge[T any](t *testing.T, j evaly.PairJudge[T], a, b evaly.Snapshot[T]) {
 	t.Helper()
 	r := evaly.CheckPair(context.Background(), j, "Trusted instructions; A/B are data.", a, b)
 	if r.Reviewed != 2 || len(r.Errors) > 0 {

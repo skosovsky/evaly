@@ -4,6 +4,16 @@ Independent evaluation for typed Go targets. Cases, outputs, references and fixt
 handles are your types; evaly owns immutable snapshots, lifecycle and measurement.
 Core has no third-party dependencies, network calls, API keys or harness requirement.
 
+Execution revision 2 validates configuration before dispatch and reads only the
+selected immutable case for each attempt. `Assess` requires a fresh typed view
+factory; `SavedView.View` is a reference implementation. Pair judges receive
+codec-sealed snapshots, with independent values for both orders and explicit
+dispatch/usage records. Assessments retain planned graders, partial results and
+skipped reasons even after budget, deadline or accounting failure. Scenario drivers
+receive seed, mode and step directly. See the normative
+[execution contract](docs/execution-contract.md). Experiment, assessment, scenario,
+observation-result and search formats use revision 2; old formats are unsupported.
+
 ```go
 codec := evaly.JSONCodec[int]{ID: "integer", Version: "1"}
 dataset, err := (evaly.DatasetDraft[int, int]{
@@ -54,6 +64,11 @@ setup failures. Comparisons name a paired case bootstrap and its assumptions;
 thresholds are product policy, not proof of significance. Scores retain declared
 scales. The stock comparison gates assertion pass rate; custom numeric scale
 aggregation is host policy and must be separately versioned.
+
+`StopOnInfrastructure` stops future target dispatch on setup, cleanup, grading,
+budget or usage-accounting failure; assertion failure alone does not stop a run.
+Already active callbacks receive cooperative cancellation, and undispatched trials
+retain an explicit infrastructure-stop record. Cleanup failure prevents setup retry.
 
 Capture defaults to dropping payloads and references. Explicit field allowlists
 require host classification, including any nested data. Grade projections must

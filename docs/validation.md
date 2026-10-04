@@ -1,5 +1,31 @@
 # Validation record
 
+## 5 October 2026 — execution revision 2
+
+Current task authority: `.cursor/task/01-execution-and-assessments.md`, common
+README and `docs/execution-contract.md`. Earlier records below are historical.
+
+- `env GOCACHE=/private/tmp/evaly-final-1.27.1-cache make validate` — PASS on
+  Go 1.27.1 darwin/arm64. Root and contracttest formatter, vet and race tests.
+  Full output: `/private/tmp/evaly-execution-validation.log`.
+- All six `go run ./examples/{calculation,crm,protocols,http,observation,optimizer}`
+  commands — exit 0 on the same source state. Calculation intentionally reports a
+  regression; CRM intentionally reports missing refund. These quality failures
+  are expected example results, not infrastructure failures.
+- `go test -run '^$' -bench BenchmarkDatasetCaseAt -benchtime=1x -benchmem .` —
+  PASS. N=10/100/1000: 320/3394/34987 allocations and
+  18000/184144/1881744 B/op; observed 46/314/2917 microseconds. These single-sample
+  observations are not performance guarantees. Counting-codec test separately
+  asserts linear decode count without timing thresholds.
+- `git diff --check` — PASS. Updated schemas generated from current types; no
+  legacy revision-1 schemas retained for changed formats.
+
+Independent completeness and correctness acceptance are recorded separately in
+`docs/reviews/execution-completeness.md` and `execution-correctness.md`. Their
+fingerprints cover implementation, tests, schemas, applicable contracts and task
+authority, excluding generated review reports and this validation journal. Any
+implementation repair requires new verification and both reviewers' rechecks.
+
 Current toolchain/dependency update: see the 5 October entry below. Earlier
 versions and acceptance results are preserved as historical evidence.
 

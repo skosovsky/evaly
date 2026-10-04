@@ -33,7 +33,9 @@ func SaveView[I, O, R any](
 	rc Codec[R],
 ) (SavedView[I, O, R], error) {
 	var out SavedView[I, O, R]
-	if projection == "" || ic == nil || oc == nil || rc == nil || view.Case.ID == "" || view.Case.Revision == "" {
+	if projection == "" || ValidatePort(ic) != nil || ValidatePort(oc) != nil || ValidatePort(rc) != nil ||
+		view.Case.ID == "" ||
+		view.Case.Revision == "" {
 		return out, ErrInvalid
 	}
 	for _, identity := range []CodecIdentity{ic.Identity(), oc.Identity(), rc.Identity()} {
@@ -101,7 +103,8 @@ func SaveView[I, O, R any](
 func (s SavedView[I, O, R]) Revision() string { return s.record.Revision }
 func (s SavedView[I, O, R]) View() (View[I, O, R], error) {
 	var out View[I, O, R]
-	if s.record.Revision == "" || s.input == nil || s.output == nil || s.reference == nil {
+	if s.record.Revision == "" || ValidatePort(s.input) != nil || ValidatePort(s.output) != nil ||
+		ValidatePort(s.reference) != nil {
 		return out, ErrUnsealed
 	}
 	r, e := cloneJSON(s.record)
@@ -135,13 +138,106 @@ func (s SavedView[I, O, R]) View() (View[I, O, R], error) {
 }
 
 type Assessment struct {
-	Version  int     `json:"version"`
-	Revision string  `json:"revision"`
-	Parent   string  `json:"parent"`
-	Source   string  `json:"source"`
-	View     string  `json:"view"`
-	Mode     string  `json:"mode"`
-	Grades   []Grade `json:"grades"`
+	Version    int              `json:"version"`
+	Revision   string           `json:"revision"`
+	Parent     string           `json:"parent"`
+	Source     string           `json:"source"`
+	View       string           `json:"view"`
+	Mode       string           `json:"mode"`
+	Planned    []GraderRevision `json:"planned"`
+	Grades     []Grade          `json:"grades"`
+	State      string           `json:"state"`
+	StopReason string           `json:"stop_reason"`
+	Skipped    []SkippedGrader  `json:"skipped"`
+}
+type SkippedGrader struct {
+	Revision GraderRevision `json:"revision"`
+	Reason   string         `json:"reason"`
+}
+
+func validateAssessmentContent(a Assessment) error {
+	if a.Version != 2 {
+		return ErrUnsupported
+	}
+	if a.Source == "" || a.View == "" || (a.Mode != "rescore" && a.Mode != "observation") || len(a.Planned) == 0 {
+		return ErrInvalid
+	}
+	if e := ValidateGraderRevisions(a.Planned); e != nil {
+		return e
+	}
+	planned := map[string]GraderRevision{}
+	seen := map[string]bool{}
+	for _, r := range a.Planned {
+		planned[r.ID] = r
+	}
+	for _, g := range a.Grades {
+		if !g.Dispatched || planned[g.Revision.ID] != g.Revision || seen[g.Revision.ID] {
+			return ErrInvalid
+		}
+		if e := ValidateGrade(g); e != nil {
+			return e
+		}
+		seen[g.Revision.ID] = true
+	}
+	for _, g := range a.Skipped {
+		if planned[g.Revision.ID] != g.Revision || seen[g.Revision.ID] || g.Reason == "" {
+			return ErrInvalid
+		}
+		seen[g.Revision.ID] = true
+	}
+	if len(seen) != len(planned) {
+		return ErrInvalid
+	}
+	switch a.State {
+	case "complete":
+		if a.StopReason != "" || len(a.Skipped) > 0 || len(a.Grades) != len(a.Planned) {
+			return ErrInvalid
+		}
+	case "partial":
+		if a.StopReason == "" {
+			return ErrInvalid
+		}
+	default:
+		return ErrUnsupported
+	}
+	return nil
+}
+
+// SealAssessment supplies canonical identity after all partial results are collected.
+func SealAssessment(a Assessment) (Assessment, error) {
+	a.Revision = ""
+	if a.Grades == nil {
+		a.Grades = []Grade{}
+	}
+	if a.Skipped == nil {
+		a.Skipped = []SkippedGrader{}
+	}
+	if e := validateAssessmentContent(a); e != nil {
+		return Assessment{}, e
+	}
+	b, e := canonical(a)
+	if e != nil {
+		return Assessment{}, e
+	}
+	a.Revision = digest(b)
+	return cloneJSON(a)
+}
+func ValidateAssessment(a Assessment) error {
+	revision := a.Revision
+	sealed, e := SealAssessment(a)
+	if e != nil {
+		return e
+	}
+	if revision == "" || sealed.Revision != revision {
+		return ErrCorrupt
+	}
+	return nil
+}
+func RestoreAssessment(a Assessment) (Assessment, error) {
+	if e := ValidateAssessment(a); e != nil {
+		return Assessment{}, e
+	}
+	return cloneJSON(a)
 }
 
 func Rescore[I, O, R any](
@@ -150,26 +246,55 @@ func Rescore[I, O, R any](
 	graders []Grader[I, O, R],
 	source, parent, mode string,
 ) (Assessment, error) {
-	a := Assessment{Version: 1, Source: source, Parent: parent, View: s.Revision(), Mode: mode}
+	a := Assessment{Version: 2, Source: source, Parent: parent, View: s.Revision(), Mode: mode, State: "complete"}
 	if source == "" || (mode != "rescore" && mode != "observation") || len(graders) == 0 {
-		return a, ErrInvalid
+		return Assessment{}, ErrInvalid
 	}
 	for _, g := range graders {
-		if g == nil {
-			return a, ErrInvalid
+		if e := ValidatePort(g); e != nil {
+			return Assessment{}, e
 		}
-		view, e := s.View()
-		if e != nil {
-			return a, e
+		a.Planned = append(a.Planned, g.Revision())
+	}
+	if e := ValidateGraderRevisions(a.Planned); e != nil {
+		return Assessment{}, e
+	}
+	// Validate the entire saved projection before the first judge dispatch.
+	if _, e := RestoreSavedView(s.Record(), s.input, s.output, s.reference); e != nil {
+		return Assessment{}, e
+	}
+	for i, g := range graders {
+		if ctx.Err() != nil {
+			a.State = "partial"
+			a.StopReason = "context_cancelled"
+			for _, rev := range a.Planned[i:] {
+				a.Skipped = append(a.Skipped, SkippedGrader{rev, a.StopReason})
+			}
+			break
 		}
-		a.Grades = append(a.Grades, Assess(ctx, []Grader[I, O, R]{g}, view)[0])
+		grade := Assess(ctx, []Grader[I, O, R]{g}, s.View)[0]
+		if !grade.Dispatched {
+			a.State = "partial"
+			a.StopReason = "grading_projection"
+			if ctx.Err() != nil {
+				a.StopReason = "context_cancelled"
+			}
+			for _, rev := range a.Planned[i:] {
+				a.Skipped = append(a.Skipped, SkippedGrader{rev, a.StopReason})
+			}
+			break
+		}
+		a.Grades = append(a.Grades, grade)
+		if ctx.Err() != nil {
+			a.State = "partial"
+			a.StopReason = "context_cancelled"
+			for _, rev := range a.Planned[i+1:] {
+				a.Skipped = append(a.Skipped, SkippedGrader{rev, a.StopReason})
+			}
+			break
+		}
 	}
-	b, e := canonical(a)
-	if e != nil {
-		return a, e
-	}
-	a.Revision = digest(b)
-	return a, nil
+	return SealAssessment(a)
 }
 
 // Record returns a portable permitted projection with explicit consumer codecs.
@@ -185,7 +310,8 @@ func RestoreSavedView[I, O, R any](
 	if r.Version != 1 {
 		return out, ErrUnsupported
 	}
-	if ic == nil || oc == nil || rc == nil || r.InputCodec != ic.Identity() || r.OutputCodec != oc.Identity() ||
+	if ValidatePort(ic) != nil || ValidatePort(oc) != nil || ValidatePort(rc) != nil || r.InputCodec != ic.Identity() ||
+		r.OutputCodec != oc.Identity() ||
 		r.ReferenceCodec != rc.Identity() {
 		return out, ErrUnsupported
 	}

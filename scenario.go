@@ -23,6 +23,7 @@ type ScenarioRecord struct {
 	State       json.RawMessage   `json:"state"`
 	Outputs     []json.RawMessage `json:"outputs"`
 	Steps       int               `json:"steps"`
+	StateStep   int               `json:"state_step"`
 	Stop        string            `json:"stop"`
 }
 
@@ -36,7 +37,12 @@ func RunScenario[S, O any](
 	sc Codec[S],
 	oc Codec[O],
 ) (ScenarioRecord, error) {
-	r := ScenarioRecord{Version: 1, Plan: p, Outputs: []json.RawMessage{}}
+	r := ScenarioRecord{Version: 2, Plan: p, Outputs: []json.RawMessage{}}
+	for _, port := range []any{driver, sc, oc} {
+		if err := ValidatePort(port); err != nil {
+			return r, err
+		}
+	}
 	if driver == nil || driver.Revision() == "" || sc == nil || oc == nil || p.MaxSteps <= 0 || p.MaxSteps > 10000 ||
 		p.Timeout <= 0 ||
 		(p.Mode != "search" && p.Mode != "replay") {
@@ -51,19 +57,35 @@ func RunScenario[S, O any](
 	r.Driver = driver.Revision()
 	r.StateCodec = sc.Identity()
 	r.OutputCodec = oc.Identity()
+	initial, err := sc.Encode(state)
+	if err != nil {
+		return r, err
+	}
+	r.State, err = CanonicalJSON(initial)
+	if err != nil {
+		return r, err
+	}
 	ctx, cancel := context.WithTimeout(ctx, p.Timeout)
 	defer cancel()
 	r.Stop = "step_limit"
 	var executionErr error
-	for range p.MaxSteps {
+	for step := range p.MaxSteps {
 		if e := ctx.Err(); e != nil {
 			r.Stop = "deadline"
 			executionErr = e
 			break
 		}
-		next, o, done, e := driver.Step(ctx, state)
+		next, o, done, e := driver.Step(ctx, state, ScenarioContext{Seed: p.Seed, Mode: p.Mode, Step: step})
 		state = next
 		r.Steps++
+		stateBytes, stateErr := sc.Encode(state)
+		if stateErr == nil {
+			stateBytes, stateErr = CanonicalJSON(stateBytes)
+		}
+		if stateErr == nil {
+			r.State = stateBytes
+			r.StateStep = r.Steps
+		}
 		b, encodeErr := oc.Encode(o)
 		if encodeErr != nil {
 			r.Stop = "codec_error"
@@ -77,6 +99,11 @@ func RunScenario[S, O any](
 			break
 		}
 		r.Outputs = append(r.Outputs, append(json.RawMessage(nil), b...))
+		if stateErr != nil {
+			r.Stop = "codec_error"
+			executionErr = stateErr
+			break
+		}
 		if ctx.Err() != nil {
 			r.Stop = "deadline"
 			executionErr = ctx.Err()
@@ -91,14 +118,6 @@ func RunScenario[S, O any](
 			r.Stop = "completed"
 			break
 		}
-	}
-	b, e := sc.Encode(state)
-	if e != nil {
-		return r, e
-	}
-	r.State, e = CanonicalJSON(b)
-	if e != nil {
-		return r, e
 	}
 	bytes, e := canonical(r)
 	if e != nil {
@@ -139,6 +158,7 @@ func RestoreScenario[S, O any](r ScenarioRecord, sc Codec[S], oc Codec[O]) (Scen
 		out.Generation = &generation
 	}
 	out.Steps = r.Steps
+	out.StateStep = r.StateStep
 	out.Stop = r.Stop
 	return out, nil
 }
@@ -162,12 +182,12 @@ func DraftFromScenario[I, R any](c Case[I, R], p Generation, trajectory Scenario
 
 // Integrity hashes are not substitutes for trajectory semantics.
 func validateScenario(r ScenarioRecord) error {
-	if r.Version != 1 {
+	if r.Version != 2 {
 		return ErrUnsupported
 	}
 	if r.Driver == "" || r.Revision == "" || r.Plan.MaxSteps <= 0 || r.Plan.MaxSteps > 10000 || r.Plan.Timeout <= 0 ||
 		r.Steps < 0 ||
-		r.Steps > r.Plan.MaxSteps ||
+		r.Steps > r.Plan.MaxSteps || r.StateStep < 0 || r.StateStep > r.Steps ||
 		r.StateCodec.ID == "" ||
 		r.StateCodec.Version == "" ||
 		r.OutputCodec.ID == "" ||
@@ -176,6 +196,9 @@ func validateScenario(r ScenarioRecord) error {
 		return ErrInvalid
 	}
 	if r.Plan.Generation != nil && (r.Plan.Generation.Mode != r.Plan.Mode || r.Plan.Generation.Generator == "") {
+		return ErrInvalid
+	}
+	if r.Stop != "codec_error" && r.StateStep != r.Steps {
 		return ErrInvalid
 	}
 	switch r.Stop {
@@ -192,7 +215,11 @@ func validateScenario(r ScenarioRecord) error {
 			return ErrInvalid
 		}
 	case "codec_error":
-		if r.Steps == 0 || len(r.Outputs) != r.Steps-1 {
+		if len(r.Outputs) == r.Steps && r.StateStep == r.Steps {
+			return ErrInvalid
+		}
+		if r.Steps == 0 || (len(r.Outputs) != r.Steps-1 && len(r.Outputs) != r.Steps) ||
+			(r.StateStep != r.Steps && r.StateStep != r.Steps-1) {
 			return ErrInvalid
 		}
 	default:

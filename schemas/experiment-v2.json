@@ -1,5 +1,5 @@
 {
-  "$id": "urn:evaly:experiment:1",
+  "$id": "urn:evaly:experiment:2",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
@@ -300,7 +300,7 @@
           ]
         },
         "version": {
-          "const": 1,
+          "const": 2,
           "type": "integer"
         }
       },
@@ -539,6 +539,9 @@
                     "null"
                   ]
                 },
+                "dispatched": {
+                  "type": "boolean"
+                },
                 "evidence_refs": {
                   "items": {
                     "type": "string"
@@ -657,6 +660,7 @@
                 }
               },
               "required": [
+                "dispatched",
                 "revision",
                 "status",
                 "usage"
@@ -667,6 +671,16 @@
               "array",
               "null"
             ]
+          },
+          "grading_state": {
+            "enum": [
+              "complete",
+              "partial"
+            ],
+            "type": "string"
+          },
+          "grading_stop_reason": {
+            "type": "string"
           },
           "id": {
             "type": "string"
@@ -679,6 +693,57 @@
           },
           "seed": {
             "type": "integer"
+          },
+          "skipped_graders": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "reason": {
+                  "type": "string"
+                },
+                "revision": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "configuration": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "implementation": {
+                      "type": "string"
+                    },
+                    "model": {
+                      "type": "string"
+                    },
+                    "prompt": {
+                      "type": "string"
+                    },
+                    "rubric": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "implementation",
+                    "rubric",
+                    "model",
+                    "prompt",
+                    "configuration"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "revision",
+                "reason"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "states": {
             "items": {
@@ -695,7 +760,8 @@
               "target_error",
               "setup_error",
               "cancelled",
-              "budget_exhausted"
+              "budget_exhausted",
+              "infrastructure_stop"
             ],
             "type": "string"
           },
@@ -731,7 +797,8 @@
           "status",
           "cleanup",
           "evidence",
-          "target_usage"
+          "target_usage",
+          "grading_state"
         ],
         "type": "object"
       },

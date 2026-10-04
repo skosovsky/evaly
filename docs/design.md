@@ -1,6 +1,11 @@
 # evaly contract v1
 
-Status: implementation contract. Requirement authority: `.cursor/tasks/task1.md`.
+Status: implementation contract. Original requirement authority: `.cursor/tasks/task1.md`.
+Current execution changes are governed by `.cursor/task/01-execution-and-assessments.md`
+and the normative [execution contract revision 2](execution-contract.md).
+Experiment, scenario, assessment, observation-result and search formats now use
+revision 2; their old formats are unsupported. Other unaffected formats retain
+their declared revisions. No compatibility reader or migration layer is supplied.
 
 ## Ownership and package boundaries
 
@@ -185,7 +190,8 @@ split and stop revisions are identity-bearing.
 
 ## Scenario provenance and replay
 
-ScenarioStep requires behavior Revision. RunScenario records v1 driver revision,
+ScenarioStep requires behavior Revision and receives ScenarioContext with seed,
+mode and zero-based step index. RunScenario records v2 driver revision,
 replay/search mode, seed, bounds and optional generation lineage, using explicit
 state/output codecs to snapshot each step before the next mutation. RestoreScenario
 reconstructs the saved trajectory; executing RunScenario in replay mode is a

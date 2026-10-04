@@ -61,30 +61,49 @@ type Dataset[I, R any] struct {
 func (d Dataset[I, R]) Revision() string      { return d.record.Revision }
 func (d Dataset[I, R]) Len() int              { return len(d.record.Cases) }
 func (d Dataset[I, R]) Record() DatasetRecord { r, _ := cloneJSON(d.record); return r }
+
+// CaseAt returns a fresh decoded copy of only the requested case.
+func (d Dataset[I, R]) CaseAt(index int) (Case[I, R], error) {
+	if d.record.State != "sealed" {
+		return Case[I, R]{}, ErrUnsealed
+	}
+	if index < 0 || index >= len(d.record.Cases) {
+		return Case[I, R]{}, ErrInvalid
+	}
+	r, err := cloneJSON(d.record.Cases[index])
+	if err != nil {
+		return Case[I, R]{}, err
+	}
+	i, err := d.input.Decode(r.Input)
+	if err != nil {
+		return Case[I, R]{}, err
+	}
+	c := Case[I, R]{
+		ID:               r.ID,
+		Revision:         r.Revision,
+		Input:            i,
+		Metadata:         r.Metadata,
+		RequiredEvidence: r.RequiredEvidence,
+		Generation:       r.Generation,
+	}
+	if len(r.Reference) > 0 {
+		ref, err := d.reference.Decode(r.Reference)
+		if err != nil {
+			return Case[I, R]{}, err
+		}
+		c.Reference = &ref
+	}
+	return c, nil
+}
 func (d Dataset[I, R]) Cases() ([]Case[I, R], error) {
 	if d.record.State != "sealed" {
 		return nil, ErrUnsealed
 	}
-	out := make([]Case[I, R], 0, len(d.record.Cases))
-	for _, r := range d.Record().Cases {
-		i, e := d.input.Decode(r.Input)
-		if e != nil {
-			return nil, e
-		}
-		c := Case[I, R]{
-			ID:               r.ID,
-			Revision:         r.Revision,
-			Input:            i,
-			Metadata:         r.Metadata,
-			RequiredEvidence: r.RequiredEvidence,
-			Generation:       r.Generation,
-		}
-		if len(r.Reference) > 0 {
-			ref, e := d.reference.Decode(r.Reference)
-			if e != nil {
-				return nil, e
-			}
-			c.Reference = &ref
+	out := make([]Case[I, R], 0, d.Len())
+	for index := range d.Len() {
+		c, err := d.CaseAt(index)
+		if err != nil {
+			return nil, err
 		}
 		out = append(out, c)
 	}
@@ -107,6 +126,12 @@ func (d DatasetDraft[I, R]) build(ic Codec[I], rc Codec[R]) (DatasetRecord, erro
 	r := DatasetRecord{Version: 1, State: "sealed", Selection: d.Selection, ParentRevision: d.ParentRevision}
 	if ic == nil || rc == nil || len(d.Cases) == 0 || d.Selection == "" {
 		return r, ErrInvalid
+	}
+	if err := ValidatePort(ic); err != nil {
+		return r, err
+	}
+	if err := ValidatePort(rc); err != nil {
+		return r, err
 	}
 	r.InputCodec = ic.Identity()
 	r.ReferenceCodec = rc.Identity()
@@ -215,14 +240,23 @@ func GenerateDraft[I, R any](
 	parents []Case[I, R],
 	selection string,
 ) (DatasetDraft[I, R], error) {
-	if g == nil {
+	if g == nil || selection == "" {
 		return DatasetDraft[I, R]{}, ErrInvalid
+	}
+	if err := ValidatePort(g); err != nil {
+		return DatasetDraft[I, R]{}, err
+	}
+	p := g.Provenance()
+	if p.Generator == "" || (p.Mode != "search" && p.Mode != "replay") {
+		return DatasetDraft[I, R]{}, ErrInvalid
+	}
+	if err := ctx.Err(); err != nil {
+		return DatasetDraft[I, R]{}, err
 	}
 	cs, e := g.Generate(ctx, parents)
 	if e != nil {
 		return DatasetDraft[I, R]{}, e
 	}
-	p := g.Provenance()
 	p.LabelValidated = false
 	for i := range cs {
 		cp := p
@@ -232,9 +266,15 @@ func GenerateDraft[I, R any](
 	return DatasetDraft[I, R]{Cases: cs, Selection: selection}, nil
 }
 
+type ScenarioContext struct {
+	Seed int64
+	Mode string
+	Step int
+}
+
 type ScenarioStep[S, O any] interface {
 	Revision() string
-	Step(context.Context, S) (S, O, bool, error)
+	Step(context.Context, S, ScenarioContext) (S, O, bool, error)
 }
 type ScenarioResult[S, O any] struct {
 	DriverRevision string
@@ -243,6 +283,7 @@ type ScenarioResult[S, O any] struct {
 	State          S
 	Outputs        []O
 	Steps          int
+	StateStep      int
 	Stop           string
 }
 
@@ -255,22 +296,26 @@ func Drive[S, O any](
 	timeout time.Duration,
 ) (ScenarioResult[S, O], error) {
 	r := ScenarioResult[S, O]{State: state}
-	if driver == nil || driver.Revision() == "" || maxSteps <= 0 || timeout <= 0 {
+	if err := ValidatePort(driver); err != nil {
+		return r, err
+	}
+	if driver == nil || driver.Revision() == "" || maxSteps <= 0 || maxSteps > 10000 || timeout <= 0 {
 		return r, ErrInvalid
 	}
 	r.DriverRevision = driver.Revision()
 	r.Mode = "replay"
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	for range maxSteps {
+	for step := range maxSteps {
 		if e := ctx.Err(); e != nil {
 			r.Stop = "deadline"
 			return r, e
 		}
-		s, o, done, e := driver.Step(ctx, r.State)
+		s, o, done, e := driver.Step(ctx, r.State, ScenarioContext{Mode: "replay", Step: step})
 		r.State = s
 		r.Outputs = append(r.Outputs, o)
 		r.Steps++
+		r.StateStep = r.Steps
 		if ctx.Err() != nil {
 			r.Stop = "deadline"
 			return r, ctx.Err()

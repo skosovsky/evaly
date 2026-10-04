@@ -23,7 +23,7 @@ func (draftGenerator) Generate(ctx context.Context, p []evaly.Case[int, int]) ([
 type stepper struct{}
 
 func (stepper) Revision() string { return "step-v1" }
-func (stepper) Step(ctx context.Context, s int) (int, int, bool, error) {
+func (stepper) Step(ctx context.Context, s int, execution evaly.ScenarioContext) (int, int, bool, error) {
 	return s + 1, s + 1, false, ctx.Err()
 }
 
@@ -80,7 +80,11 @@ func TestProtocolReferenceConformance(t *testing.T) {
 			evaly.GraderRevision{ID: "judge", Implementation: "scripted", Rubric: "trusted"},
 		)
 	})
-	t.Run("pair", func(t *testing.T) { conformance.PairJudge(t, pairJudge{}, "a", "b") })
+	t.Run("pair", func(t *testing.T) {
+		pairA, _ := evaly.SealSnapshot("a", evaly.JSONCodec[string]{ID: "pair", Version: "1"})
+		pairB, _ := evaly.SealSnapshot("b", evaly.JSONCodec[string]{ID: "pair", Version: "1"})
+		conformance.PairJudge(t, pairJudge{}, pairA, pairB)
+	})
 	t.Run("proposal", func(t *testing.T) {
 		d, e := (evaly.DatasetDraft[int, int]{Selection: "all", Cases: []evaly.Case[int, int]{{ID: "training", Input: 1}}}).Seal(
 			codec,

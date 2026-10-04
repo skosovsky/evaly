@@ -20,7 +20,12 @@ import (
 func compile(t *testing.T, name string) *jsonschema.Schema {
 	t.Helper()
 	compiler := jsonschema.NewCompiler()
-	s, e := compiler.Compile(filepath.Join("..", "schemas", name+"-v1.json"))
+	version := "1"
+	switch name {
+	case "experiment", "scenario", "assessment", "observation-result", "search":
+		version = "2"
+	}
+	s, e := compiler.Compile(filepath.Join("..", "schemas", name+"-v"+version+".json"))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -42,7 +47,7 @@ func instance(t *testing.T, v any) any {
 type steps struct{}
 
 func (steps) Revision() string { return "steps-v1" }
-func (steps) Step(ctx context.Context, s int) (int, int, bool, error) {
+func (steps) Step(ctx context.Context, s int, execution evaly.ScenarioContext) (int, int, bool, error) {
 	return s + 1, s + 1, false, ctx.Err()
 }
 func TestGeneratedArtifactsAgainstWireSchemas(t *testing.T) {
@@ -200,7 +205,7 @@ func TestGeneratedArtifactsAgainstWireSchemas(t *testing.T) {
 			case "invalid_plan":
 				manifest["plan"].(map[string]any)["repeats"] = 0
 			case "unknown_version":
-				manifest["version"] = 2
+				manifest["version"] = 99
 			}
 			if schema.Validate(doc) == nil {
 				t.Fatal("schema accepted", variant)
@@ -208,7 +213,7 @@ func TestGeneratedArtifactsAgainstWireSchemas(t *testing.T) {
 		})
 	}
 	// Every declared schema compiles, including search output schema.
-	paths, e := filepath.Glob("../schemas/*-v1.json")
+	paths, e := filepath.Glob("../schemas/*-v*.json")
 	if e != nil {
 		t.Fatal(e)
 	}

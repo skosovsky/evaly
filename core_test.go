@@ -239,7 +239,7 @@ func TestEvidencePrivacyGapAndJudgeError(t *testing.T) {
 	grades := evaly.Assess(
 		context.Background(),
 		[]evaly.Grader[input, int, int]{g},
-		evaly.View[input, int, int]{Evidence: record},
+		func() (evaly.View[input, int, int], error) { return evaly.View[input, int, int]{Evidence: record}, nil },
 	)
 	timeout := evaly.GraderFunc[input, int, int]{
 		Identity: rev,
@@ -247,7 +247,7 @@ func TestEvidencePrivacyGapAndJudgeError(t *testing.T) {
 			return evaly.Grade{}, context.DeadlineExceeded
 		},
 	}
-	judge := evaly.Assess(context.Background(), []evaly.Grader[input, int, int]{timeout}, evaly.View[input, int, int]{Evidence: record})[0]
+	judge := evaly.Assess(context.Background(), []evaly.Grader[input, int, int]{timeout}, func() (evaly.View[input, int, int], error) { return evaly.View[input, int, int]{Evidence: record}, nil })[0]
 	// Assert.
 	bytes, _ := json.Marshal(record)
 	if strings.Contains(string(bytes), "secret-token") || record.State != "incomplete" ||

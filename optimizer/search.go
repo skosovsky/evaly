@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"math"
 	"sort"
 	"sync"
 	"time"
@@ -84,6 +85,12 @@ type ProposalFunc[T, I, R any] struct {
 }
 
 func (p ProposalFunc[T, I, R]) Revision() string { return p.Identity }
+func (p ProposalFunc[T, I, R]) Validate() error {
+	if p.Identity == "" || p.Generate == nil {
+		return evaly.ErrInvalid
+	}
+	return nil
+}
 func (p ProposalFunc[T, I, R]) Propose(ctx context.Context, r ProposalRequest[I, R]) (ProposalResult[T], error) {
 	if p.Generate == nil {
 		return ProposalResult[T]{}, evaly.ErrInvalid
@@ -169,6 +176,7 @@ type Result struct {
 	HoldoutComparison                                           *evaly.Comparison
 	Contaminated                                                bool
 	ProposalRevision                                            string
+	ProposalUsage                                               evaly.Usage
 	States                                                      []string
 }
 
@@ -193,7 +201,7 @@ func validateSplit[I, R any](s Split[I, R]) error {
 }
 func Search[T, I, R any](ctx context.Context, c Config[T, I, R]) (Result, error) {
 	r := Result{
-		Version:      1,
+		Version:      2,
 		ID:           c.ID,
 		Algorithm:    c.Algorithm,
 		Split:        c.Split.Revision,
@@ -217,18 +225,52 @@ func Search[T, I, R any](ctx context.Context, c Config[T, I, R]) (Result, error)
 	if e := validateSplit(c.Split); e != nil {
 		return r, e
 	}
+	for _, port := range []any{c.Budget, c.Ledger} {
+		if e := evaly.ValidatePort(port); e != nil {
+			return r, e
+		}
+	}
 	if c.CalibrationBaseline.Record().Manifest.Dataset != c.Split.Calibration.Revision() ||
 		c.HoldoutBaseline.Record().Manifest.Dataset != c.Split.Holdout.Revision() {
 		return r, evaly.ErrConflict
+	}
+	// Validate structural contracts before any paid proposal/evaluation dispatch.
+	if math.IsNaN(c.ProposalUnits) || math.IsInf(c.ProposalUnits, 0) || c.ProposalUnits < 0 {
+		return r, evaly.ErrInvalid
+	}
+	if _, e := evaly.NewEnvelope("search", c.ID, struct{}{}); e != nil {
+		return r, e
+	}
+	for _, baseline := range []evaly.Experiment{c.CalibrationBaseline, c.HoldoutBaseline} {
+		if _, e := evaly.RestoreExperiment(baseline.Record()); e != nil {
+			return r, e
+		}
+		if baseline.Record().Manifest.State != "sealed" {
+			return r, evaly.ErrUnsealed
+		}
+		if _, e := evaly.Compare(baseline, baseline, c.Gate); e != nil {
+			return r, e
+		}
+	}
+	if c.Proposal != nil {
+		if e := evaly.ValidatePort(c.Proposal); e != nil {
+			return r, e
+		}
+		if e := evaly.ValidatePort(c.Codec); e != nil {
+			return r, e
+		}
+		if c.Proposal.Revision() == "" {
+			return r, evaly.ErrInvalid
+		}
+		if e := evaly.ValidateCodecIdentity(c.Codec.Identity()); e != nil {
+			return r, e
+		}
 	}
 	ctx, cancel := context.WithTimeout(ctx, c.Timeout)
 	defer cancel()
 	candidates := append([]Candidate[T](nil), c.Candidates...)
 	stop := func(reason string) { r.State = "stopped"; r.Reason = reason }
 	if c.Proposal != nil {
-		if c.Codec == nil || c.Proposal.Revision() == "" {
-			return r, evaly.ErrInvalid
-		}
 		r.ProposalRevision = c.Proposal.Revision()
 		reservation, e := c.Budget.Reserve(ctx, c.ID+"/proposal", c.ProposalUnits)
 		if e != nil {
@@ -239,6 +281,8 @@ func Search[T, I, R any](ctx context.Context, c Config[T, I, R]) (Result, error)
 			var e error
 			if claimErr != nil {
 				e = claimErr
+			} else if ctx.Err() != nil {
+				e = ctx.Err()
 			} else {
 				proposal, e = c.Proposal.Propose(
 					ctx,
@@ -250,9 +294,17 @@ func Search[T, I, R any](ctx context.Context, c Config[T, I, R]) (Result, error)
 					},
 				)
 			}
-			reconcileCtx, done := context.WithTimeout(context.WithoutCancel(ctx), c.Timeout)
-			reconcileErr := c.Budget.Reconcile(reconcileCtx, reservation, proposal.Usage)
-			done()
+			r.ProposalUsage = proposal.Usage
+			if math.IsNaN(proposal.Usage.Units) || math.IsInf(proposal.Usage.Units, 0) || proposal.Usage.Units < 0 {
+				r.ProposalUsage = evaly.Usage{}
+				e = evaly.ErrInvalid
+			}
+			var reconcileErr error
+			if claimErr == nil {
+				reconcileCtx, done := context.WithTimeout(context.WithoutCancel(ctx), c.Timeout)
+				reconcileErr = c.Budget.Reconcile(reconcileCtx, reservation, r.ProposalUsage)
+				done()
+			}
 			if e != nil {
 				stop("proposal_failure")
 			} else if reconcileErr != nil {

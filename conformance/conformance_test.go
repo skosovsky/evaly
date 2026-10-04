@@ -9,6 +9,20 @@ import (
 )
 
 func TestReferenceAdapters(t *testing.T) {
+	t.Run("structural", func(t *testing.T) {
+		// Arrange: constructor-created budget is configured; zero/typed nil are not.
+		valid, err := evaly.NewMemoryBudget(2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var absent *evaly.MemoryBudget
+		// Act / Assert: reusable conformance does not consume budget.
+		conformance.Structural(t, valid, &evaly.MemoryBudget{}, absent,
+			evaly.LifecycleFuncs[int]{}, evaly.TargetFunc[int, int, int](nil))
+		if valid.Used() != 0 {
+			t.Fatal("validation consumed budget")
+		}
+	})
 	t.Run("file", func(t *testing.T) {
 		dir := t.TempDir()
 		conformance.Artifact(t, func() (evaly.ArtifactStore, error) { return evaly.OpenFileStore(dir) })
@@ -37,10 +51,12 @@ func TestReferenceAdapters(t *testing.T) {
 		conformance.Grader(
 			t,
 			c.Graders[0],
-			evaly.View[fixtures.Calculation, fixtures.CalculationOutput, int]{
-				Case:     cases[0],
-				Output:   fixtures.CalculationOutput{Sum: 3},
-				Evidence: capture.Seal(),
+			func() (evaly.View[fixtures.Calculation, fixtures.CalculationOutput, int], error) {
+				return evaly.View[fixtures.Calculation, fixtures.CalculationOutput, int]{
+					Case:     cases[0],
+					Output:   fixtures.CalculationOutput{Sum: 3},
+					Evidence: capture.Seal(),
+				}, nil
 			},
 		)
 	})

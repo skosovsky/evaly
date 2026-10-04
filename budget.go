@@ -38,6 +38,19 @@ type MemoryBudget struct {
 	entries        map[string]budgetEntry
 }
 
+// Validate checks constructor invariants without reserving or dispatching work.
+func (b *MemoryBudget) Validate() error {
+	if b == nil {
+		return ErrInvalid
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.entries == nil || !finiteNonnegative(b.capacity) {
+		return ErrInvalid
+	}
+	return nil
+}
+
 func NewMemoryBudget(capacity float64) (*MemoryBudget, error) {
 	if !finiteNonnegative(capacity) {
 		return nil, ErrInvalid
