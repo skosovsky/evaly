@@ -25,6 +25,7 @@ func Supported(t reflect.Type) bool {
 			"ExperimentRecord":  true,
 			"EvidenceRecord":    true,
 			"Comparison":        true,
+			"ComparisonPolicy":  true,
 			"SavedViewRecord":   true,
 			"ScenarioRecord":    true,
 			"Assessment":        true,

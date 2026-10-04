@@ -186,6 +186,8 @@ func constrain(pkg, parent, name string, s schema) {
 		s["enum"] = []string{"higher", "lower"}
 	case "CleanupStatus.State":
 		s["enum"] = []string{"not_needed", "completed", "failed"}
+	case "ComparisonPolicy.ObjectiveKind":
+		s["enum"] = []string{"assertion", "numeric"}
 	case "Comparison.Verdict":
 		s["enum"] = []string{"pass", "fail", "inconclusive", "invalid_comparison"}
 	case "Generation.Mode", "ScenarioPlan.Mode":

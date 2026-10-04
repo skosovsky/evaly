@@ -1,15 +1,52 @@
-# Current execution revision 2 acceptance
+# Current acceptance — tasks 01–05
 
-The original matrix below is historical scope coverage, not acceptance of current
-changes. Task 01 is governed by `.cursor/task/01-execution-and-assessments.md` and
-`docs/execution-contract.md`; its independent completeness and correctness reports
-are saved in `docs/reviews/execution-completeness.md` and
-`docs/reviews/execution-correctness.md` after review. No current acceptance is
-claimed until both reviewers approve the same implementation fingerprint.
+Authority: `.cursor/task/README.md` and its five task files. The matrix below maps
+current contracts to executable evidence; it is not a percentage claim. Independent
+completeness and correctness acceptance requires both reports on the same frozen
+source fingerprint. Actual commands, toolchain, outcomes and limitations are in
+[validation](validation.md). Reports for the original task and earlier source
+fingerprints remain historical and cannot substitute for current checks.
 
-# Acceptance matrix
+| Current contract | Implementation / specification | Executable evidence |
+|---|---|---|
+| Preflight before paid dispatch, fresh typed views, partial assessments | `runner.go`, `grader.go`, [execution](execution-contract.md) | `runner_validation_test.go`, `assessment_execution_test.go`, `observation/partial_test.go` |
+| Selected-case decoding and isolated pair snapshots | `dataset.go`, pair grading protocol | `execution_v2_test.go`, `assessment_execution_test.go` |
+| Evidence completeness distinct from target success; no absence proof after delivery loss | [HTTP](http-protocol.md), [evidence](evidence-contract.md) | `adapters/httpjson/failure_test.go`, `workflow_integration_test.go` |
+| Bounded reference syntax and separately classified export failure | `evidence.go`, export port | `evidence_reference_test.go`, `export_classification_test.go` |
+| Runtime wire structure and independent generated schema agreement | [wire](wire-contract.md), `internal/wirecontract` | `contracttest/corpus_test.go`, `contracttest/schema_test.go` |
+| Explicit objective, native scale/direction, unknown measurement and matched denominators | [measurement](measurement-contract.md) | `measurement_test.go`, `comparison_numerical_test.go` |
+| Isolated seeded paired schedule and bounded dispatch | [paired execution](paired-contract.md) | `paired_execution_test.go`, `paired_schedule_internal_test.go` |
+| Revisioned calibration counts and unavailable zero-denominator rates | [calibration](calibration-contract.md) | `calibration_test.go` |
+| Bounded typed search rounds, service feedback, accounting and stop | [search](search-contract.md), `optimizer` | `optimizer/search_test.go`, `optimizer/adversarial_rounds_test.go`, `optimizer/feedback_behavior_test.go` |
+| Best measured vs feasible winner, deterministic ranking and holdout isolation | `optimizer`, host split validation | `optimizer/search_test.go`, `optimizer/split_test.go`, `examples/optimizer` |
+| Restored search rejects rehashed semantic contradictions and detaches candidates | `optimizer/restore.go` | `optimizer/restore_contract_test.go`, `optimizer/roundtrip_test.go` |
+| Confident text without effect fails; permitted alternative tool path passes | [workflow](workflow-contract.md), [integration](integration-contract.md) | `TestWorkflowTransportSemantics`, `examples/integration` |
+| Same host behavior in process and over HTTP; error after effect retains action and usage | `internal/fixtures/workflow.go` | `TestWorkflowTransportSemantics`, `TestWorkflowTargetFailureConformance` |
+| Disconnected evidence cannot prove absence; isolation, budget stop and cancellation | workflow host ports | `TestWorkflowTransportDisconnectCannotProveAbsence`, `TestWorkflowBudgetCancellationAndIsolation` |
+| Publication/reopen, offline re-score without execution capability, immutable parent lineage | saved view, experiment and assessment ports | `TestWorkflowArtifactAssessmentLineage` |
+| Online partial assessment and explicit baseline/candidate comparison | observation/core assessment ports | `TestWorkflowOnlinePartialAssessment`, `TestWorkflowArtifactAssessmentLineage` |
+| Generic failure-after-work conformance with host factories, reference negative cases | [failure conformance](conformance-contract.md), `conformance` | `conformance/TestFailureReferenceAdapters`, `TestWorkflowTargetFailureConformance` |
+| Explicit versioned CLI gate and supported serializable objective; unsupported callbacks rejected | [CLI](cli-contract.md), comparison-policy schema | `cmd/evaly` subprocess tests, independent `contracttest` corpus |
+| Four exit classes and genuine trial/case/revision/seed metadata without fabricated replay | `cmd/evaly`, `Report` | `cmd/evaly` subprocess tests |
+| Six existing examples plus offline integration example | `examples/*` | commands recorded in [validation](validation.md) |
+| Opt-in real host/judge procedure without SDK/secrets in core/CI | [live integration](live-integration.md) | **Not run:** no host credentials supplied; scripted checks are not LLM accuracy evidence |
 
-Authority: the entire `.cursor/tasks/task1.md`. Each row is a requirement, not a coverage line. Status: final independent acceptance 171/171 (100%), all seven EVL cards and all ten mandatory synthetic fixtures complete; all fourteen confirmed correctness defects closed. Initial audit was 150/171; the denominator is unchanged. A partially implemented row is not complete. Auditors must inspect source requirements and may identify omissions; no row may be removed to increase completeness.
+Current format inventory: envelope, dataset, evidence, observation, view, candidate,
+calibration and comparison-policy v1; scenario, comparison and HTTP request/response
+v2; experiment, assessment and observation-result v3; search v4. Readers reject
+unsupported prior major formats. There is no migration or compatibility path.
+Domain codecs remain independently versioned and owned by the host.
+
+---
+
+Everything after this separator is retained historical evidence for the original
+`.cursor/tasks/task1.md` tree. Historical commands, replay descriptions, schemas and
+API statements are not instructions for the current tree. Use the contracts and
+executable tests above for current behavior.
+
+# Historical acceptance matrix — original task only
+
+Historical authority: the entire `.cursor/tasks/task1.md`. Every section below, including boundaries and repair evidence index, describes the original accepted tree, not current APIs. Historical status: final independent acceptance 171/171 (100%), all seven EVL cards and all ten mandatory synthetic fixtures complete; all fourteen confirmed correctness defects closed. Initial audit was 150/171; the denominator is unchanged. A partially implemented row is not complete. Auditors must inspect source requirements and may identify omissions; no row may be removed to increase completeness.
 
 ## BOOT
 

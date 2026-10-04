@@ -38,6 +38,30 @@ evaluated only after winner selection and cannot initiate another selection roun
 Technical ID disjointness is necessary; a revisioned host split validator owns
 group/content checks. No automatic semantic duplicate detection is claimed.
 
+## Task 05 integration and CLI contract
+
+The normative [integration contract](integration-contract.md) covers a host-owned
+multi-action fixture exercised through the same behavior in process and over HTTP.
+Semantic evidence and usage must survive an error after an effect. Delivery failure
+must prevent proving the absence of forbidden actions. Persisted permitted views
+support offline re-score without target, tools or lifecycle capability; a new grader
+revision creates a child assessment and cannot change the original experiment.
+An online assessment may retain partial paid results and explicit skipped graders.
+
+CLI compare requires an explicit versioned gate and a serializable reference
+objective. It must reject unsupported callback objectives and unknown policy
+versions rather than silently choosing a fixture objective. Its reports identify
+trial, case, revision, target and seed; runnable replay requires a supported host
+command. CLI exit classes remain pass 0, quality fail 1, inconclusive 2 and
+invalid/infrastructure/usage 3. The fixture command remains an offline demonstration.
+
+Shared [failure conformance](conformance-contract.md) accepts host factories; it does not prescribe application
+types or run an agent. The optional [live integration procedure](live-integration.md)
+uses the same ports without introducing vendor SDKs, credentials or automatic paid
+calls into core or CI. Scripted checks do not establish LLM accuracy or injection
+immunity. Current checks and historical acceptance are distinguished in
+[acceptance](acceptance.md) and [validation](validation.md).
+
 ## Ownership and package boundaries
 
 The root package owns versioned envelopes, sealed datasets, trial lifecycle,
@@ -196,7 +220,7 @@ unverified. Host owns permissions, access, retention and deletion. Missing retai
 evidence marks replay unavailable; never promises eternal replay.
 
 Human report shares permitted records and names IDs, denominators, reasons and
-replay command. Export uses the same stable observation ID; delivery is separate
+reproduction metadata. A runnable replay command requires explicit host support. Export uses the same stable observation ID; delivery is separate
 from verdict. Backend advertises dedup capability; absent it retries may duplicate.
 Interop capability mappings report lost outcome/reset/evidence/status/scale; a
 boolean-only sink cannot silently consume incomplete/error records. Export rejection
@@ -206,7 +230,7 @@ is optional, bounded request/response and context-aware, with explicit domain
 codecs and status mapping. No advertised SDK compatibility.
 
 CLI `evaly fixture --store DIR --id ID` runs offline fixture evaluation and commits
-its experiment; `evaly compare --store DIR --baseline ID --candidate ID` reads sealed
+its experiment; `evaly compare --store DIR --baseline ID --candidate ID --policy FILE` reads sealed
 artifacts, writes human comparison and exits: 0 pass, 1 quality fail, 2 inconclusive,
 3 invalid comparison/infrastructure/usage. CLI never deploys production changes.
 

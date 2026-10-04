@@ -28,6 +28,7 @@ func main() {
 		"experiment":         evaly.ExperimentRecord{},
 		"evidence":           evaly.EvidenceRecord{},
 		"comparison":         evaly.Comparison{},
+		"comparison-policy":  evaly.ComparisonPolicy{},
 		"calibration":        evaly.CalibrationReport{},
 		"view":               evaly.SavedViewRecord{},
 		"scenario":           evaly.ScenarioRecord{},

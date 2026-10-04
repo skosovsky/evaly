@@ -38,6 +38,9 @@ func runtimeDecode(name string, raw []byte) error {
 	case "calibration":
 		_, e := evaly.DecodeWire[evaly.CalibrationReport](raw)
 		return e
+	case "comparison-policy":
+		_, e := evaly.DecodeWire[evaly.ComparisonPolicy](raw)
+		return e
 	case "comparison":
 		_, e := evaly.DecodeWire[evaly.Comparison](raw)
 		return e
@@ -224,6 +227,14 @@ func applyMutation(doc any, m mutation) any {
 // without a public restore API are covered by typed structural DecodeWire.
 func restorePositive(name string, raw []byte) error {
 	switch name {
+	case "comparison-policy":
+		v, e := evaly.DecodeWire[evaly.ComparisonPolicy](raw)
+		if e != nil {
+			return e
+		}
+		_, e = v.Resolve()
+		return e
+
 	case "search":
 		v, e := evaly.DecodeWire[optimizer.Result](raw)
 		if e != nil {
@@ -299,8 +310,8 @@ func restorePositive(name string, raw []byte) error {
 func TestSharedStructuralCorpus(t *testing.T) {
 	// Arrange: genuine emitted values exercise every registered root and nested service record.
 	values := generatedWireValues(t)
-	if len(values) != 15 {
-		t.Fatalf("expected all 15 registered wire kinds, got %d", len(values))
+	if len(values) != 16 {
+		t.Fatalf("expected all 16 registered wire kinds, got %d", len(values))
 	}
 	for name, value := range values {
 		t.Run(name, func(t *testing.T) {

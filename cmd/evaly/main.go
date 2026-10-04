@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	"github.com/skosovsky/evaly"
 	"github.com/skosovsky/evaly/internal/fixtures"
@@ -27,9 +26,30 @@ func run(ctx context.Context, args []string, out, errout io.Writer) int {
 	caseID := f.String("case", "", "single fixture case to replay in a fresh environment")
 	baseline := f.String("baseline", "", "sealed baseline identity")
 	candidate := f.String("candidate", "", "sealed candidate identity")
+	policyFile := f.String("policy", "", "versioned comparison policy JSON file (required for compare)")
 	if e := f.Parse(args[1:]); e != nil || f.NArg() != 0 || *directory == "" {
 		fmt.Fprintln(errout, "invalid arguments")
 		return 3
+	}
+	var policy evaly.ComparisonPolicy
+	var objective evaly.Objective
+	var e error
+	if args[0] == "compare" {
+		raw, e := os.ReadFile(*policyFile)
+		if e != nil {
+			fmt.Fprintln(errout, e)
+			return 3
+		}
+		policy, e = evaly.DecodeWire[evaly.ComparisonPolicy](raw)
+		if e != nil {
+			fmt.Fprintln(errout, e)
+			return 3
+		}
+		objective, e = policy.Resolve()
+		if e != nil {
+			fmt.Fprintln(errout, e)
+			return 3
+		}
 	}
 	store, e := evaly.OpenFileStore(*directory)
 	if e != nil {
@@ -59,6 +79,7 @@ func run(ctx context.Context, args []string, out, errout io.Writer) int {
 		}
 		return 0
 	case "compare":
+
 		b, e := evaly.LoadExperiment(ctx, store, *baseline)
 		if e != nil {
 			fmt.Fprintln(errout, e)
@@ -69,7 +90,7 @@ func run(ctx context.Context, args []string, out, errout io.Writer) int {
 			fmt.Fprintln(errout, e)
 			return 3
 		}
-		comp, e := evaly.Compare(b, c, fixtures.Objective(), fixtures.Gate())
+		comp, e := evaly.Compare(b, c, objective, policy.Gate)
 		if e != nil {
 			fmt.Fprintln(errout, e)
 			return 3
@@ -85,14 +106,11 @@ func run(ctx context.Context, args []string, out, errout io.Writer) int {
 		}
 		fmt.Fprint(out, evaly.Report(comp))
 		for _, trial := range comp.Trials {
-			fixtureBehavior := strings.TrimSuffix(trial.Target, "-v1")
 			fmt.Fprintf(
 				out,
-				"replay %s: evaly fixture --store DIR --id NEW_ID --case %s --behavior %s --seed %d\n",
-				trial.TrialID,
-				trial.CaseID,
-				fixtureBehavior,
-				trial.Seed,
+				"host trial %s case %s revision %s seed %d target %s fixture %s reset %s evidence revision %s\n",
+				trial.TrialID, trial.CaseID, trial.CaseRevision, trial.Seed,
+				trial.Target, trial.Fixture, trial.Reset, trial.EvidenceRevision,
 			)
 		}
 		return evaly.ExitCode(comp.Verdict)

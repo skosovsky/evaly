@@ -39,9 +39,13 @@ versioned capture policy, typed grading projection and graders to `evaly.Run`.
 [Protocols](examples/protocols/main.go) demonstrates generated drafts, bounded
 scenarios and blind pair order checking. [HTTP](examples/http/main.go) runs a local
 JSON bridge. [Observations](examples/observation/main.go) grades saved evidence;
-[optimizer](examples/optimizer/main.go) evaluates immutable typed recipes with
+[Optimizer](examples/optimizer/main.go) evaluates immutable typed recipes with
 training/calibration/holdout splits and demonstrates a separate resource-plan
 candidate domain through the same bounded rounds protocol.
+[Integration](examples/integration/main.go) composes a host-owned multi-action
+workflow in process and over local HTTP, retained effects after failure, saved-view
+reopen/re-score and explicit comparison. See [integration](docs/integration-contract.md)
+and [workflow fixture](docs/workflow-contract.md).
 
 Optimizer requires revisioned proposer, typed constraints and objective. Static
 enumeration follows the same accounting and stop path. `BestMeasured` records
@@ -60,16 +64,23 @@ go run ./examples/protocols
 go run ./examples/http
 go run ./examples/observation
 go run ./examples/optimizer
+go run ./examples/integration
 
 go run ./cmd/evaly fixture --store /tmp/evaly --id baseline
 go run ./cmd/evaly fixture --store /tmp/evaly --id candidate --behavior bad
-go run ./cmd/evaly compare --store /tmp/evaly --baseline baseline --candidate candidate
-# compare exits 1 for this regression (go run itself wraps nonzero exits).
+# Save the explicit JSON policy from docs/cli-contract.md as policy.json.
 go build -o /tmp/evaly-cli ./cmd/evaly
-/tmp/evaly-cli compare --store /tmp/evaly --baseline baseline --candidate candidate
+/tmp/evaly-cli compare --store /tmp/evaly --baseline baseline --candidate candidate --policy policy.json
+# Exit 1 indicates regression for the supplied policy.
 # Replay one fixture case with a new trial identity/environment:
 /tmp/evaly-cli fixture --store /tmp/evaly --id replay --case case-4 --behavior bad
 ```
+
+CLI compare accepts a versioned policy with an assertion or numeric reference
+objective. It rejects unsupported objective callbacks; use the library API for
+host-defined Go objectives. Reports provide trial/case/revision/seed and host
+metadata. They do not invent fixture replay commands for arbitrary targets.
+See [CLI contract](docs/cli-contract.md).
 
 CLI compare exits 0 pass, 1 quality fail, 2 insufficient coverage/inconclusive,
 3 invalid comparison, infrastructure or usage error. Fixture exits 0 when the
@@ -131,13 +142,16 @@ The shared [conformance suite](conformance/conformance.go) can validate host por
 Tests follow Arrange–Act–Assert, include privacy/adversarial contexts, failed reset,
 unknown usage, partial/corrupt artifacts, fake clocks and CLI subprocesses. The
 [acceptance matrix](docs/acceptance.md) maps the complete task to evidence.
-[Design](docs/design.md) defines API/state/error, migration and statistical policies;
+[Design](docs/design.md) defines API/state/error, revision and statistical policies;
 [wire schemas](schemas) version portable envelopes. The isolated contracttest
 module executes them with a pinned independent JSON Schema validator; runtime
 core dependencies remain empty. SavedViewRecord supports offline re-score after
 filesystem reopen using explicit consumer codecs. Breaking domain or wire changes
 create new revisions with explicit parent lineage; unknown required major versions
-are rejected. No compatibility shim for hypothetical consumers.
+are rejected. Prior affected major formats are unsupported; no migration layer or compatibility
+reader is supplied. The format inventory is in [acceptance](docs/acceptance.md).
+[Live integration](docs/live-integration.md) is separately opt-in and has not been
+run without host credentials. Scripted checks do not establish LLM accuracy.
 
 Releases are published from a clean, committed `main` branch using
 `make release RELEASE_VERSION=v0.1.0`. This runs the formatter, vet and race-test

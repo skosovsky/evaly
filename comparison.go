@@ -242,18 +242,7 @@ func Compare(baseline, candidate Experiment, objective Objective, p GatePolicy) 
 	}
 	id := objective.Identity()
 	c.Objective = id
-	if ValidateObjectiveIdentity(id) != nil || p.Revision == "" || !finiteNonnegative(p.MinimumCoverage) ||
-		p.MinimumCoverage > 1 ||
-		p.MinimumMatchedCases < 1 ||
-		!finiteNonnegative(p.MinimumMatchedCoverage) ||
-		p.MinimumMatchedCoverage > 1 ||
-		math.IsNaN(p.MinimumQuality) ||
-		math.IsInf(p.MinimumQuality, 0) ||
-		p.MinimumQuality < id.Minimum ||
-		p.MinimumQuality > id.Maximum ||
-		!finiteNonnegative(p.MaximumRegression) ||
-		p.BootstrapSamples < 100 ||
-		p.BootstrapSamples > 100000 {
+	if validateGatePolicy(id, p) != nil {
 		return c, ErrInvalid
 	}
 	if _, e := RestoreExperiment(baseline.Record()); e != nil {
@@ -556,4 +545,22 @@ func ExitCode(v GateVerdict) int {
 	default:
 		return 3
 	}
+}
+
+func validateGatePolicy(id ObjectiveIdentity, p GatePolicy) error {
+	if ValidateObjectiveIdentity(id) != nil || p.Revision == "" || !finiteNonnegative(p.MinimumCoverage) ||
+		p.MinimumCoverage > 1 ||
+		p.MinimumMatchedCases < 1 ||
+		!finiteNonnegative(p.MinimumMatchedCoverage) ||
+		p.MinimumMatchedCoverage > 1 ||
+		math.IsNaN(p.MinimumQuality) ||
+		math.IsInf(p.MinimumQuality, 0) ||
+		p.MinimumQuality < id.Minimum ||
+		p.MinimumQuality > id.Maximum ||
+		!finiteNonnegative(p.MaximumRegression) ||
+		p.BootstrapSamples < 100 ||
+		p.BootstrapSamples > 100000 {
+		return ErrInvalid
+	}
+	return nil
 }

@@ -1,0 +1,147 @@
+{
+  "$id": "urn:evaly:comparison-policy:1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "gate": {
+      "additionalProperties": false,
+      "properties": {
+        "bootstrap_samples": {
+          "maximum": 100000,
+          "minimum": 100,
+          "type": "integer"
+        },
+        "maximum_regression": {
+          "maximum": 1.7976931348623157e+308,
+          "minimum": 0,
+          "type": "number"
+        },
+        "minimum_coverage": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "minimum_matched_cases": {
+          "maximum": 9223372036854775807,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "minimum_matched_coverage": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "minimum_quality": {
+          "maximum": 1.7976931348623157e+308,
+          "minimum": -1.7976931348623157e+308,
+          "type": "number"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "seed": {
+          "maximum": 9223372036854775807,
+          "minimum": -9223372036854775808,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "revision",
+        "minimum_matched_cases",
+        "minimum_matched_coverage",
+        "minimum_coverage",
+        "minimum_quality",
+        "maximum_regression",
+        "bootstrap_samples",
+        "seed"
+      ],
+      "type": "object"
+    },
+    "objective": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregation_revision": {
+          "type": "string"
+        },
+        "assertion_policy": {
+          "type": "string"
+        },
+        "direction": {
+          "enum": [
+            "higher",
+            "lower"
+          ],
+          "type": "string"
+        },
+        "eligibility_revision": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "maximum": {
+          "maximum": 1.7976931348623157e+308,
+          "minimum": -1.7976931348623157e+308,
+          "type": "number"
+        },
+        "minimum": {
+          "maximum": 1.7976931348623157e+308,
+          "minimum": -1.7976931348623157e+308,
+          "type": "number"
+        },
+        "missingness_revision": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "scale_revision": {
+          "type": "string"
+        },
+        "source_grader": {
+          "type": "string"
+        },
+        "source_metric": {
+          "type": "string"
+        },
+        "unit": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "revision",
+        "unit",
+        "scale_revision",
+        "minimum",
+        "maximum",
+        "direction",
+        "eligibility_revision",
+        "missingness_revision",
+        "aggregation_revision"
+      ],
+      "type": "object"
+    },
+    "objective_kind": {
+      "enum": [
+        "assertion",
+        "numeric"
+      ],
+      "type": "string"
+    },
+    "version": {
+      "const": 1,
+      "maximum": 9223372036854775807,
+      "minimum": -9223372036854775808,
+      "type": "integer",
+      "x-evaly-version": true
+    }
+  },
+  "required": [
+    "version",
+    "objective_kind",
+    "objective",
+    "gate"
+  ],
+  "type": "object"
+}

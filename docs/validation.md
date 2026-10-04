@@ -1,5 +1,39 @@
 # Validation record
 
+## 5 October 2026 — final integration acceptance
+
+Current authority: tasks 01–05 and common task README. Source fingerprint:
+`2e4897bfda0bc1778cdf6246fa45c5606e98fb6dd2e6172fc8cd0c28996b26e1`
+(134 files, including all five authorities; review reports and this journal excluded).
+Toolchain: `go version go1.27.1 darwin/arm64`.
+
+- `GOCACHE=/private/tmp/evaly-final-1.27.1-cache make validate` — exit 0;
+  configured formatter, vet and race tests in root and separate contracttest module.
+  Independent schema inventory/byte drift and shared corpus cover all 16 wire kinds.
+  Root log: `/private/tmp/evaly-integration-validation.log`; contracttest race 93.290 s.
+- `go run ./examples/calculation`, `crm`, `protocols`, `http`, `observation`,
+  `optimizer`, `integration` — all seven processes exited 0. Logs:
+  `/private/tmp/evaly-integration-example-<name>.log`.
+- `git diff --check` — exit 0. The source fingerprint was unchanged after checks.
+- CLI subprocesses cover all four exit classes, caller policy overriding the gate,
+  native lower-direction numeric measurement on an arbitrary target, unsupported
+  objectives, malformed wire and absent policy. Policy resolves before opening store.
+- Workflow tests run the same host invocation and failure factory in process and
+  through local HTTP; actual effects, partial usage, disconnect absence, lifecycle
+  reset/isolation, budget/cancellation, reopen/rescore and partial online assessment
+  are observable. Failed target output is not fabricated; only permitted evidence
+  is used for explicit offline grading. Successful projections retain actual output.
+- Live agent/judge integration **was not run**: no credentials were supplied, and
+  no paid external calls were made. Scripted tests establish infrastructure behavior,
+  not LLM accuracy, injection immunity or production durability.
+
+Independent task-05 reports are `reviews/integration-completeness.md` and
+`reviews/integration-correctness.md`; each records its own commands and the same
+source fingerprint. Prior entries below are historical command records for their
+named source snapshots and must not substitute for this current verification.
+Strict lint is separate from `make validate`; the pre-existing strict style findings
+recorded below were not weakened or represented as a passing lint run.
+
 ## 5 October 2026 — measurement and paired execution
 
 Authority: task 03 and common task README, measurement, paired and calibration

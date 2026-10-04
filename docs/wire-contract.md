@@ -1,6 +1,6 @@
 # Structural wire contract
 
-Service envelopes use `DecodeWire[T]` before semantic Restore/Validate checks. The supported roots are the fifteen published schema kinds; arbitrary host types are rejected. Domain codecs and opaque `json.RawMessage` values remain host-owned. Reflection describes explicit service envelope fields only.
+Service envelopes use `DecodeWire[T]` before semantic Restore/Validate checks. The supported roots are the sixteen published schema kinds; arbitrary host types are rejected. Domain codecs and opaque `json.RawMessage` values remain host-owned. Reflection describes explicit service envelope fields only.
 
 JSON tags define presence: fields without `omitempty` are required even at zero. Scalar values and structs forbid null; pointers, slices and maps permit null except declared non-null collections (`CalibrationReport.Groups` and `PairSchedule.Slots`). RawMessage accepts any JSON unless an explicit field rule narrows it. Unknown struct properties, duplicate keys, trailing JSON, invalid scalar types, integer overflow, unsupported versions, declared enums and collection limits are rejected. Signed/unsigned integers have their Go storage range; integral decimal/exponent numbers are accepted and normalized for decoding. Zero is valid unless a field rule specifies a positive minimum or constant. Maps permit arbitrary keys with values constrained by their element type; extension and domain JSON stay opaque.
 
@@ -17,3 +17,9 @@ feasibility and the distinct best measured candidate and selected winner. Runtim
 restore additionally validates candidate/experiment/comparison links, deterministic
 ranking, bounds, stopped-state ordering and nonnegative budget/usage fields. Rejected
 duplicate proposals remain audit entries; they cannot become ranking entries.
+
+Comparison policy is a new version-1 kind. It carries an explicit assertion or numeric
+objective descriptor and gate; builtin descriptor semantics are validated by
+`ComparisonPolicy.Resolve` after structural decoding. Arbitrary callbacks and custom
+eligibility/missingness behavior are unsupported in JSON policies; they remain
+library ports. See [CLI comparison contract](cli-contract.md).

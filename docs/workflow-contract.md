@@ -1,0 +1,9 @@
+# Host workflow reference contract
+
+This fixture is a consumer of evaly, not an agent runtime. The host owns typed request, response, state, codecs, synchronized external store, namespace lifecycle, tool behavior and policy. `lookup` reads account eligibility; either `refund` or permitted `credit` changes an external balance. Outcome evidence is read from that store after tools execute, independently of response text. Trajectory policy requires lookup and permits either effect path; it does not require an exact sequence match. A forbidden `delete` absence assertion is scored only with complete tool evidence.
+
+Modes are refund, alternative credit, confident text without action, controlled lookup error, and error after an externally committed refund. Known usage and available events accompany errors. One shared invocation supplies in-process and HTTP adapter paths; HTTP delivery failure marks evidence incomplete. Cleanup removes active namespace state while the test host retains audit snapshots to verify the actual effect and isolation.
+
+A grading projection contains only typed request/reference/output and permitted evidence. Publication and reopen preserve canonical experiment and projection revisions. Offline rescore accepts only that projection and graders: it has no target or lifecycle capability. Changing grader revision creates a new assessment linked to the prior assessment without rewriting the source experiment. The same projection can enter a bounded observation queue; budget exhaustion preserves the paid grade and explicitly skips the remainder. Comparison uses an explicit objective and versioned host policy.
+
+All examples and tests are deterministic offline infrastructure checks. They do not establish real model quality, judge accuracy or production storage durability.

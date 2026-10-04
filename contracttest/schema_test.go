@@ -176,12 +176,18 @@ func generatedWireValues(t *testing.T) map[string]any {
 		t.Fatal(e)
 	}
 	values := map[string]any{
-		"calibration":        calibration,
-		"envelope":           envelope,
-		"dataset":            c.Dataset.Record(),
-		"experiment":         experiment.Record(),
-		"evidence":           evidence,
-		"comparison":         comparison,
+		"calibration": calibration,
+		"envelope":    envelope,
+		"dataset":     c.Dataset.Record(),
+		"experiment":  experiment.Record(),
+		"evidence":    evidence,
+		"comparison":  comparison,
+		"comparison-policy": evaly.ComparisonPolicy{
+			Version:       1,
+			ObjectiveKind: "assertion",
+			Objective:     fixtures.Objective().Identity(),
+			Gate:          fixtures.Gate(),
+		},
 		"view":               saved.Record(),
 		"assessment":         assessment,
 		"scenario":           scenario,
