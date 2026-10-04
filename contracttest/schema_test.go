@@ -25,8 +25,10 @@ func compile(t *testing.T, name string) *jsonschema.Schema {
 	switch name {
 	case "scenario", "comparison", "http-request", "http-response":
 		version = "2"
-	case "experiment", "assessment", "observation-result", "search":
+	case "experiment", "assessment", "observation-result":
 		version = "3"
+	case "search":
+		version = "4"
 	}
 	s, e := compiler.Compile(filepath.Join("..", "schemas", name+"-v"+version+".json"))
 	if e != nil {
@@ -157,7 +159,7 @@ func generatedWireValues(t *testing.T) map[string]any {
 	if e != nil {
 		t.Fatal(e)
 	}
-	candidate, e := optimizer.Seal("candidate", "baseline", "enumeration-v1", 1, codec)
+	candidate, e := optimizer.Seal("candidate", "", "enumeration-v1", 1, codec)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -288,7 +290,7 @@ func searchResult(t *testing.T) optimizer.Result {
 	t.Helper()
 	ctx := context.Background()
 	codec := evaly.JSONCodec[int]{ID: "integer", Version: "1"}
-	candidate, e := optimizer.Seal("candidate", "baseline", "enumeration-v1", 1, codec)
+	candidate, e := optimizer.Seal("candidate", "", "enumeration-v1", 1, codec)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -351,8 +353,18 @@ func searchResult(t *testing.T) optimizer.Result {
 				Calibration: datasets[1],
 				Holdout:     datasets[2],
 			},
-			Candidates:          []optimizer.Candidate[int]{candidate},
-			Validate:            func(int) error { return nil },
+			MaximumRounds: 1,
+			Codec:         codec,
+			Proposal: optimizer.NewStaticProposer[int, fixtures.Calculation, int](
+				"static-v1",
+				[]optimizer.Candidate[int]{candidate},
+			),
+			Constraints: optimizer.ConstraintsFunc[int]{
+				Identity: "any-v1",
+				Assess: func(context.Context, int, optimizer.EvaluationSummary) (optimizer.Feasibility, error) {
+					return optimizer.Feasibility{Feasible: true}, nil
+				},
+			},
 			Evaluate:            evaluate,
 			Budget:              budget,
 			Ledger:              &optimizer.MemoryLedger{},

@@ -59,7 +59,6 @@ func TestSearchPreflightPreventsProposalAndEvaluation(t *testing.T) {
 func TestSearchRetainsProposalUsageOnFailure(t *testing.T) {
 	// Arrange: a failed paid callback can still report known cost.
 	c := searchConfig(t, 20)
-	c.Candidates = nil
 	c.ProposalUnits = 3
 	c.Proposal = optimizer.ProposalFunc[recipe, fixtures.Calculation, int]{
 		Identity: "paid-proposal-v1",

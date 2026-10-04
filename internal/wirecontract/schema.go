@@ -79,7 +79,7 @@ func Schema(t reflect.Type) schema {
 				name = field.Name
 			}
 			value := Schema(field.Type)
-			constrain(t.Name(), field.Name, value)
+			constrain(t.PkgPath(), t.Name(), field.Name, value)
 			properties[name] = value
 			optional := false
 			for _, option := range tag[1:] {
@@ -123,7 +123,7 @@ func Schema(t reflect.Type) schema {
 		panic(fmt.Sprintf("unsupported wire type %v", t))
 	}
 }
-func constrain(parent, name string, s schema) {
+func constrain(pkg, parent, name string, s schema) {
 	if name == "Version" && s["type"] == "integer" {
 		s["const"] = 1
 		s["x-evaly-version"] = true
@@ -132,6 +132,9 @@ func constrain(parent, name string, s schema) {
 		}
 		if parent == "ExperimentManifest" || parent == "Assessment" || parent == "Result" {
 			s["const"] = 3
+		}
+		if parent == "Result" && pkg == "github.com/skosovsky/evaly/optimizer" {
+			s["const"] = 4
 		}
 	}
 	if parent == "CalibrationCounts" {
@@ -224,6 +227,33 @@ func constrain(parent, name string, s schema) {
 		branches := s["anyOf"].([]any)
 		branches[0].(schema)["minimum"] = 0
 		branches[0].(schema)["maximum"] = 1
+	case "Result.MaximumRounds", "Result.MaximumCandidates":
+		if pkg == "github.com/skosovsky/evaly/optimizer" {
+			s["minimum"] = 1
+			s["maximum"] = 10000
+		}
+	case "Result.TimeoutNanoseconds":
+		if pkg == "github.com/skosovsky/evaly/optimizer" {
+			s["minimum"] = 1
+		}
+	case "Result.ProposalUnits", "Result.EvaluationUnits":
+		if pkg == "github.com/skosovsky/evaly/optimizer" {
+			s["minimum"] = 0
+		}
+	case "Result.State":
+		if pkg == "github.com/skosovsky/evaly/optimizer" {
+			s["enum"] = []string{"completed", "stopped"}
+		}
+	case "Result.TieRevision":
+		if pkg == "github.com/skosovsky/evaly/optimizer" {
+			s["const"] = "candidate-revision-lexical-v1"
+		}
+	case "Evaluation.Round", "Round.Index":
+		s["minimum"] = 0
+	case "Evaluation.State":
+		s["enum"] = []string{"invalid", "failed", "incomplete", "evaluated"}
+	case "Round.State":
+		s["enum"] = []string{"completed", "stopped", "failed"}
 	case "CalibrationReport.Groups":
 		s["type"] = "array"
 	case "PairSchedule.Slots":

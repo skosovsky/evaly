@@ -46,8 +46,10 @@ func main() {
 		switch name {
 		case "scenario", "comparison", "http-request", "http-response":
 			version = 2
-		case "experiment", "assessment", "observation-result", "search":
+		case "experiment", "assessment", "observation-result":
 			version = 3
+		case "search":
+			version = 4
 		}
 		document["$id"] = "urn:evaly:" + name + ":" + strconv.Itoa(version)
 		b, e := json.MarshalIndent(document, "", "  ")

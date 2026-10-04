@@ -12,7 +12,7 @@ dispatch/usage records. Assessments retain planned graders, partial results and
 skipped reasons even after budget, deadline or accounting failure. Scenario drivers
 receive seed, mode and step directly. See the normative
 [execution contract](docs/execution-contract.md). Experiment, assessment,
-observation-result and search formats use revision 3; scenario and comparison use
+observation-result formats use revision 3; search uses revision 4; scenario and comparison use
 revision 2. Old formats are unsupported.
 
 HTTP request/response revision 2 declares evidence delivery completeness separately
@@ -40,7 +40,18 @@ versioned capture policy, typed grading projection and graders to `evaly.Run`.
 scenarios and blind pair order checking. [HTTP](examples/http/main.go) runs a local
 JSON bridge. [Observations](examples/observation/main.go) grades saved evidence;
 [optimizer](examples/optimizer/main.go) evaluates immutable typed recipes with
-training/calibration/holdout splits.
+training/calibration/holdout splits and demonstrates a separate resource-plan
+candidate domain through the same bounded rounds protocol.
+
+Optimizer requires revisioned proposer, typed constraints and objective. Static
+enumeration follows the same accounting and stop path. `BestMeasured` records
+quality; `Winner` additionally requires complete measurement, host feasibility
+and a passing gate. Feedback contains lineage and service summaries; references
+require explicit projection. Holdout runs after winner selection and never feeds
+another proposal round. Host split validation checks declared group/content keys;
+ID disjointness alone does not establish independence. Search v4 supports validated
+round-trip restoration without invoking proposal or evaluation callbacks. See
+[bounded search](docs/search-contract.md).
 
 ```sh
 go run ./examples/calculation

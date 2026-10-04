@@ -88,8 +88,10 @@ func wireSchemaPath(name string) string {
 	switch name {
 	case "scenario", "comparison", "http-request", "http-response":
 		version = 2
-	case "experiment", "assessment", "observation-result", "search":
+	case "experiment", "assessment", "observation-result":
 		version = 3
+	case "search":
+		version = 4
 	}
 	return filepath.Join("..", "schemas", fmt.Sprintf("%s-v%d.json", name, version))
 }
@@ -222,6 +224,20 @@ func applyMutation(doc any, m mutation) any {
 // without a public restore API are covered by typed structural DecodeWire.
 func restorePositive(name string, raw []byte) error {
 	switch name {
+	case "search":
+		v, e := evaly.DecodeWire[optimizer.Result](raw)
+		if e != nil {
+			return e
+		}
+		_, e = optimizer.RestoreResult(v, evaly.JSONCodec[int]{ID: "integer", Version: "1"})
+		return e
+	case "candidate":
+		v, e := evaly.DecodeWire[optimizer.CandidateRecord](raw)
+		if e != nil {
+			return e
+		}
+		_, e = optimizer.RestoreCandidate(v, evaly.JSONCodec[int]{ID: "integer", Version: "1"})
+		return e
 	case "calibration":
 		v, e := evaly.DecodeWire[evaly.CalibrationReport](raw)
 		if e != nil {

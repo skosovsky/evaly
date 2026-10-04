@@ -145,7 +145,8 @@ func PairJudge[T any](t *testing.T, j evaly.PairJudge[T], a, b evaly.Snapshot[T]
 }
 func Proposal[T, I, R any](t *testing.T, p optimizer.Proposer[T, I, R], request optimizer.ProposalRequest[I, R]) {
 	t.Helper()
-	if p.Revision() == "" || request.Maximum <= 0 {
+	if evaly.ValidatePort(p) != nil || p.Revision() == "" || request.Maximum <= 0 || request.DispatchID == "" ||
+		request.Round < 0 {
 		t.Fatal("invalid proposal protocol")
 	}
 	result, e := p.Propose(context.Background(), request)
@@ -162,6 +163,12 @@ func Proposal[T, I, R any](t *testing.T, p optimizer.Proposer[T, I, R], request 
 		}
 		seen[c.ID] = true
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := p.Propose(ctx, request); !errors.Is(err, context.Canceled) {
+		t.Fatal("proposal ignores cancellation", err)
+	}
+
 }
 func HoldoutLedger(t *testing.T, l optimizer.HoldoutLedger) {
 	t.Helper()
@@ -192,5 +199,63 @@ func Clock(t *testing.T, c observation.Clock) {
 	}
 	if c.Now().Before(before) {
 		t.Fatal("clock not monotonic")
+	}
+}
+
+// SplitValidation verifies both host-declared separation and a known related split.
+func SplitValidation[I, R any](t *testing.T, v optimizer.SplitValidator[I, R], valid, related optimizer.Split[I, R]) {
+	t.Helper()
+	if err := evaly.ValidatePort(v); err != nil {
+		t.Fatal(err)
+	}
+	if err := v.ValidateSplit(context.Background(), valid); err != nil {
+		t.Fatal("valid split rejected", err)
+	}
+	if err := v.ValidateSplit(context.Background(), related); !errors.Is(err, evaly.ErrConflict) {
+		t.Fatal("related split accepted", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := v.ValidateSplit(ctx, valid); !errors.Is(err, context.Canceled) {
+		t.Fatal("split validator ignores cancellation", err)
+	}
+}
+
+func Constraints[T any](t *testing.T, p optimizer.Constraints[T], value T, summary optimizer.EvaluationSummary) {
+	t.Helper()
+	if err := evaly.ValidatePort(p); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.Check(context.Background(), value, summary); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := p.Check(ctx, value, summary); !errors.Is(err, context.Canceled) {
+		t.Fatal("constraint ignores cancellation", err)
+	}
+}
+func FeedbackProjection(t *testing.T, p optimizer.FeedbackProjector, e optimizer.Evaluation) {
+	t.Helper()
+	if err := evaly.ValidatePort(p); err != nil {
+		t.Fatal(err)
+	}
+	refs, err := p.Project(context.Background(), e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := evaly.ValidateGrade(
+		evaly.Grade{
+			Revision:     evaly.GraderRevision{ID: "reference-check", Implementation: "1", Rubric: "1"},
+			Status:       evaly.NotApplicable,
+			EvidenceRefs: refs,
+		},
+	); err != nil {
+		t.Fatal("unsafe projected reference", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := p.Project(ctx, e); !errors.Is(err, context.Canceled) {
+		t.Fatal("feedback projection ignores cancellation", err)
 	}
 }

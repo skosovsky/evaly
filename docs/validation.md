@@ -187,3 +187,15 @@ Executed update verification:
 The independent acceptance reports above describe the prior implementation state;
 this update was verified through the commands here, not a new independent audit.
 No commits or releases were created.
+
+## Sequential task 04 — bounded optimizer
+
+Final source fingerprint: `08eba985354d909f1ac16e7bc9012618d604ee897f41e00c46f3524dfb0a802b`
+(119 files, including task authorities; acceptance reports and this journal excluded).
+
+`GOCACHE=/private/tmp/evaly-final-1.27.1-cache make validate` completed with exit 0:
+format, vet and race tests in both modules; contracttest race completed in 93.815s.
+All six runnable examples completed with exit 0. `git diff --check` passed.
+The final formatter fix split assertions without removing any condition.
+Independent completeness and correctness reports are in `reviews/search-completeness.md`
+and `reviews/search-correctness.md` and refer to the same source fingerprint.

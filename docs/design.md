@@ -3,7 +3,7 @@
 Status: implementation contract. Original requirement authority: `.cursor/tasks/task1.md`.
 Current execution changes are governed by `.cursor/task/01-execution-and-assessments.md`
 and the normative [execution contract revision 2](execution-contract.md).
-Experiment, assessment, observation-result and search formats use revision 3;
+Experiment, assessment and observation-result formats use revision 3; search uses revision 4;
 scenario, comparison and HTTP formats use revision 2. Calibration uses revision 1.
 Their previous major formats are unsupported. Unaffected formats retain
 their declared revisions. No compatibility reader or migration layer is supplied.
@@ -27,6 +27,16 @@ explicit denominators; unavailable rates have no invented numeric value.
 Host owns group/time/content independence and domain interpretation. Product gates
 are thresholds, not significance tests; no cluster bootstrap or sequential testing
 is claimed.
+
+Task 04 is governed by the normative [bounded search contract](search-contract.md).
+The optional optimizer executes bounded proposal rounds through one protocol,
+including static enumeration. It preserves typed candidates and declared objective,
+constraints, split, stop and tie revisions. Best measured quality is distinct from
+a feasible selectable winner. Calibration feedback contains permitted summaries
+and lineage; evidence references require explicit host projection. Holdout is
+evaluated only after winner selection and cannot initiate another selection round.
+Technical ID disjointness is necessary; a revisioned host split validator owns
+group/content checks. No automatic semantic duplicate detection is claimed.
 
 ## Ownership and package boundaries
 
@@ -210,16 +220,22 @@ closed/cancelled are explicit rejected results; flush/cancel respect caller dead
 Production never waits for grader. Host owns storage/retention. Delayed evidence
 creates a new observation/grading revision linked to the original.
 
-Optimizer is bounded enumeration of typed immutable host candidates, optionally
-using a proposal port. Proposal receives training/calibration only. Splits must be
-disjoint by case revision/ID; holdout labels never enter proposal requests. Candidate
-codec seals descriptions. Evaluations are ordinary experiments, preserved even if
-failed/incomplete. Budget accounts for proposal, target and grader reservations;
-stop policies bound candidates/elapsed work and report exhaustion/proposal/invalid
-errors. Incomplete evaluations cannot win. Ranking reports lineage/tradeoffs and
-baseline comparison, no global optimum or automatic production update. A host
-holdout ledger detects repeated selection and records contamination. Algorithm,
-split and stop revisions are identity-bearing.
+Optimizer runs bounded proposal rounds over typed immutable host candidates;
+static enumeration is a reference proposer. Proposal receives training/calibration
+and copied permitted feedback, never holdout. Technical split IDs are disjoint;
+an optional revisioned host validator checks declared group/content keys. This
+records successful host validation, not a statistical proof of independence.
+Candidate codecs seal descriptions. Evaluations are ordinary experiments, preserved
+even if failed/incomplete. Budget claims authorize unique proposal/evaluation
+dispatches, while target/grader reservations account for their work. Stop prevents
+further proposal, evaluation or holdout calls. Best measured quality is distinct
+from a complete, feasible, passing-gate winner; objective direction and lexical
+revision ties determine ranking. Holdout runs once after selection, records ledger
+reuse and cannot trigger fallback selection. Search identity preserves objective,
+constraints, proposal, split, stop, tie and feedback revisions and ordered rounds.
+Restore validates structure, identity links, ranking, bounds and stop semantics
+before returning a detached record with caller-codec-restored candidates. No global
+optimum, distributed search or automatic production update is claimed.
 
 ## Scenario provenance and replay
 

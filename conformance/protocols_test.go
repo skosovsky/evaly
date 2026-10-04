@@ -102,8 +102,48 @@ func TestProtocolReferenceConformance(t *testing.T) {
 				}, ctx.Err()
 			},
 		}
-		conformance.Proposal(t, p, optimizer.ProposalRequest[int, int]{Training: d, Calibration: d, Maximum: 1})
+		conformance.Proposal(
+			t,
+			p,
+			optimizer.ProposalRequest[int, int]{
+				Training:    d,
+				Calibration: d,
+				Maximum:     1,
+				DispatchID:  "search/proposal/0",
+			},
+		)
 	})
 	t.Run("ledger", func(t *testing.T) { conformance.HoldoutLedger(t, &optimizer.MemoryLedger{}) })
 	t.Run("clock", func(t *testing.T) { conformance.Clock(t, observation.RealClock{}) })
+}
+
+func TestOptimizerNewPortsConformance(t *testing.T) {
+	// Arrange.
+	constraints := optimizer.ConstraintsFunc[int]{
+		Identity: "positive-v1",
+		Assess: func(_ context.Context, n int, _ optimizer.EvaluationSummary) (optimizer.Feasibility, error) {
+			return optimizer.Feasibility{Feasible: n > 0}, nil
+		},
+	}
+	projection := optimizer.FeedbackProjectionFunc{
+		Identity: "artifact-only-v1",
+		ProjectFeedback: func(context.Context, optimizer.Evaluation) ([]string, error) {
+			return []string{"artifact:feedback-1"}, nil
+		},
+	}
+	staticCandidate, err := optimizer.Seal(
+		"static",
+		"",
+		"enumeration-v1",
+		1,
+		evaly.JSONCodec[int]{ID: "int", Version: "1"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	static := optimizer.NewStaticProposer[int, int, int]("static-v1", []optimizer.Candidate[int]{staticCandidate})
+	// Act and Assert.
+	conformance.Constraints(t, constraints, 1, optimizer.EvaluationSummary{})
+	conformance.FeedbackProjection(t, projection, optimizer.Evaluation{})
+	conformance.Proposal(t, static, optimizer.ProposalRequest[int, int]{Maximum: 1, DispatchID: "reference/proposal/0"})
 }

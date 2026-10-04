@@ -17,8 +17,9 @@ type recipe struct {
 
 func splitDataset(t *testing.T, id string) evaly.Dataset[fixtures.Calculation, int] {
 	t.Helper()
-	ref := 3
-	d, e := (evaly.DatasetDraft[fixtures.Calculation, int]{Selection: "all", Cases: []evaly.Case[fixtures.Calculation, int]{{ID: id, Input: fixtures.Calculation{Left: 1, Right: 2}, Reference: &ref}}}).Seal(
+	left := map[string]int{"train": 1, "calibration": 3, "holdout": 5}[id]
+	ref := left + 2
+	d, e := (evaly.DatasetDraft[fixtures.Calculation, int]{Selection: "all", Cases: []evaly.Case[fixtures.Calculation, int]{{ID: id, Input: fixtures.Calculation{Left: left, Right: 2}, Reference: &ref}}}).Seal(
 		fixtures.InputCodec(),
 		fixtures.ReferenceCodec(),
 	)
@@ -55,11 +56,11 @@ func searchConfig(t *testing.T, budget float64) optimizer.Config[recipe, fixture
 		t.Fatal(e)
 	}
 	codec := evaly.JSONCodec[recipe]{ID: "recipe", Version: "1"}
-	first, e := optimizer.Seal("first", "baseline", "enumeration-v1", recipe{}, codec)
+	first, e := optimizer.Seal("first", "", "enumeration-v1", recipe{}, codec)
 	if e != nil {
 		t.Fatal(e)
 	}
-	second, e := optimizer.Seal("second", "baseline", "enumeration-v1", recipe{Offset: 1}, codec)
+	second, e := optimizer.Seal("second", "", "enumeration-v1", recipe{Offset: 1}, codec)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -79,12 +80,16 @@ func searchConfig(t *testing.T, budget float64) optimizer.Config[recipe, fixture
 			Calibration: calibration,
 			Holdout:     holdout,
 		},
-		Candidates: []optimizer.Candidate[recipe]{first, second},
-		Validate: func(r recipe) error {
-			if r.Offset < 0 {
-				return errors.New("invalid host setting")
-			}
-			return nil
+		MaximumRounds: 1,
+		Proposal: optimizer.NewStaticProposer[recipe, fixtures.Calculation, int](
+			"static-v1",
+			[]optimizer.Candidate[recipe]{first, second},
+		),
+		Constraints: optimizer.ConstraintsFunc[recipe]{
+			Identity: "nonnegative-v1",
+			Assess: func(_ context.Context, value recipe, _ optimizer.EvaluationSummary) (optimizer.Feasibility, error) {
+				return optimizer.Feasibility{Feasible: value.Offset >= 0, Reason: "nonnegative"}, nil
+			},
 		},
 		Evaluate: func(ctx context.Context, req optimizer.EvaluationRequest[recipe, fixtures.Calculation, int]) (evaly.Experiment, error) {
 			candidate, dataset, budget := req.Candidate, req.Dataset, req.Budget
@@ -136,7 +141,6 @@ func TestBoundedSearchIncompleteCannotWin(t *testing.T) {
 func TestProposalIsolationInvalidCandidatesAndContamination(t *testing.T) {
 	// Arrange.
 	c := searchConfig(t, 20)
-	c.Candidates = nil
 	c.Proposal = optimizer.ProposalFunc[recipe, fixtures.Calculation, int]{
 		Identity: "scripted-proposal-v1",
 		Generate: func(ctx context.Context, r optimizer.ProposalRequest[fixtures.Calculation, int]) (optimizer.ProposalResult[recipe], error) {
@@ -156,7 +160,7 @@ func TestProposalIsolationInvalidCandidatesAndContamination(t *testing.T) {
 					{ID: "valid", Value: recipe{}},
 					{ID: "invalid", Value: recipe{Offset: -1}},
 				},
-				Usage: evaly.Usage{Known: true},
+				Usage: evaly.Usage{Known: true}, Exhausted: true,
 			}, nil
 		},
 	}
@@ -168,7 +172,7 @@ func TestProposalIsolationInvalidCandidatesAndContamination(t *testing.T) {
 	c.ID = "search-two"
 	second, e := optimizer.Search(context.Background(), c)
 	// Assert.
-	if e != nil || first.Contaminated || !second.Contaminated || first.History[1].State != "invalid" ||
+	if e != nil || first.Contaminated || !second.Contaminated || first.History[1].Feasible ||
 		first.Winner == "" ||
 		first.HoldoutComparison == nil {
 		t.Fatal(e, first, second)
@@ -204,7 +208,7 @@ func TestSearchUsesDeclaredDirectionAndAbsentMeasurements(t *testing.T) {
 	// Act.
 	result, err := optimizer.Search(context.Background(), c)
 	// Assert.
-	if err != nil || result.Winner != c.Candidates[1].Record().Revision || len(result.Ranking) != 2 ||
+	if err != nil || result.Winner != result.History[1].Candidate.Revision || len(result.Ranking) != 2 ||
 		result.History[1].Quality == nil ||
 		*result.History[1].Quality != 0 ||
 		result.Objective != identity {

@@ -1,13 +1,27 @@
 {
-  "$id": "urn:evaly:search:3",
+  "$id": "urn:evaly:search:4",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
     "Algorithm": {
       "type": "string"
     },
+    "BestMeasured": {
+      "type": "string"
+    },
+    "ConstraintsRevision": {
+      "type": "string"
+    },
     "Contaminated": {
       "type": "boolean"
+    },
+    "EvaluationUnits": {
+      "maximum": 1.7976931348623157e+308,
+      "minimum": 0,
+      "type": "number"
+    },
+    "FeedbackRevision": {
+      "type": "string"
     },
     "History": {
       "items": {
@@ -625,6 +639,9 @@
                 "type": "null"
               }
             ]
+          },
+          "DispatchID": {
+            "type": "string"
           },
           "Experiment": {
             "anyOf": [
@@ -1563,6 +1580,12 @@
               }
             ]
           },
+          "FeasibilityReason": {
+            "type": "string"
+          },
+          "Feasible": {
+            "type": "boolean"
+          },
           "Quality": {
             "anyOf": [
               {
@@ -1578,11 +1601,36 @@
           "Reason": {
             "type": "string"
           },
+          "References": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "Round": {
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "type": "integer"
+          },
           "State": {
+            "enum": [
+              "invalid",
+              "failed",
+              "incomplete",
+              "evaluated"
+            ],
             "type": "string"
           }
         },
         "required": [
+          "Round",
+          "DispatchID",
+          "Feasible",
+          "FeasibilityReason",
+          "References",
           "Candidate",
           "State",
           "Reason",
@@ -3107,6 +3155,19 @@
     "ID": {
       "type": "string"
     },
+    "IndependenceValidated": {
+      "type": "boolean"
+    },
+    "MaximumCandidates": {
+      "maximum": 10000,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "MaximumRounds": {
+      "maximum": 10000,
+      "minimum": 1,
+      "type": "integer"
+    },
     "Objective": {
       "additionalProperties": false,
       "properties": {
@@ -3175,6 +3236,11 @@
     "ProposalRevision": {
       "type": "string"
     },
+    "ProposalUnits": {
+      "maximum": 1.7976931348623157e+308,
+      "minimum": 0,
+      "type": "number"
+    },
     "ProposalUsage": {
       "additionalProperties": false,
       "properties": {
@@ -3208,6 +3274,124 @@
     "Revision": {
       "type": "string"
     },
+    "RoundHistory": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "Candidates": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "DispatchID": {
+            "type": "string"
+          },
+          "Index": {
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "ProposalRevision": {
+            "type": "string"
+          },
+          "Reason": {
+            "type": "string"
+          },
+          "Received": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "Algorithm": {
+                  "type": "string"
+                },
+                "Codec": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "version"
+                  ],
+                  "type": "object"
+                },
+                "ID": {
+                  "type": "string"
+                },
+                "Parent": {
+                  "type": "string"
+                },
+                "Revision": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "ID",
+                "Revision",
+                "Parent",
+                "Algorithm",
+                "Codec"
+              ],
+              "type": "object"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "State": {
+            "enum": [
+              "completed",
+              "stopped",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "Usage": {
+            "additionalProperties": false,
+            "properties": {
+              "known": {
+                "type": "boolean"
+              },
+              "units": {
+                "maximum": 1.7976931348623157e+308,
+                "minimum": 0,
+                "type": "number"
+              }
+            },
+            "required": [
+              "known",
+              "units"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "Index",
+          "DispatchID",
+          "ProposalRevision",
+          "State",
+          "Reason",
+          "Usage",
+          "Candidates",
+          "Received"
+        ],
+        "type": "object"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
     "Seed": {
       "maximum": 9223372036854775807,
       "minimum": -9223372036854775808,
@@ -3216,7 +3400,14 @@
     "Split": {
       "type": "string"
     },
+    "SplitValidationRevision": {
+      "type": "string"
+    },
     "State": {
+      "enum": [
+        "completed",
+        "stopped"
+      ],
       "type": "string"
     },
     "States": {
@@ -3231,8 +3422,17 @@
     "StopRevision": {
       "type": "string"
     },
+    "TieRevision": {
+      "const": "candidate-revision-lexical-v1",
+      "type": "string"
+    },
+    "TimeoutNanoseconds": {
+      "maximum": 9223372036854775807,
+      "minimum": 1,
+      "type": "integer"
+    },
     "Version": {
-      "const": 3,
+      "const": 4,
       "maximum": 9223372036854775807,
       "minimum": -9223372036854775808,
       "type": "integer",
@@ -3243,7 +3443,19 @@
     }
   },
   "required": [
+    "MaximumRounds",
+    "MaximumCandidates",
+    "TimeoutNanoseconds",
+    "ProposalUnits",
+    "EvaluationUnits",
     "Version",
+    "RoundHistory",
+    "BestMeasured",
+    "ConstraintsRevision",
+    "SplitValidationRevision",
+    "FeedbackRevision",
+    "TieRevision",
+    "IndependenceValidated",
     "Objective",
     "ID",
     "Revision",
