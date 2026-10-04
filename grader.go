@@ -2,7 +2,6 @@ package evaly
 
 import (
 	"context"
-	"fmt"
 	"math"
 )
 
@@ -24,11 +23,13 @@ type GraderRevision struct {
 	Configuration  string `json:"configuration"`
 }
 type Metric struct {
-	Name      string  `json:"name"`
-	Value     float64 `json:"value"`
-	Minimum   float64 `json:"minimum"`
-	Maximum   float64 `json:"maximum"`
-	Direction string  `json:"direction"` // higher or lower
+	Name          string  `json:"name"`
+	Unit          string  `json:"unit"`
+	ScaleRevision string  `json:"scale_revision"`
+	Value         float64 `json:"value"`
+	Minimum       float64 `json:"minimum"`
+	Maximum       float64 `json:"maximum"`
+	Direction     string  `json:"direction"` // higher or lower
 }
 type Assertion struct {
 	Name   string `json:"name"`
@@ -100,7 +101,9 @@ func ValidateGrade(g Grade) error {
 	}
 	names := map[string]bool{}
 	for _, m := range g.Metrics {
-		if m.Name == "" || names[m.Name] || math.IsNaN(m.Value) || math.IsInf(m.Value, 0) || math.IsNaN(m.Minimum) ||
+		if m.Name == "" || m.Unit == "" || m.ScaleRevision == "" || names[m.Name] || math.IsNaN(m.Value) ||
+			math.IsInf(m.Value, 0) ||
+			math.IsNaN(m.Minimum) ||
 			math.IsInf(m.Minimum, 0) ||
 			math.IsNaN(m.Maximum) ||
 			math.IsInf(m.Maximum, 0) ||
@@ -359,58 +362,4 @@ func CheckPair[T any](ctx context.Context, j PairJudge[T], instructions string, 
 	r.Abstention = r.Forward.Preferred == "abstain" || r.Reverse.Preferred == "abstain"
 	r.Disagreement = r.Reviewed == 2 && !r.Abstention && r.Forward.Preferred == r.Reverse.Preferred
 	return r
-}
-
-type CalibrationLabel struct {
-	CaseRevision string
-	Pass         bool
-}
-type CalibrationRecord struct {
-	CaseRevision string
-	Grade        Grade
-}
-type CalibrationReport struct {
-	Grader                                           GraderRevision
-	Eligible, Reviewed, Disagreements, MissingLabels int
-	Coverage                                         float64
-}
-
-func Calibrate(rev GraderRevision, labels []CalibrationLabel, records []CalibrationRecord) (CalibrationReport, error) {
-	r := CalibrationReport{Grader: rev, Eligible: len(labels)}
-	expected := map[string]bool{}
-	for _, l := range labels {
-		if _, ok := expected[l.CaseRevision]; ok {
-			return r, ErrConflict
-		}
-		expected[l.CaseRevision] = l.Pass
-	}
-	seen := map[string]bool{}
-	for _, v := range records {
-		if v.Grade.Revision != rev {
-			return r, ErrConflict
-		}
-		if seen[v.CaseRevision] {
-			return r, ErrConflict
-		}
-		seen[v.CaseRevision] = true
-		label, ok := expected[v.CaseRevision]
-		if !ok {
-			r.MissingLabels++
-			continue
-		}
-		if e := ValidateGrade(v.Grade); e != nil {
-			return r, fmt.Errorf("calibration: %w", e)
-		}
-		pass, scored := AssertionOutcome([]Grade{v.Grade}, "all")
-		if scored {
-			r.Reviewed++
-			if pass != label {
-				r.Disagreements++
-			}
-		}
-	}
-	if r.Eligible > 0 {
-		r.Coverage = float64(r.Reviewed) / float64(r.Eligible)
-	}
-	return r, nil
 }

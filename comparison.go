@@ -3,6 +3,7 @@ package evaly
 import (
 	"fmt"
 	"math"
+	"math/big"
 	"math/rand"
 	"sort"
 	"strings"
@@ -18,26 +19,30 @@ const (
 )
 
 type GatePolicy struct {
-	Revision          string  `json:"revision"`
-	MinimumCoverage   float64 `json:"minimum_coverage"`
-	MinimumQuality    float64 `json:"minimum_quality"`
-	MaximumRegression float64 `json:"maximum_regression"`
-	BootstrapSamples  int     `json:"bootstrap_samples"`
-	Seed              int64   `json:"seed"`
+	Revision               string  `json:"revision"`
+	MinimumMatchedCases    int     `json:"minimum_matched_cases"`
+	MinimumMatchedCoverage float64 `json:"minimum_matched_coverage"`
+	MinimumCoverage        float64 `json:"minimum_coverage"`
+	MinimumQuality         float64 `json:"minimum_quality"`
+	MaximumRegression      float64 `json:"maximum_regression"`
+	BootstrapSamples       int     `json:"bootstrap_samples"`
+	Seed                   int64   `json:"seed"`
 }
 type Aggregate struct {
-	Eligible           int      `json:"eligible"`
-	Scored             int      `json:"scored"`
-	Coverage           float64  `json:"coverage"`
-	MeanPassRate       float64  `json:"mean_pass_rate"`
-	SuccessAtLeastOnce int      `json:"success_at_least_once"`
-	AllRepeatsSuccess  int      `json:"all_repeats_success"`
-	SuccessDenominator int      `json:"success_denominator"`
-	SetupFailures      int      `json:"setup_failures"`
-	TargetFailures     int      `json:"target_failures"`
-	GraderFailures     int      `json:"grader_failures"`
-	CleanupFailures    int      `json:"cleanup_failures"`
-	Excluded           []string `json:"excluded"`
+	Eligible        int         `json:"eligible"`
+	Scored          int         `json:"scored"`
+	Coverage        float64     `json:"coverage"`
+	MeanAvailable   bool        `json:"mean_available"`
+	Mean            float64     `json:"mean"`
+	SetupFailures   int         `json:"setup_failures"`
+	TargetFailures  int         `json:"target_failures"`
+	GraderFailures  int         `json:"grader_failures"`
+	CleanupFailures int         `json:"cleanup_failures"`
+	Excluded        []Exclusion `json:"excluded"`
+}
+type Exclusion struct {
+	CaseID string `json:"case_id"`
+	Reason string `json:"reason"`
 }
 type Interval struct {
 	Method       string `json:"method"`
@@ -59,24 +64,37 @@ type TrialSummary struct {
 	Cleanup                                                                               CleanupStatus
 }
 type Comparison struct {
-	Trials             []TrialSummary   `json:"trials"`
-	Version            int              `json:"version"`
-	Revision           string           `json:"revision"`
-	Baseline           string           `json:"baseline"`
-	Candidate          string           `json:"candidate"`
-	Verdict            GateVerdict      `json:"verdict"`
-	Reasons            []string         `json:"reasons"`
-	Policy             GatePolicy       `json:"policy"`
-	BaselineAggregate  Aggregate        `json:"baseline_aggregate"`
-	CandidateAggregate Aggregate        `json:"candidate_aggregate"`
-	Pairs              []CaseDifference `json:"pairs"`
-	Uncertainty        *Interval        `json:"uncertainty,omitempty"`
-	Metric             string           `json:"metric"`
-	Unit               string           `json:"unit"`
+	Trials                []TrialSummary    `json:"trials"`
+	Version               int               `json:"version"`
+	Revision              string            `json:"revision"`
+	Baseline              string            `json:"baseline"`
+	Candidate             string            `json:"candidate"`
+	Verdict               GateVerdict       `json:"verdict"`
+	Reasons               []string          `json:"reasons"`
+	Policy                GatePolicy        `json:"policy"`
+	BaselineAggregate     Aggregate         `json:"baseline_aggregate"`
+	CandidateAggregate    Aggregate         `json:"candidate_aggregate"`
+	Pairs                 []CaseDifference  `json:"pairs"`
+	Uncertainty           *Interval         `json:"uncertainty,omitempty"`
+	Objective             ObjectiveIdentity `json:"objective"`
+	MatchedEligible       int               `json:"matched_eligible"`
+	MatchedCases          int               `json:"matched_cases"`
+	MatchedCoverage       float64           `json:"matched_coverage"`
+	MatchedMeansAvailable bool              `json:"matched_means_available"`
+	MatchedBaselineMean   float64           `json:"matched_baseline_mean"`
+	MatchedCandidateMean  float64           `json:"matched_candidate_mean"`
+	Delta                 float64           `json:"delta"`
+	UncertaintyReason     string            `json:"uncertainty_reason"`
+	Unit                  string            `json:"unit"`
 }
 
-func aggregate(r ExperimentRecord) (Aggregate, map[string]float64) {
-	a := Aggregate{Eligible: len(r.Manifest.Cases), SuccessDenominator: len(r.Manifest.Cases), Excluded: []string{}}
+func aggregate(
+	r ExperimentRecord,
+	objective Objective,
+	eligible map[string]bool,
+) (Aggregate, map[string]float64, error) {
+	a := Aggregate{Excluded: []Exclusion{}}
+	identity := objective.Identity()
 	values := map[string]float64{}
 	final := map[string]TrialRecord{}
 	for _, t := range r.Trials {
@@ -100,44 +118,67 @@ func aggregate(r ExperimentRecord) (Aggregate, map[string]float64) {
 		}
 	}
 	for _, cs := range r.Manifest.Cases {
-		complete := true
-		passes := 0
-		for repeat := range r.Manifest.Plan.Repeats {
-			t, ok := final[cs.ID+"/"+identityPart(repeat)]
-			if !ok || t.Status != Completed || t.UsageError != "" || len(t.Grades) != len(r.Manifest.Graders) {
-				complete = false
-				continue
-			}
-			pass, scored := AssertionOutcome(t.Grades, r.Manifest.Plan.AssertionPolicy)
-			if !scored {
-				complete = false
-			}
-			if pass {
-				passes++
-			}
-		}
-		if passes > 0 {
-			a.SuccessAtLeastOnce++
-		}
-		if complete && passes == r.Manifest.Plan.Repeats {
-			a.AllRepeatsSuccess++
-		}
-		if !complete {
-			a.Excluded = append(a.Excluded, cs.ID)
+		if !eligible[cs.ID] {
+			a.Excluded = append(a.Excluded, Exclusion{cs.ID, "not_eligible"})
 			continue
 		}
-		v := float64(passes) / float64(r.Manifest.Plan.Repeats)
-		values[cs.ID] = v
+		a.Eligible++
+		reason := ""
+		sum := 0.0
+		for repeat := range r.Manifest.Plan.Repeats {
+			t, ok := final[cs.ID+"/"+identityPart(repeat)]
+			if !ok {
+				reason = "trial_missing"
+				break
+			}
+			if t.Status != Completed {
+				reason = string(t.Status)
+				break
+			}
+			if t.UsageError != "" {
+				reason = "usage_error"
+				break
+			}
+			if t.GradingState != "complete" || len(t.Grades) != len(r.Manifest.Graders) {
+				reason = "grading_incomplete"
+				break
+			}
+			copy, e := cloneJSON(t)
+			if e != nil {
+				return a, values, e
+			}
+			m, e := objective.Measure(copy)
+			if objective.Identity() != identity {
+				return a, values, ErrConflict
+			}
+			if e != nil {
+				return a, values, e
+			}
+			if e = ValidateMeasurement(identity, m); e != nil {
+				return a, values, e
+			}
+			if !m.Present {
+				reason = m.Reason
+				break
+			}
+			sum = meanStep(sum, m.Value, repeat+1)
+		}
+		if reason != "" {
+			a.Excluded = append(a.Excluded, Exclusion{cs.ID, reason})
+			continue
+		}
+		value := sum
+		values[cs.ID] = value
 		a.Scored++
-		a.MeanPassRate += v
+		a.Mean = meanStep(a.Mean, value, a.Scored)
 	}
 	if a.Eligible > 0 {
 		a.Coverage = float64(a.Scored) / float64(a.Eligible)
 	}
 	if a.Scored > 0 {
-		a.MeanPassRate /= float64(a.Scored)
+		a.MeanAvailable = true
 	}
-	return a, values
+	return a, values, nil
 }
 func compatible(a, b ExperimentManifest) bool {
 	if a.State != "sealed" || b.State != "sealed" || a.Mode != "controlled" || b.Mode != "controlled" ||
@@ -178,30 +219,39 @@ func compatible(a, b ExperimentManifest) bool {
 		return false
 	}
 	if a.PairID != "" {
-		x, _ = canonical(a.PairOrder)
-		y, _ = canonical(b.PairOrder)
+		x, _ = canonical(a.PairSchedule)
+		y, _ = canonical(b.PairSchedule)
 		if string(x) != string(y) {
 			return false
 		}
 	}
 	return true
 }
-func Compare(baseline, candidate Experiment, p GatePolicy) (Comparison, error) {
+func Compare(baseline, candidate Experiment, objective Objective, p GatePolicy) (Comparison, error) {
 	c := Comparison{
-		Version:   1,
+		Version:   2,
 		Baseline:  baseline.Revision(),
 		Candidate: candidate.Revision(),
 		Policy:    p,
-		Metric:    "assertion_pass_rate",
 		Unit:      "case",
 		Reasons:   []string{},
 		Pairs:     []CaseDifference{},
 	}
-	if p.Revision == "" || !finiteNonnegative(p.MinimumCoverage) || p.MinimumCoverage > 1 ||
-		!finiteNonnegative(p.MinimumQuality) ||
-		p.MinimumQuality > 1 ||
+	if ValidatePort(objective) != nil {
+		return c, ErrInvalid
+	}
+	id := objective.Identity()
+	c.Objective = id
+	if ValidateObjectiveIdentity(id) != nil || p.Revision == "" || !finiteNonnegative(p.MinimumCoverage) ||
+		p.MinimumCoverage > 1 ||
+		p.MinimumMatchedCases < 1 ||
+		!finiteNonnegative(p.MinimumMatchedCoverage) ||
+		p.MinimumMatchedCoverage > 1 ||
+		math.IsNaN(p.MinimumQuality) ||
+		math.IsInf(p.MinimumQuality, 0) ||
+		p.MinimumQuality < id.Minimum ||
+		p.MinimumQuality > id.Maximum ||
 		!finiteNonnegative(p.MaximumRegression) ||
-		p.MaximumRegression > 1 ||
 		p.BootstrapSamples < 100 ||
 		p.BootstrapSamples > 100000 {
 		return c, ErrInvalid
@@ -235,19 +285,57 @@ func Compare(baseline, candidate Experiment, p GatePolicy) (Comparison, error) {
 			)
 		}
 	}
-	ba, bvalues := aggregate(b)
-	ca, cvalues := aggregate(cv)
+
+	invalid := func(reason string) (Comparison, error) {
+		c.Verdict = GateInvalid
+		c.Reasons = append(c.Reasons, reason)
+		c.UncertaintyReason = "comparison_invalid"
+		raw, e := canonical(c)
+		if e != nil {
+			return c, e
+		}
+		c.Revision = digest(raw)
+		return c, nil
+	}
+	if !compatible(b.Manifest, cv.Manifest) {
+		return invalid("incompatible_manifests")
+	}
+	eligible := map[string]bool{}
+	eligibilityReasons := map[string]string{}
+	for _, cs := range b.Manifest.Cases {
+		v, e := objective.Eligible(cs)
+		if objective.Identity() != id {
+			return invalid("objective_identity_changed")
+		}
+		if e != nil {
+			return invalid("eligibility_contract_error")
+		}
+		if (!v.Eligible && v.Reason == "") || (v.Eligible && v.Reason != "") {
+			return invalid("eligibility_contract_invalid")
+		}
+		eligible[cs.ID] = v.Eligible
+		eligibilityReasons[cs.ID] = v.Reason
+		if v.Eligible {
+			c.MatchedEligible++
+		}
+	}
+	ba, bvalues, e := aggregate(b, objective, eligible)
+	if e != nil {
+		return invalid("measurement_contract_invalid")
+	}
+	ca, cvalues, e := aggregate(cv, objective, eligible)
+	if e != nil {
+		return invalid("measurement_contract_invalid")
+	}
+	for _, a := range []*Aggregate{&ba, &ca} {
+		for i := range a.Excluded {
+			if a.Excluded[i].Reason == "not_eligible" {
+				a.Excluded[i].Reason = eligibilityReasons[a.Excluded[i].CaseID]
+			}
+		}
+	}
 	c.BaselineAggregate = ba
 	c.CandidateAggregate = ca
-	if !compatible(b.Manifest, cv.Manifest) {
-		c.Verdict = GateInvalid
-		c.Reasons = append(c.Reasons, "incompatible_manifests")
-	} else if ba.Coverage < p.MinimumCoverage || ca.Coverage < p.MinimumCoverage || ba.Scored == 0 || ca.Scored == 0 {
-		c.Verdict = GateInconclusive
-		c.Reasons = append(c.Reasons, "insufficient_coverage")
-	} else {
-		c.Verdict = GatePass
-	}
 	differences := []float64{}
 	for _, cs := range b.Manifest.Cases {
 		bv, bok := bvalues[cs.ID]
@@ -256,37 +344,83 @@ func Compare(baseline, candidate Experiment, p GatePolicy) (Comparison, error) {
 			d := v - bv
 			c.Pairs = append(c.Pairs, CaseDifference{cs.ID, bv, v, d})
 			differences = append(differences, d)
+			n := len(differences)
+			c.MatchedBaselineMean = meanStep(c.MatchedBaselineMean, bv, n)
+			c.MatchedCandidateMean = meanStep(c.MatchedCandidateMean, v, n)
+			c.Delta = meanStep(c.Delta, d, n)
 		}
 	}
-	if len(differences) > 0 {
+	c.MatchedCases = len(differences)
+	if c.MatchedEligible > 0 {
+		c.MatchedCoverage = float64(c.MatchedCases) / float64(c.MatchedEligible)
+	}
+	if c.MatchedCases > 0 {
+		c.MatchedMeansAvailable = true
 		c.Uncertainty = bootstrap(differences, p.BootstrapSamples, p.Seed)
 	}
-	if c.Verdict == GatePass {
-		if ca.MeanPassRate < p.MinimumQuality {
+	switch c.MatchedCases {
+	case 0:
+		c.UncertaintyReason = "no_matched_cases"
+	case 1:
+		c.UncertaintyReason = "one_independent_case_degenerate"
+	default:
+		c.UncertaintyReason = "independent_representative_cases_assumed"
+		if c.Uncertainty.Lower == c.Uncertainty.Upper {
+			c.UncertaintyReason = "constant_sample_degenerate"
+		}
+	}
+	c.Verdict = GatePass
+	if !compatible(b.Manifest, cv.Manifest) {
+		c.Verdict = GateInvalid
+		c.Reasons = append(c.Reasons, "incompatible_manifests")
+	} else if ba.Coverage < p.MinimumCoverage || ca.Coverage < p.MinimumCoverage || c.MatchedCases < p.MinimumMatchedCases || c.MatchedCoverage < p.MinimumMatchedCoverage {
+		c.Verdict = GateInconclusive
+		c.Reasons = append(c.Reasons, "insufficient_matched_coverage")
+	} else {
+		badQuality := c.MatchedCandidateMean < p.MinimumQuality
+		regression := c.Delta < -p.MaximumRegression
+		if id.Direction == "lower" {
+			badQuality = c.MatchedCandidateMean > p.MinimumQuality
+			regression = c.Delta > p.MaximumRegression
+		}
+		if badQuality {
 			c.Verdict = GateFail
 			c.Reasons = append(c.Reasons, "minimum_quality")
 		}
-		if len(differences) == 0 {
-			c.Verdict = GateInconclusive
-			c.Reasons = append(c.Reasons, "no_matched_cases")
-		} else {
-			delta := 0.0
-			for _, d := range differences {
-				delta += d
-			}
-			delta /= float64(len(differences))
-			if delta < -p.MaximumRegression {
-				c.Verdict = GateFail
-				c.Reasons = append(c.Reasons, "regression")
-			}
+		if regression {
+			c.Verdict = GateFail
+			c.Reasons = append(c.Reasons, "regression")
 		}
 	}
-	bbytes, e := canonical(c)
+	if objective.Identity() != id {
+		return invalid("objective_identity_changed")
+	}
+	raw, e := canonical(c)
 	if e != nil {
 		return c, e
 	}
-	c.Revision = digest(bbytes)
+	c.Revision = digest(raw)
 	return c, nil
+}
+
+// meanStep avoids sum overflow and preserves identical subnormal values.
+// Opposite-sign finite extremes can overflow subtraction; that rare branch
+// computes the convex update in wider arithmetic before rounding to float64.
+func meanStep(mean, value float64, count int) float64 {
+	if count == 1 {
+		return value
+	}
+	difference := value - mean
+	if !math.IsInf(difference, 0) {
+		return mean + difference/float64(count)
+	}
+	accumulator := new(big.Float).SetPrec(256).SetFloat64(mean)
+	weight := new(big.Float).SetPrec(256).SetInt64(int64(count - 1))
+	accumulator.Mul(accumulator, weight)
+	accumulator.Add(accumulator, new(big.Float).SetPrec(256).SetFloat64(value))
+	accumulator.Quo(accumulator, new(big.Float).SetPrec(256).SetInt64(int64(count)))
+	result, _ := accumulator.Float64()
+	return result
 }
 func bootstrap(values []float64, samples int, seed int64) *Interval {
 	r := &Interval{
@@ -305,10 +439,9 @@ func bootstrap(values []float64, samples int, seed int64) *Interval {
 	rng := rand.New(rand.NewSource(seed))
 	means := make([]float64, samples)
 	for i := range means {
-		for range values {
-			means[i] += values[rng.Intn(len(values))]
+		for j := range values {
+			means[i] = meanStep(means[i], values[rng.Intn(len(values))], j+1)
 		}
-		means[i] /= float64(len(values))
 	}
 	sort.Float64s(means)
 	r.Lower = means[int(math.Floor(.025*float64(samples-1)))]
@@ -325,7 +458,7 @@ func Report(c Comparison) string {
 		c.Verdict,
 		c.Baseline,
 		c.Candidate,
-		c.Metric,
+		c.Objective.ID,
 		c.Unit,
 	)
 	for _, row := range []struct {
@@ -334,17 +467,41 @@ func Report(c Comparison) string {
 	}{{"baseline", c.BaselineAggregate}, {"candidate", c.CandidateAggregate}} {
 		fmt.Fprintf(
 			&b,
-			"%s: scored %d/%d; coverage %.3f; observed mean pass %.3f; setup=%d target=%d grader=%d cleanup=%d\n",
+			"%s: scored %d/%d; coverage %.3f; observed mean %s; setup=%d target=%d grader=%d cleanup=%d\n",
 			row.name,
 			row.a.Scored,
 			row.a.Eligible,
 			row.a.Coverage,
-			row.a.MeanPassRate,
+			availableMean(row.a.Mean, row.a.MeanAvailable),
 			row.a.SetupFailures,
 			row.a.TargetFailures,
 			row.a.GraderFailures,
 			row.a.CleanupFailures,
 		)
+	}
+	fmt.Fprintf(
+		&b,
+		"objective %s@%s: unit=%s direction=%s scale=%s; matched %d/%d coverage %.3f; baseline mean %s; candidate mean %s; delta %s; uncertainty %s\n",
+		c.Objective.ID,
+		c.Objective.Revision,
+		c.Objective.Unit,
+		c.Objective.Direction,
+		c.Objective.ScaleRevision,
+		c.MatchedCases,
+		c.MatchedEligible,
+		c.MatchedCoverage,
+		availableMean(c.MatchedBaselineMean, c.MatchedMeansAvailable),
+		availableMean(c.MatchedCandidateMean, c.MatchedMeansAvailable),
+		availableMean(c.Delta, c.MatchedMeansAvailable),
+		c.UncertaintyReason,
+	)
+	for _, row := range []struct {
+		name string
+		a    Aggregate
+	}{{"baseline", c.BaselineAggregate}, {"candidate", c.CandidateAggregate}} {
+		for _, x := range row.a.Excluded {
+			fmt.Fprintf(&b, "%s excluded case %s: %s\n", row.name, x.CaseID, x.Reason)
+		}
 	}
 	for _, t := range c.Trials {
 		fmt.Fprintf(
@@ -381,6 +538,12 @@ func Report(c Comparison) string {
 		)
 	}
 	return b.String()
+}
+func availableMean(value float64, available bool) string {
+	if !available {
+		return "unavailable"
+	}
+	return fmt.Sprintf("%.3f", value)
 }
 func ExitCode(v GateVerdict) int {
 	switch v {

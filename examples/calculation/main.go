@@ -23,7 +23,7 @@ func main() {
 	if e != nil {
 		log.Fatal(e)
 	}
-	comparison, e := evaly.Compare(baseline, candidate, fixtures.Gate())
+	comparison, e := evaly.Compare(baseline, candidate, fixtures.Objective(), fixtures.Gate())
 	if e != nil {
 		log.Fatal(e)
 	}

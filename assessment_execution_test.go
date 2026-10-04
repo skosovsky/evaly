@@ -107,7 +107,7 @@ func TestAssessmentPartialCanonicalRestore(t *testing.T) {
 	// Arrange.
 	rev := GraderRevision{ID: "a", Implementation: "1", Rubric: "1"}
 	a := Assessment{
-		Version:    2,
+		Version:    3,
 		Source:     "source",
 		View:       "view",
 		Mode:       "rescore",

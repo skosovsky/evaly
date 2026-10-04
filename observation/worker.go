@@ -220,12 +220,12 @@ func (w *Worker[I, O, R]) loop() {
 func (w *Worker[I, O, R]) cancelledResult(t task[I, O, R]) Result {
 	return w.sealResult(
 		t,
-		Result{Version: 2, State: "cancelled", Observation: t.observation.Record(), Reason: "worker_cancelled"},
+		Result{Version: 3, State: "cancelled", Observation: t.observation.Record(), Reason: "worker_cancelled"},
 	)
 }
 func (w *Worker[I, O, R]) sealResult(t task[I, O, R], r Result) Result {
 	a := evaly.Assessment{
-		Version: 2,
+		Version: 3,
 		Source:  t.observation.record.ID,
 		Parent:  t.observation.record.Parent,
 		View:    t.observation.saved.Revision(),
@@ -258,7 +258,7 @@ func (w *Worker[I, O, R]) sealResult(t task[I, O, R], r Result) Result {
 	return r
 }
 func (w *Worker[I, O, R]) evaluate(t task[I, O, R]) (r Result) {
-	r = Result{Version: 2, Observation: t.observation.Record()}
+	r = Result{Version: 3, Observation: t.observation.Record()}
 	defer func() { r = w.sealResult(t, r) }()
 	if w.ctx.Err() != nil {
 		r.State = "cancelled"

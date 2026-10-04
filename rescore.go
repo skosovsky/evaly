@@ -156,7 +156,7 @@ type SkippedGrader struct {
 }
 
 func validateAssessmentContent(a Assessment) error {
-	if a.Version != 2 {
+	if a.Version != 3 {
 		return ErrUnsupported
 	}
 	if a.Source == "" || a.View == "" || (a.Mode != "rescore" && a.Mode != "observation") || len(a.Planned) == 0 {
@@ -246,7 +246,7 @@ func Rescore[I, O, R any](
 	graders []Grader[I, O, R],
 	source, parent, mode string,
 ) (Assessment, error) {
-	a := Assessment{Version: 2, Source: source, Parent: parent, View: s.Revision(), Mode: mode, State: "complete"}
+	a := Assessment{Version: 3, Source: source, Parent: parent, View: s.Revision(), Mode: mode, State: "complete"}
 	if source == "" || (mode != "rescore" && mode != "observation") || len(graders) == 0 {
 		return Assessment{}, ErrInvalid
 	}

@@ -3,8 +3,9 @@
 Status: implementation contract. Original requirement authority: `.cursor/tasks/task1.md`.
 Current execution changes are governed by `.cursor/task/01-execution-and-assessments.md`
 and the normative [execution contract revision 2](execution-contract.md).
-Experiment, scenario, assessment, observation-result and search formats now use
-revision 2; their old formats are unsupported. Other unaffected formats retain
+Experiment, assessment, observation-result and search formats use revision 3;
+scenario, comparison and HTTP formats use revision 2. Calibration uses revision 1.
+Their previous major formats are unsupported. Unaffected formats retain
 their declared revisions. No compatibility reader or migration layer is supplied.
 
 Task 02 is governed by the normative [evidence and export contract](evidence-contract.md),
@@ -13,6 +14,19 @@ HTTP requests and responses move to revision 2. A remote invocation explicitly
 declares event delivery completeness independently of target success. Runtime
 wire decoding checks required presence before callbacks; domain payloads remain
 the responsibility of host codecs.
+
+Task 03 introduces the normative [measurement contract](measurement-contract.md),
+[paired execution schedule](paired-contract.md), and [binary calibration](calibration-contract.md).
+Comparison requires an explicit objective declaring identity, scale, direction,
+eligibility, missingness and aggregation revisions. Assertion and numeric objectives
+are reference implementations of this same contract. Gates require both per-side
+coverage and matched independent-case count/coverage; reported change and uncertainty
+use the same matched cases. Paired dispatch interleaves sides within case/repeat
+slots with isolated handles. Calibration reports confusion counts and rates with
+explicit denominators; unavailable rates have no invented numeric value.
+Host owns group/time/content independence and domain interpretation. Product gates
+are thresholds, not significance tests; no cluster bootstrap or sequential testing
+is claimed.
 
 ## Ownership and package boundaries
 
@@ -79,9 +93,11 @@ reservations can be explicitly released. Units must be nonnegative finite; actua
 usage exceeding a reservation is a contract violation, not automatically affordable.
 
 Paired execution uses the same sealed dataset/fixture revision and separate prepared
-handles for each side. Pair order is seeded and recorded; manifest timestamps bound
-the time window. Shared environments or inconsistent reset revisions invalidate
-independent comparison. Seeds do not guarantee provider determinism.
+handles for each side. Each scheduled case/repeat runs both sides in seeded order;
+bounded workers may overlap different slots. Schedule provenance records the planned
+within-slot order, not a promise of simultaneous or deterministic global wall-clock
+order. Manifest timestamps bound the time window. Shared environments or inconsistent
+reset revisions reject paired dispatch. Seeds do not guarantee provider determinism.
 
 ## Evidence and grading
 
@@ -112,7 +128,10 @@ LLM judge requests separate trusted instructions and untrusted typed data; this 
 a protocol boundary, not an injection-proof claim. Scripted adapters make tests
 repeatable; real model accuracy remains unverified. Pairwise requests use blind A/B,
 run both orders, normalize preference, and retain abstention/disagreement. Calibration
-reports reviewed fraction, disagreement and missing labels per grader revision.
+reports TP/TN/FP/FN, unreviewed/error/abstain counts, missing labels and coverage
+per grader revision. Rates retain numerator/denominator and are unavailable when
+the denominator is zero. Host slice labels produce aggregate reports without raw
+inputs; no human disagreement claim is made without corresponding human labels.
 SavedViewRecord v1 stores the permitted view, explicit input/output/reference codec
 identities and checksum revision; SaveSavedView/LoadSavedView restores after
 filesystem reopen without target access. Offline re-score receives saved permitted views and evidence only; creates a new
@@ -132,14 +151,16 @@ recorded. Re-score never rewrites sealed results.
 Comparison requires sealed revisions, compatible datasets/case revisions, fixture,
 grader/capture/projection protocols, plans and isolation, and an explicit metric.
 Aggregates use final attempt per case/repeat but retain earlier attempts. Coverage
-is scored cases / eligible cases; failed setup/judge/missing evidence cannot reduce
-the eligible denominator. A case is scored only when every planned repeat yields
-the required grade. Case quality averages repeats; independent unit is case.
-`success_at_least_once` and `all_repeats_success` are separate metrics with explicit
-denominators. Setup, target, grader and cleanup failures are separate counters.
+is measured cases / declared eligible cases; failed setup/judge/missing evidence
+cannot reduce the eligible denominator. A case is measured only when every planned
+repeat yields the required measurement. Native case values average repeats;
+independent unit is case. The same explicit Objective port serves assertion and
+numeric measurements, including unit, scale, direction and selection provenance.
+Setup, target, grader and cleanup failures are separate counters.
 Gate: pass/fail/inconclusive/invalid_comparison, with versioned policy and reasons.
-Minimum coverage takes precedence over high observed pass rate. Product thresholds
-are not significance tests.
+Minimum side and matched coverage and matched independent-case count take precedence
+over high observed quality. Quality thresholds, delta, regression and uncertainty
+use the same matched case set. Product thresholds are not significance tests.
 
 Uncertainty method: seeded paired case bootstrap, percentile interval for mean case
 difference (default 95%). Assumes independent representative cases; repeated trials

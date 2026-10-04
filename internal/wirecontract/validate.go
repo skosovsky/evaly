@@ -20,14 +20,15 @@ var ErrVersion = errors.New("unsupported wire version")
 func Supported(t reflect.Type) bool {
 	roots := map[string]map[string]bool{
 		"github.com/skosovsky/evaly": {
-			"Envelope":         true,
-			"DatasetRecord":    true,
-			"ExperimentRecord": true,
-			"EvidenceRecord":   true,
-			"Comparison":       true,
-			"SavedViewRecord":  true,
-			"ScenarioRecord":   true,
-			"Assessment":       true,
+			"Envelope":          true,
+			"DatasetRecord":     true,
+			"ExperimentRecord":  true,
+			"EvidenceRecord":    true,
+			"Comparison":        true,
+			"SavedViewRecord":   true,
+			"ScenarioRecord":    true,
+			"Assessment":        true,
+			"CalibrationReport": true,
 		},
 		"github.com/skosovsky/evaly/observation":       {"Record": true, "Result": true},
 		"github.com/skosovsky/evaly/optimizer":         {"Result": true, "CandidateRecord": true},

@@ -113,6 +113,7 @@ func searchConfig(t *testing.T, budget float64) optimizer.Config[recipe, fixture
 		CalibrationBaseline: calBase,
 		HoldoutBaseline:     holdBase,
 		Gate:                fixtures.Gate(),
+		Objective:           fixtures.Objective(),
 		Codec:               codec,
 	}
 }
@@ -175,5 +176,83 @@ func TestProposalIsolationInvalidCandidatesAndContamination(t *testing.T) {
 	c.Split.Holdout = c.Split.Calibration
 	if _, e = optimizer.Search(context.Background(), c); !errors.Is(e, evaly.ErrConflict) {
 		t.Fatal("overlapping split accepted", e)
+	}
+}
+
+func TestSearchUsesDeclaredDirectionAndAbsentMeasurements(t *testing.T) {
+	// Arrange: the host deliberately selects lower-is-better values, independent of assertion quality.
+	c := searchConfig(t, 20)
+	identity := fixtures.Objective().Identity()
+	identity.ID = "host-error-cost"
+	identity.Unit = "cost"
+	identity.Direction = "lower"
+	c.Objective = evaly.ObjectiveFuncs{Descriptor: identity,
+		Select: func(evaly.CaseIdentity) (evaly.Eligibility, error) { return evaly.Eligibility{Eligible: true}, nil },
+		Evaluate: func(trial evaly.TrialRecord) (evaly.Measurement, error) {
+			pass, available := evaly.AssertionOutcome(trial.Grades, "all")
+			if !available {
+				return evaly.Measurement{Reason: "missing_cost"}, nil
+			}
+			value := 0.0
+			if pass {
+				value = 1
+			}
+			return evaly.Measurement{Present: true, Value: value}, nil
+		}}
+	c.Gate.MinimumQuality = 1
+	c.Gate.MaximumRegression = 1
+	// Act.
+	result, err := optimizer.Search(context.Background(), c)
+	// Assert.
+	if err != nil || result.Winner != c.Candidates[1].Record().Revision || len(result.Ranking) != 2 ||
+		result.History[1].Quality == nil ||
+		*result.History[1].Quality != 0 ||
+		result.Objective != identity {
+		t.Fatal(result, err)
+	}
+
+	// Arrange: all measurements are unavailable, never a zero-ranked candidate.
+	c.ID = "missing-search"
+	missing := c.Objective.(evaly.ObjectiveFuncs)
+	missing.Evaluate = func(evaly.TrialRecord) (evaly.Measurement, error) {
+		return evaly.Measurement{Reason: "missing_cost"}, nil
+	}
+	c.Objective = missing
+	// Act.
+	result, err = optimizer.Search(context.Background(), c)
+	// Assert.
+	if err != nil || result.Winner != "" || len(result.Ranking) != 0 {
+		t.Fatal(result, err)
+	}
+	for _, entry := range result.History {
+		if entry.Quality != nil || entry.State != "incomplete" {
+			t.Fatal(entry)
+		}
+	}
+}
+
+func TestInvalidObjectivePreventsPaidDispatch(t *testing.T) {
+	// Arrange.
+	for _, objective := range []evaly.Objective{nil, evaly.AssertionObjective{ID: "broken", Revision: "1", Policy: "unknown"}} {
+		c := searchConfig(t, 20)
+		c.Objective = objective
+		calls := 0
+		c.Proposal = optimizer.ProposalFunc[recipe, fixtures.Calculation, int]{
+			Identity: "paid",
+			Generate: func(context.Context, optimizer.ProposalRequest[fixtures.Calculation, int]) (optimizer.ProposalResult[recipe], error) {
+				calls++
+				return optimizer.ProposalResult[recipe]{}, nil
+			},
+		}
+		c.Evaluate = func(context.Context, optimizer.EvaluationRequest[recipe, fixtures.Calculation, int]) (evaly.Experiment, error) {
+			calls++
+			return evaly.Experiment{}, nil
+		}
+		// Act.
+		_, err := optimizer.Search(context.Background(), c)
+		// Assert.
+		if !errors.Is(err, evaly.ErrInvalid) || calls != 0 {
+			t.Fatal(err, calls)
+		}
 	}
 }

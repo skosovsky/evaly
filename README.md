@@ -11,8 +11,9 @@ codec-sealed snapshots, with independent values for both orders and explicit
 dispatch/usage records. Assessments retain planned graders, partial results and
 skipped reasons even after budget, deadline or accounting failure. Scenario drivers
 receive seed, mode and step directly. See the normative
-[execution contract](docs/execution-contract.md). Experiment, assessment, scenario,
-observation-result and search formats use revision 2; old formats are unsupported.
+[execution contract](docs/execution-contract.md). Experiment, assessment,
+observation-result and search formats use revision 3; scenario and comparison use
+revision 2. Old formats are unsupported.
 
 HTTP request/response revision 2 declares evidence delivery completeness separately
 from target success and preserves delivered events on target failure. Wire readers
@@ -71,8 +72,13 @@ has a fresh bounded context and an independent status. Missing/judge-error evide
 is never zero or success. Repeats average within cases; coverage denominators retain
 setup failures. Comparisons name a paired case bootstrap and its assumptions;
 thresholds are product policy, not proof of significance. Scores retain declared
-scales. The stock comparison gates assertion pass rate; custom numeric scale
-aggregation is host policy and must be separately versioned.
+units, scales and direction. `Compare` requires an explicit `Objective`; assertion
+and numeric reference objectives use the same measurement path. Both side coverage
+and matched case count/coverage must satisfy the host gate. Delta, quality and
+bootstrap use the same matched cases. Missing means are explicitly unavailable.
+See [measurement](docs/measurement-contract.md), [paired execution](docs/paired-contract.md),
+and [calibration](docs/calibration-contract.md). Case IDs do not prove independence;
+the host owns content, group and time splits.
 
 `StopOnInfrastructure` stops future target dispatch on setup, cleanup, grading,
 budget or usage-accounting failure; assertion failure alone does not stop a run.

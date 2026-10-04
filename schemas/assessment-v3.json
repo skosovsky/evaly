@@ -1,5 +1,5 @@
 {
-  "$id": "urn:evaly:assessment:2",
+  "$id": "urn:evaly:assessment:3",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
@@ -101,6 +101,12 @@
                 "name": {
                   "type": "string"
                 },
+                "scale_revision": {
+                  "type": "string"
+                },
+                "unit": {
+                  "type": "string"
+                },
                 "value": {
                   "maximum": 1.7976931348623157e+308,
                   "minimum": -1.7976931348623157e+308,
@@ -109,6 +115,8 @@
               },
               "required": [
                 "name",
+                "unit",
+                "scale_revision",
                 "value",
                 "minimum",
                 "maximum",
@@ -320,7 +328,7 @@
       "type": "string"
     },
     "version": {
-      "const": 2,
+      "const": 3,
       "maximum": 9223372036854775807,
       "minimum": -9223372036854775808,
       "type": "integer",

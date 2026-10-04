@@ -1,5 +1,5 @@
 {
-  "$id": "urn:evaly:experiment:2",
+  "$id": "urn:evaly:experiment:3",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
@@ -158,13 +158,78 @@
         "pair_id": {
           "type": "string"
         },
-        "pair_order": {
-          "items": {
-            "type": "string"
-          },
-          "type": [
-            "array",
-            "null"
+        "pair_schedule": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "baseline": {
+                  "type": "string"
+                },
+                "candidate": {
+                  "type": "string"
+                },
+                "concurrency": {
+                  "maximum": 9223372036854775807,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "revision": {
+                  "const": "case-repeat-v1",
+                  "type": "string"
+                },
+                "seed": {
+                  "maximum": 9223372036854775807,
+                  "minimum": -9223372036854775808,
+                  "type": "integer"
+                },
+                "slots": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "case_id": {
+                        "type": "string"
+                      },
+                      "case_revision": {
+                        "type": "string"
+                      },
+                      "first": {
+                        "type": "string"
+                      },
+                      "repeat": {
+                        "maximum": 9223372036854775807,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "second": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "case_id",
+                      "case_revision",
+                      "repeat",
+                      "first",
+                      "second"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "revision",
+                "seed",
+                "concurrency",
+                "baseline",
+                "candidate",
+                "slots"
+              ],
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "parent_revision": {
@@ -315,7 +380,7 @@
           ]
         },
         "version": {
-          "const": 2,
+          "const": 3,
           "maximum": 9223372036854775807,
           "minimum": -9223372036854775808,
           "type": "integer",
@@ -607,6 +672,12 @@
                       "name": {
                         "type": "string"
                       },
+                      "scale_revision": {
+                        "type": "string"
+                      },
+                      "unit": {
+                        "type": "string"
+                      },
                       "value": {
                         "maximum": 1.7976931348623157e+308,
                         "minimum": -1.7976931348623157e+308,
@@ -615,6 +686,8 @@
                     },
                     "required": [
                       "name",
+                      "unit",
+                      "scale_revision",
                       "value",
                       "minimum",
                       "maximum",

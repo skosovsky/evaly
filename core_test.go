@@ -332,12 +332,14 @@ func TestComparisonCoverageAndCaseDenominator(t *testing.T) {
 	}
 	c.Lifecycle = life
 	p := evaly.GatePolicy{
-		Revision:          "gate-v1",
-		MinimumCoverage:   1,
-		MinimumQuality:    .7,
-		MaximumRegression: .3,
-		BootstrapSamples:  200,
-		Seed:              3,
+		Revision:               "gate-v1",
+		MinimumCoverage:        1,
+		MinimumMatchedCases:    1,
+		MinimumMatchedCoverage: 1,
+		MinimumQuality:         .7,
+		MaximumRegression:      .3,
+		BootstrapSamples:       200,
+		Seed:                   3,
 	}
 	// Act.
 	baseline, e := evaly.Run(context.Background(), b)
@@ -348,7 +350,12 @@ func TestComparisonCoverageAndCaseDenominator(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	comp, e := evaly.Compare(baseline, candidate, p)
+	comp, e := evaly.Compare(
+		baseline,
+		candidate,
+		evaly.AssertionObjective{ID: "assertions", Revision: "v1", Policy: "all"},
+		p,
+	)
 	// Assert.
 	if e != nil || comp.Verdict != evaly.GateInconclusive || comp.CandidateAggregate.Scored != 2 ||
 		comp.CandidateAggregate.Eligible != 4 ||
@@ -371,8 +378,13 @@ func TestComparisonCoverageAndCaseDenominator(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	comp, e = evaly.Compare(baseline, complete, p)
-	if e != nil || comp.CandidateAggregate.MeanPassRate != .75 || comp.CandidateAggregate.Eligible != 4 {
+	comp, e = evaly.Compare(
+		baseline,
+		complete,
+		evaly.AssertionObjective{ID: "assertions", Revision: "v1", Policy: "all"},
+		p,
+	)
+	if e != nil || comp.CandidateAggregate.Mean != .75 || comp.CandidateAggregate.Eligible != 4 {
 		t.Fatal(e, comp)
 	}
 	b.Plan.Repeats = 3
@@ -387,7 +399,7 @@ func TestComparisonCoverageAndCaseDenominator(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	comp, e = evaly.Compare(be, ce, p)
+	comp, e = evaly.Compare(be, ce, evaly.AssertionObjective{ID: "assertions", Revision: "v1", Policy: "all"}, p)
 	if e != nil || comp.Uncertainty.Cases != 4 || comp.Unit != "case" {
 		t.Fatal(e, comp)
 	}

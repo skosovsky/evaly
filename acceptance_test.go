@@ -182,8 +182,20 @@ func TestSecretAbsentInJudgeExportAndVerdictUnchanged(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	p := evaly.GatePolicy{Revision: "gate", MinimumCoverage: 1, MinimumQuality: 1, BootstrapSamples: 100}
-	before, e := evaly.Compare(experiment, experiment, p)
+	p := evaly.GatePolicy{
+		Revision:               "gate",
+		MinimumCoverage:        1,
+		MinimumMatchedCases:    1,
+		MinimumMatchedCoverage: 1,
+		MinimumQuality:         1,
+		BootstrapSamples:       100,
+	}
+	before, e := evaly.Compare(
+		experiment,
+		experiment,
+		evaly.AssertionObjective{ID: "assertions", Revision: "v1", Policy: "all"},
+		p,
+	)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -193,7 +205,12 @@ func TestSecretAbsentInJudgeExportAndVerdictUnchanged(t *testing.T) {
 	}
 	sink := &evaly.MemoryExport{Fail: true}
 	delivery := evaly.Export(context.Background(), sink, evaly.DeliveryRecord{ObservationID: "same", Artifact: env})
-	after, e := evaly.Compare(experiment, experiment, p)
+	after, e := evaly.Compare(
+		experiment,
+		experiment,
+		evaly.AssertionObjective{ID: "assertions", Revision: "v1", Policy: "all"},
+		p,
+	)
 	// Assert.
 	if e != nil || judged.Load() != 1 || delivery.State != "failed" || before.Verdict != evaly.GateFail ||
 		before.Revision != after.Revision ||

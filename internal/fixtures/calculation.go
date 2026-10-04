@@ -141,11 +141,17 @@ func CalculationConfig(
 }
 func Gate() evaly.GatePolicy {
 	return evaly.GatePolicy{
-		Revision:          "fixture-v1",
-		MinimumCoverage:   1,
-		MinimumQuality:    .8,
-		MaximumRegression: 0,
-		BootstrapSamples:  1000,
-		Seed:              42,
+		Revision:               "fixture-v1",
+		MinimumCoverage:        1,
+		MinimumMatchedCoverage: 1,
+		MinimumMatchedCases:    1,
+		MinimumQuality:         .8,
+		MaximumRegression:      0,
+		BootstrapSamples:       1000,
+		Seed:                   42,
 	}
+}
+
+func Objective() evaly.AssertionObjective {
+	return evaly.AssertionObjective{ID: "assertion-pass", Revision: "1", Policy: "all"}
 }

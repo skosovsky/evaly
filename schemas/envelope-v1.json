@@ -32,7 +32,8 @@
         "view",
         "scenario",
         "assessment",
-        "candidate"
+        "candidate",
+        "calibration"
       ],
       "type": "string"
     },

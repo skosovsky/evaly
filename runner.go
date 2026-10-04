@@ -176,7 +176,7 @@ type ExperimentManifest struct {
 	Started             time.Time         `json:"started"`
 	Finished            time.Time         `json:"finished"`
 	PairID              string            `json:"pair_id,omitempty"`
-	PairOrder           []string          `json:"pair_order,omitempty"`
+	PairSchedule        *PairSchedule     `json:"pair_schedule,omitempty"`
 	ParentRevision      string            `json:"parent_revision,omitempty"`
 }
 type ExperimentRecord struct {
@@ -191,7 +191,7 @@ func (e Experiment) Record() ExperimentRecord { r, _ := cloneJSON(e.record); ret
 func (e Experiment) Revision() string         { return e.record.Manifest.Revision }
 func (e Experiment) ID() string               { return e.record.Manifest.ID }
 func RestoreExperiment(r ExperimentRecord) (Experiment, error) {
-	if r.Manifest.Version != 2 {
+	if r.Manifest.Version != 3 {
 		return Experiment{}, ErrUnsupported
 	}
 	if r.Manifest.State != "sealed" && r.Manifest.State != "incomplete" {
@@ -236,6 +236,9 @@ func validatePlan(p RunPlan) error {
 }
 func validateExperimentRecord(r ExperimentRecord) error {
 	m := r.Manifest
+	if m.Version != 3 {
+		return ErrUnsupported
+	}
 	if !validArtifactID(m.ID) || m.Provenance.Target == "" || m.Dataset == "" || m.Mode != "controlled" ||
 		m.Projection == "" ||
 		m.CapturePolicy == "" ||
@@ -243,6 +246,12 @@ func validateExperimentRecord(r ExperimentRecord) error {
 		return ErrInvalid
 	}
 	if err := validatePlan(m.Plan); err != nil {
+		return err
+	}
+	if len(m.Cases) > 1000000/m.Plan.Repeats {
+		return ErrInvalid
+	}
+	if err := validatePairSchedule(m); err != nil {
 		return err
 	}
 	if m.Lifecycle.Fixture == "" || m.Lifecycle.Reset == "" ||
@@ -392,6 +401,13 @@ func validateExperimentRecord(r ExperimentRecord) error {
 			}
 		}
 	}
+	if m.PairSchedule != nil {
+		for _, slot := range m.PairSchedule.Slots {
+			if slots[slot.CaseID+"/"+identityPart(slot.Repeat)] == 0 {
+				return ErrIncomplete
+			}
+		}
+	}
 	if m.State == "sealed" {
 		for _, cs := range m.Cases {
 			for repeat := 0; repeat < m.Plan.Repeats; repeat++ {
@@ -423,8 +439,6 @@ type RunConfig[I, O, R, E any] struct {
 	Project            func(context.Context, Case[I, R], O, EvidenceRecord) (View[I, O, R], error)
 	ProjectionRevision string
 	Budget             Budget
-	PairID             string
-	PairOrder          []string
 	CriticalEvidence   bool
 }
 
@@ -434,35 +448,7 @@ func Run[I, O, R, E any](ctx context.Context, c RunConfig[I, O, R, E]) (Experime
 	}
 	cases := c.Dataset.record.Cases
 	life := c.Lifecycle.Identity()
-	m := ExperimentManifest{
-		States:              []string{"planned", "running"},
-		OutputCodec:         c.OutputCodec.Identity(),
-		CaptureRequirements: append([]string{}, c.Capture.RequiredKinds...),
-		CaptureMaxEvents:    c.Capture.MaxEvents,
-		CaptureMaxBytes:     c.Capture.MaxBytes,
-		CriticalEvidence:    c.CriticalEvidence,
-		Version:             2,
-		ID:                  c.ID,
-		State:               "running",
-		Mode:                "controlled",
-		Dataset:             c.Dataset.Revision(),
-		Selection:           c.Dataset.record.Selection,
-		Provenance:          c.Provenance,
-		Lifecycle:           life,
-		Plan:                c.Plan,
-		CapturePolicy:       c.Capture.Policy.Revision(),
-		CaptureKinds:        append([]string(nil), c.Capture.KnownKinds...),
-		Projection:          c.ProjectionRevision,
-		Started:             time.Now().UTC(),
-		PairID:              c.PairID,
-		PairOrder:           c.PairOrder,
-	}
-	for _, cs := range cases {
-		m.Cases = append(m.Cases, CaseIdentity{cs.ID, cs.Revision})
-	}
-	for _, g := range c.Graders {
-		m.Graders = append(m.Graders, g.Revision())
-	}
+	m := experimentManifest(c)
 	count := len(cases) * c.Plan.Repeats
 	results := make([][]TrialRecord, count)
 	type job struct{ index, caseIndex, repeat int }
@@ -480,26 +466,7 @@ func Run[I, O, R, E any](ctx context.Context, c RunConfig[I, O, R, E]) (Experime
 	for range workers {
 		wg.Go(func() {
 			for j := range jobs {
-				for attempt := 0; attempt < c.Plan.MaxAttempts; attempt++ {
-					// Decode a private input for every attempt; target mutations cannot affect the dataset.
-					cs, err := c.Dataset.CaseAt(j.caseIndex)
-					if err != nil {
-						originalRecord := c.Dataset.record.Cases[j.caseIndex]
-						failed := codecFailure(
-							c,
-							Case[I, R]{ID: originalRecord.ID, Revision: originalRecord.Revision},
-							j.repeat,
-							attempt,
-						)
-						results[j.index] = append(results[j.index], failed)
-						break
-					}
-					r := runTrial(runctx, c, cs, j.caseIndex, j.repeat, attempt)
-					results[j.index] = append(results[j.index], r)
-					if r.Status != SetupError || r.Cleanup.State == "failed" || runctx.Err() != nil {
-						break
-					}
-				}
+				results[j.index] = executeSlot(runctx, c, j.caseIndex, j.repeat)
 				last := results[j.index][len(results[j.index])-1]
 				if c.Plan.StopOnInfrastructure && trialInfrastructureFailure(last) {
 					cancel(errInfrastructureStopped)
@@ -774,47 +741,37 @@ func runTrial[I, O, R, E any](
 	return r
 }
 
-// RunPaired records seeded side order and allocates separate lifecycle handles.
-func RunPaired[I, O, R, E any](
-	ctx context.Context,
-	baseline, candidate RunConfig[I, O, R, E],
-	pairID string,
-) (Experiment, Experiment, error) {
-	if err := ValidateRunConfig(baseline); err != nil {
-		return Experiment{}, Experiment{}, err
+func experimentManifest[I, O, R, E any](c RunConfig[I, O, R, E]) ExperimentManifest {
+	cases := c.Dataset.record.Cases
+	life := c.Lifecycle.Identity()
+	m := ExperimentManifest{
+		States:              []string{"planned", "running"},
+		OutputCodec:         c.OutputCodec.Identity(),
+		CaptureRequirements: append([]string{}, c.Capture.RequiredKinds...),
+		CaptureMaxEvents:    c.Capture.MaxEvents,
+		CaptureMaxBytes:     c.Capture.MaxBytes,
+		CriticalEvidence:    c.CriticalEvidence,
+		Version:             3,
+		ID:                  c.ID,
+		State:               "running",
+		Mode:                "controlled",
+		Dataset:             c.Dataset.Revision(),
+		Selection:           c.Dataset.record.Selection,
+		Provenance:          c.Provenance,
+		Lifecycle:           life,
+		Plan:                c.Plan,
+		CapturePolicy:       c.Capture.Policy.Revision(),
+		CaptureKinds:        append([]string(nil), c.Capture.KnownKinds...),
+		Projection:          c.ProjectionRevision,
+		Started:             time.Now().UTC(),
 	}
-	if err := ValidateRunConfig(candidate); err != nil {
-		return Experiment{}, Experiment{}, err
+	for _, cs := range cases {
+		m.Cases = append(m.Cases, CaseIdentity{cs.ID, cs.Revision})
 	}
-	if pairID == "" || baseline.Dataset.Revision() != candidate.Dataset.Revision() {
-		return Experiment{}, Experiment{}, ErrInvalid
+	for _, g := range c.Graders {
+		m.Graders = append(m.Graders, g.Revision())
 	}
-	if baseline.ID == candidate.ID {
-		return Experiment{}, Experiment{}, ErrConflict
-	}
-	order := []string{baseline.ID, candidate.ID}
-	reverse := baseline.Plan.Seed%2 != 0
-	if reverse {
-		order[0], order[1] = order[1], order[0]
-	}
-	baseline.PairID = pairID
-	candidate.PairID = pairID
-	baseline.PairOrder = order
-	candidate.PairOrder = order
-	var b, c Experiment
-	var e error
-	if reverse {
-		c, e = Run(ctx, candidate)
-		if e == nil {
-			b, e = Run(ctx, baseline)
-		}
-	} else {
-		b, e = Run(ctx, baseline)
-		if e == nil {
-			c, e = Run(ctx, candidate)
-		}
-	}
-	return b, c, e
+	return m
 }
 
 func validateProvenance(p Provenance) error {

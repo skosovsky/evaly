@@ -1,5 +1,5 @@
 {
-  "$id": "urn:evaly:search:2",
+  "$id": "urn:evaly:search:3",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
@@ -67,11 +67,6 @@
                   "baseline_aggregate": {
                     "additionalProperties": false,
                     "properties": {
-                      "all_repeats_success": {
-                        "maximum": 9223372036854775807,
-                        "minimum": -9223372036854775808,
-                        "type": "integer"
-                      },
                       "cleanup_failures": {
                         "maximum": 9223372036854775807,
                         "minimum": -9223372036854775808,
@@ -89,7 +84,20 @@
                       },
                       "excluded": {
                         "items": {
-                          "type": "string"
+                          "additionalProperties": false,
+                          "properties": {
+                            "case_id": {
+                              "type": "string"
+                            },
+                            "reason": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "case_id",
+                            "reason"
+                          ],
+                          "type": "object"
                         },
                         "type": [
                           "array",
@@ -101,10 +109,13 @@
                         "minimum": -9223372036854775808,
                         "type": "integer"
                       },
-                      "mean_pass_rate": {
+                      "mean": {
                         "maximum": 1.7976931348623157e+308,
                         "minimum": -1.7976931348623157e+308,
                         "type": "number"
+                      },
+                      "mean_available": {
+                        "type": "boolean"
                       },
                       "scored": {
                         "maximum": 9223372036854775807,
@@ -112,16 +123,6 @@
                         "type": "integer"
                       },
                       "setup_failures": {
-                        "maximum": 9223372036854775807,
-                        "minimum": -9223372036854775808,
-                        "type": "integer"
-                      },
-                      "success_at_least_once": {
-                        "maximum": 9223372036854775807,
-                        "minimum": -9223372036854775808,
-                        "type": "integer"
-                      },
-                      "success_denominator": {
                         "maximum": 9223372036854775807,
                         "minimum": -9223372036854775808,
                         "type": "integer"
@@ -136,10 +137,8 @@
                       "eligible",
                       "scored",
                       "coverage",
-                      "mean_pass_rate",
-                      "success_at_least_once",
-                      "all_repeats_success",
-                      "success_denominator",
+                      "mean_available",
+                      "mean",
                       "setup_failures",
                       "target_failures",
                       "grader_failures",
@@ -154,11 +153,6 @@
                   "candidate_aggregate": {
                     "additionalProperties": false,
                     "properties": {
-                      "all_repeats_success": {
-                        "maximum": 9223372036854775807,
-                        "minimum": -9223372036854775808,
-                        "type": "integer"
-                      },
                       "cleanup_failures": {
                         "maximum": 9223372036854775807,
                         "minimum": -9223372036854775808,
@@ -176,7 +170,20 @@
                       },
                       "excluded": {
                         "items": {
-                          "type": "string"
+                          "additionalProperties": false,
+                          "properties": {
+                            "case_id": {
+                              "type": "string"
+                            },
+                            "reason": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "case_id",
+                            "reason"
+                          ],
+                          "type": "object"
                         },
                         "type": [
                           "array",
@@ -188,10 +195,13 @@
                         "minimum": -9223372036854775808,
                         "type": "integer"
                       },
-                      "mean_pass_rate": {
+                      "mean": {
                         "maximum": 1.7976931348623157e+308,
                         "minimum": -1.7976931348623157e+308,
                         "type": "number"
+                      },
+                      "mean_available": {
+                        "type": "boolean"
                       },
                       "scored": {
                         "maximum": 9223372036854775807,
@@ -199,16 +209,6 @@
                         "type": "integer"
                       },
                       "setup_failures": {
-                        "maximum": 9223372036854775807,
-                        "minimum": -9223372036854775808,
-                        "type": "integer"
-                      },
-                      "success_at_least_once": {
-                        "maximum": 9223372036854775807,
-                        "minimum": -9223372036854775808,
-                        "type": "integer"
-                      },
-                      "success_denominator": {
                         "maximum": 9223372036854775807,
                         "minimum": -9223372036854775808,
                         "type": "integer"
@@ -223,10 +223,8 @@
                       "eligible",
                       "scored",
                       "coverage",
-                      "mean_pass_rate",
-                      "success_at_least_once",
-                      "all_repeats_success",
-                      "success_denominator",
+                      "mean_available",
+                      "mean",
                       "setup_failures",
                       "target_failures",
                       "grader_failures",
@@ -235,9 +233,103 @@
                     ],
                     "type": "object"
                   },
-                  "metric": {
-                    "const": "assertion_pass_rate",
-                    "type": "string"
+                  "delta": {
+                    "maximum": 1.7976931348623157e+308,
+                    "minimum": -1.7976931348623157e+308,
+                    "type": "number"
+                  },
+                  "matched_baseline_mean": {
+                    "maximum": 1.7976931348623157e+308,
+                    "minimum": -1.7976931348623157e+308,
+                    "type": "number"
+                  },
+                  "matched_candidate_mean": {
+                    "maximum": 1.7976931348623157e+308,
+                    "minimum": -1.7976931348623157e+308,
+                    "type": "number"
+                  },
+                  "matched_cases": {
+                    "maximum": 9223372036854775807,
+                    "minimum": -9223372036854775808,
+                    "type": "integer"
+                  },
+                  "matched_coverage": {
+                    "maximum": 1.7976931348623157e+308,
+                    "minimum": -1.7976931348623157e+308,
+                    "type": "number"
+                  },
+                  "matched_eligible": {
+                    "maximum": 9223372036854775807,
+                    "minimum": -9223372036854775808,
+                    "type": "integer"
+                  },
+                  "matched_means_available": {
+                    "type": "boolean"
+                  },
+                  "objective": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "aggregation_revision": {
+                        "type": "string"
+                      },
+                      "assertion_policy": {
+                        "type": "string"
+                      },
+                      "direction": {
+                        "enum": [
+                          "higher",
+                          "lower"
+                        ],
+                        "type": "string"
+                      },
+                      "eligibility_revision": {
+                        "type": "string"
+                      },
+                      "id": {
+                        "type": "string"
+                      },
+                      "maximum": {
+                        "maximum": 1.7976931348623157e+308,
+                        "minimum": -1.7976931348623157e+308,
+                        "type": "number"
+                      },
+                      "minimum": {
+                        "maximum": 1.7976931348623157e+308,
+                        "minimum": -1.7976931348623157e+308,
+                        "type": "number"
+                      },
+                      "missingness_revision": {
+                        "type": "string"
+                      },
+                      "revision": {
+                        "type": "string"
+                      },
+                      "scale_revision": {
+                        "type": "string"
+                      },
+                      "source_grader": {
+                        "type": "string"
+                      },
+                      "source_metric": {
+                        "type": "string"
+                      },
+                      "unit": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "revision",
+                      "unit",
+                      "scale_revision",
+                      "minimum",
+                      "maximum",
+                      "direction",
+                      "eligibility_revision",
+                      "missingness_revision",
+                      "aggregation_revision"
+                    ],
+                    "type": "object"
                   },
                   "pairs": {
                     "items": {
@@ -279,12 +371,12 @@
                     "additionalProperties": false,
                     "properties": {
                       "bootstrap_samples": {
-                        "maximum": 9223372036854775807,
-                        "minimum": -9223372036854775808,
+                        "maximum": 100000,
+                        "minimum": 100,
                         "type": "integer"
                       },
                       "maximum_regression": {
-                        "maximum": 1,
+                        "maximum": 1.7976931348623157e+308,
                         "minimum": 0,
                         "type": "number"
                       },
@@ -293,9 +385,19 @@
                         "minimum": 0,
                         "type": "number"
                       },
-                      "minimum_quality": {
+                      "minimum_matched_cases": {
+                        "maximum": 9223372036854775807,
+                        "minimum": 1,
+                        "type": "integer"
+                      },
+                      "minimum_matched_coverage": {
                         "maximum": 1,
                         "minimum": 0,
+                        "type": "number"
+                      },
+                      "minimum_quality": {
+                        "maximum": 1.7976931348623157e+308,
+                        "minimum": -1.7976931348623157e+308,
                         "type": "number"
                       },
                       "revision": {
@@ -309,6 +411,8 @@
                     },
                     "required": [
                       "revision",
+                      "minimum_matched_cases",
+                      "minimum_matched_coverage",
                       "minimum_coverage",
                       "minimum_quality",
                       "maximum_regression",
@@ -468,6 +572,9 @@
                       }
                     ]
                   },
+                  "uncertainty_reason": {
+                    "type": "string"
+                  },
                   "unit": {
                     "const": "case",
                     "type": "string"
@@ -482,7 +589,7 @@
                     "type": "string"
                   },
                   "version": {
-                    "const": 1,
+                    "const": 2,
                     "maximum": 9223372036854775807,
                     "minimum": -9223372036854775808,
                     "type": "integer",
@@ -501,7 +608,15 @@
                   "baseline_aggregate",
                   "candidate_aggregate",
                   "pairs",
-                  "metric",
+                  "objective",
+                  "matched_eligible",
+                  "matched_cases",
+                  "matched_coverage",
+                  "matched_means_available",
+                  "matched_baseline_mean",
+                  "matched_candidate_mean",
+                  "delta",
+                  "uncertainty_reason",
                   "unit"
                 ],
                 "type": "object"
@@ -671,13 +786,78 @@
                       "pair_id": {
                         "type": "string"
                       },
-                      "pair_order": {
-                        "items": {
-                          "type": "string"
-                        },
-                        "type": [
-                          "array",
-                          "null"
+                      "pair_schedule": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "baseline": {
+                                "type": "string"
+                              },
+                              "candidate": {
+                                "type": "string"
+                              },
+                              "concurrency": {
+                                "maximum": 9223372036854775807,
+                                "minimum": 1,
+                                "type": "integer"
+                              },
+                              "revision": {
+                                "const": "case-repeat-v1",
+                                "type": "string"
+                              },
+                              "seed": {
+                                "maximum": 9223372036854775807,
+                                "minimum": -9223372036854775808,
+                                "type": "integer"
+                              },
+                              "slots": {
+                                "items": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "case_id": {
+                                      "type": "string"
+                                    },
+                                    "case_revision": {
+                                      "type": "string"
+                                    },
+                                    "first": {
+                                      "type": "string"
+                                    },
+                                    "repeat": {
+                                      "maximum": 9223372036854775807,
+                                      "minimum": 0,
+                                      "type": "integer"
+                                    },
+                                    "second": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "case_id",
+                                    "case_revision",
+                                    "repeat",
+                                    "first",
+                                    "second"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              }
+                            },
+                            "required": [
+                              "revision",
+                              "seed",
+                              "concurrency",
+                              "baseline",
+                              "candidate",
+                              "slots"
+                            ],
+                            "type": "object"
+                          },
+                          {
+                            "type": "null"
+                          }
                         ]
                       },
                       "parent_revision": {
@@ -828,7 +1008,7 @@
                         ]
                       },
                       "version": {
-                        "const": 2,
+                        "const": 3,
                         "maximum": 9223372036854775807,
                         "minimum": -9223372036854775808,
                         "type": "integer",
@@ -1120,6 +1300,12 @@
                                     "name": {
                                       "type": "string"
                                     },
+                                    "scale_revision": {
+                                      "type": "string"
+                                    },
+                                    "unit": {
+                                      "type": "string"
+                                    },
                                     "value": {
                                       "maximum": 1.7976931348623157e+308,
                                       "minimum": -1.7976931348623157e+308,
@@ -1128,6 +1314,8 @@
                                   },
                                   "required": [
                                     "name",
+                                    "unit",
+                                    "scale_revision",
                                     "value",
                                     "minimum",
                                     "maximum",
@@ -1376,9 +1564,16 @@
             ]
           },
           "Quality": {
-            "maximum": 1.7976931348623157e+308,
-            "minimum": -1.7976931348623157e+308,
-            "type": "number"
+            "anyOf": [
+              {
+                "maximum": 1.7976931348623157e+308,
+                "minimum": -1.7976931348623157e+308,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "Reason": {
             "type": "string"
@@ -1562,13 +1757,78 @@
                 "pair_id": {
                   "type": "string"
                 },
-                "pair_order": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": [
-                    "array",
-                    "null"
+                "pair_schedule": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "baseline": {
+                          "type": "string"
+                        },
+                        "candidate": {
+                          "type": "string"
+                        },
+                        "concurrency": {
+                          "maximum": 9223372036854775807,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "revision": {
+                          "const": "case-repeat-v1",
+                          "type": "string"
+                        },
+                        "seed": {
+                          "maximum": 9223372036854775807,
+                          "minimum": -9223372036854775808,
+                          "type": "integer"
+                        },
+                        "slots": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "case_id": {
+                                "type": "string"
+                              },
+                              "case_revision": {
+                                "type": "string"
+                              },
+                              "first": {
+                                "type": "string"
+                              },
+                              "repeat": {
+                                "maximum": 9223372036854775807,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "second": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "case_id",
+                              "case_revision",
+                              "repeat",
+                              "first",
+                              "second"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "revision",
+                        "seed",
+                        "concurrency",
+                        "baseline",
+                        "candidate",
+                        "slots"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "type": "null"
+                    }
                   ]
                 },
                 "parent_revision": {
@@ -1719,7 +1979,7 @@
                   ]
                 },
                 "version": {
-                  "const": 2,
+                  "const": 3,
                   "maximum": 9223372036854775807,
                   "minimum": -9223372036854775808,
                   "type": "integer",
@@ -2011,6 +2271,12 @@
                               "name": {
                                 "type": "string"
                               },
+                              "scale_revision": {
+                                "type": "string"
+                              },
+                              "unit": {
+                                "type": "string"
+                              },
                               "value": {
                                 "maximum": 1.7976931348623157e+308,
                                 "minimum": -1.7976931348623157e+308,
@@ -2019,6 +2285,8 @@
                             },
                             "required": [
                               "name",
+                              "unit",
+                              "scale_revision",
                               "value",
                               "minimum",
                               "maximum",
@@ -2277,11 +2545,6 @@
             "baseline_aggregate": {
               "additionalProperties": false,
               "properties": {
-                "all_repeats_success": {
-                  "maximum": 9223372036854775807,
-                  "minimum": -9223372036854775808,
-                  "type": "integer"
-                },
                 "cleanup_failures": {
                   "maximum": 9223372036854775807,
                   "minimum": -9223372036854775808,
@@ -2299,7 +2562,20 @@
                 },
                 "excluded": {
                   "items": {
-                    "type": "string"
+                    "additionalProperties": false,
+                    "properties": {
+                      "case_id": {
+                        "type": "string"
+                      },
+                      "reason": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "case_id",
+                      "reason"
+                    ],
+                    "type": "object"
                   },
                   "type": [
                     "array",
@@ -2311,10 +2587,13 @@
                   "minimum": -9223372036854775808,
                   "type": "integer"
                 },
-                "mean_pass_rate": {
+                "mean": {
                   "maximum": 1.7976931348623157e+308,
                   "minimum": -1.7976931348623157e+308,
                   "type": "number"
+                },
+                "mean_available": {
+                  "type": "boolean"
                 },
                 "scored": {
                   "maximum": 9223372036854775807,
@@ -2322,16 +2601,6 @@
                   "type": "integer"
                 },
                 "setup_failures": {
-                  "maximum": 9223372036854775807,
-                  "minimum": -9223372036854775808,
-                  "type": "integer"
-                },
-                "success_at_least_once": {
-                  "maximum": 9223372036854775807,
-                  "minimum": -9223372036854775808,
-                  "type": "integer"
-                },
-                "success_denominator": {
                   "maximum": 9223372036854775807,
                   "minimum": -9223372036854775808,
                   "type": "integer"
@@ -2346,10 +2615,8 @@
                 "eligible",
                 "scored",
                 "coverage",
-                "mean_pass_rate",
-                "success_at_least_once",
-                "all_repeats_success",
-                "success_denominator",
+                "mean_available",
+                "mean",
                 "setup_failures",
                 "target_failures",
                 "grader_failures",
@@ -2364,11 +2631,6 @@
             "candidate_aggregate": {
               "additionalProperties": false,
               "properties": {
-                "all_repeats_success": {
-                  "maximum": 9223372036854775807,
-                  "minimum": -9223372036854775808,
-                  "type": "integer"
-                },
                 "cleanup_failures": {
                   "maximum": 9223372036854775807,
                   "minimum": -9223372036854775808,
@@ -2386,7 +2648,20 @@
                 },
                 "excluded": {
                   "items": {
-                    "type": "string"
+                    "additionalProperties": false,
+                    "properties": {
+                      "case_id": {
+                        "type": "string"
+                      },
+                      "reason": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "case_id",
+                      "reason"
+                    ],
+                    "type": "object"
                   },
                   "type": [
                     "array",
@@ -2398,10 +2673,13 @@
                   "minimum": -9223372036854775808,
                   "type": "integer"
                 },
-                "mean_pass_rate": {
+                "mean": {
                   "maximum": 1.7976931348623157e+308,
                   "minimum": -1.7976931348623157e+308,
                   "type": "number"
+                },
+                "mean_available": {
+                  "type": "boolean"
                 },
                 "scored": {
                   "maximum": 9223372036854775807,
@@ -2409,16 +2687,6 @@
                   "type": "integer"
                 },
                 "setup_failures": {
-                  "maximum": 9223372036854775807,
-                  "minimum": -9223372036854775808,
-                  "type": "integer"
-                },
-                "success_at_least_once": {
-                  "maximum": 9223372036854775807,
-                  "minimum": -9223372036854775808,
-                  "type": "integer"
-                },
-                "success_denominator": {
                   "maximum": 9223372036854775807,
                   "minimum": -9223372036854775808,
                   "type": "integer"
@@ -2433,10 +2701,8 @@
                 "eligible",
                 "scored",
                 "coverage",
-                "mean_pass_rate",
-                "success_at_least_once",
-                "all_repeats_success",
-                "success_denominator",
+                "mean_available",
+                "mean",
                 "setup_failures",
                 "target_failures",
                 "grader_failures",
@@ -2445,9 +2711,103 @@
               ],
               "type": "object"
             },
-            "metric": {
-              "const": "assertion_pass_rate",
-              "type": "string"
+            "delta": {
+              "maximum": 1.7976931348623157e+308,
+              "minimum": -1.7976931348623157e+308,
+              "type": "number"
+            },
+            "matched_baseline_mean": {
+              "maximum": 1.7976931348623157e+308,
+              "minimum": -1.7976931348623157e+308,
+              "type": "number"
+            },
+            "matched_candidate_mean": {
+              "maximum": 1.7976931348623157e+308,
+              "minimum": -1.7976931348623157e+308,
+              "type": "number"
+            },
+            "matched_cases": {
+              "maximum": 9223372036854775807,
+              "minimum": -9223372036854775808,
+              "type": "integer"
+            },
+            "matched_coverage": {
+              "maximum": 1.7976931348623157e+308,
+              "minimum": -1.7976931348623157e+308,
+              "type": "number"
+            },
+            "matched_eligible": {
+              "maximum": 9223372036854775807,
+              "minimum": -9223372036854775808,
+              "type": "integer"
+            },
+            "matched_means_available": {
+              "type": "boolean"
+            },
+            "objective": {
+              "additionalProperties": false,
+              "properties": {
+                "aggregation_revision": {
+                  "type": "string"
+                },
+                "assertion_policy": {
+                  "type": "string"
+                },
+                "direction": {
+                  "enum": [
+                    "higher",
+                    "lower"
+                  ],
+                  "type": "string"
+                },
+                "eligibility_revision": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "maximum": {
+                  "maximum": 1.7976931348623157e+308,
+                  "minimum": -1.7976931348623157e+308,
+                  "type": "number"
+                },
+                "minimum": {
+                  "maximum": 1.7976931348623157e+308,
+                  "minimum": -1.7976931348623157e+308,
+                  "type": "number"
+                },
+                "missingness_revision": {
+                  "type": "string"
+                },
+                "revision": {
+                  "type": "string"
+                },
+                "scale_revision": {
+                  "type": "string"
+                },
+                "source_grader": {
+                  "type": "string"
+                },
+                "source_metric": {
+                  "type": "string"
+                },
+                "unit": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "revision",
+                "unit",
+                "scale_revision",
+                "minimum",
+                "maximum",
+                "direction",
+                "eligibility_revision",
+                "missingness_revision",
+                "aggregation_revision"
+              ],
+              "type": "object"
             },
             "pairs": {
               "items": {
@@ -2489,12 +2849,12 @@
               "additionalProperties": false,
               "properties": {
                 "bootstrap_samples": {
-                  "maximum": 9223372036854775807,
-                  "minimum": -9223372036854775808,
+                  "maximum": 100000,
+                  "minimum": 100,
                   "type": "integer"
                 },
                 "maximum_regression": {
-                  "maximum": 1,
+                  "maximum": 1.7976931348623157e+308,
                   "minimum": 0,
                   "type": "number"
                 },
@@ -2503,9 +2863,19 @@
                   "minimum": 0,
                   "type": "number"
                 },
-                "minimum_quality": {
+                "minimum_matched_cases": {
+                  "maximum": 9223372036854775807,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "minimum_matched_coverage": {
                   "maximum": 1,
                   "minimum": 0,
+                  "type": "number"
+                },
+                "minimum_quality": {
+                  "maximum": 1.7976931348623157e+308,
+                  "minimum": -1.7976931348623157e+308,
                   "type": "number"
                 },
                 "revision": {
@@ -2519,6 +2889,8 @@
               },
               "required": [
                 "revision",
+                "minimum_matched_cases",
+                "minimum_matched_coverage",
                 "minimum_coverage",
                 "minimum_quality",
                 "maximum_regression",
@@ -2678,6 +3050,9 @@
                 }
               ]
             },
+            "uncertainty_reason": {
+              "type": "string"
+            },
             "unit": {
               "const": "case",
               "type": "string"
@@ -2692,7 +3067,7 @@
               "type": "string"
             },
             "version": {
-              "const": 1,
+              "const": 2,
               "maximum": 9223372036854775807,
               "minimum": -9223372036854775808,
               "type": "integer",
@@ -2711,7 +3086,15 @@
             "baseline_aggregate",
             "candidate_aggregate",
             "pairs",
-            "metric",
+            "objective",
+            "matched_eligible",
+            "matched_cases",
+            "matched_coverage",
+            "matched_means_available",
+            "matched_baseline_mean",
+            "matched_candidate_mean",
+            "delta",
+            "uncertainty_reason",
             "unit"
           ],
           "type": "object"
@@ -2723,6 +3106,71 @@
     },
     "ID": {
       "type": "string"
+    },
+    "Objective": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregation_revision": {
+          "type": "string"
+        },
+        "assertion_policy": {
+          "type": "string"
+        },
+        "direction": {
+          "enum": [
+            "higher",
+            "lower"
+          ],
+          "type": "string"
+        },
+        "eligibility_revision": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "maximum": {
+          "maximum": 1.7976931348623157e+308,
+          "minimum": -1.7976931348623157e+308,
+          "type": "number"
+        },
+        "minimum": {
+          "maximum": 1.7976931348623157e+308,
+          "minimum": -1.7976931348623157e+308,
+          "type": "number"
+        },
+        "missingness_revision": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "scale_revision": {
+          "type": "string"
+        },
+        "source_grader": {
+          "type": "string"
+        },
+        "source_metric": {
+          "type": "string"
+        },
+        "unit": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "revision",
+        "unit",
+        "scale_revision",
+        "minimum",
+        "maximum",
+        "direction",
+        "eligibility_revision",
+        "missingness_revision",
+        "aggregation_revision"
+      ],
+      "type": "object"
     },
     "ProposalRevision": {
       "type": "string"
@@ -2784,7 +3232,7 @@
       "type": "string"
     },
     "Version": {
-      "const": 2,
+      "const": 3,
       "maximum": 9223372036854775807,
       "minimum": -9223372036854775808,
       "type": "integer",
@@ -2796,6 +3244,7 @@
   },
   "required": [
     "Version",
+    "Objective",
     "ID",
     "Revision",
     "Algorithm",

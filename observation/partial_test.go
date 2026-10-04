@@ -111,7 +111,7 @@ func TestPartialAssessmentRetainsPaidResults(t *testing.T) {
 				r.Assessment.StopReason == "" ||
 				r.Assessment.Grades[0].Usage.Units != 1 ||
 				evaly.ValidateAssessment(r.Assessment) != nil ||
-				r.Version != 2 {
+				r.Version != 3 {
 				t.Fatal(calls, r)
 			}
 			if mode == "reconcile" && len(r.Assessment.Skipped) != 0 {

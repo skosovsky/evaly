@@ -100,7 +100,7 @@ func TestBlindPairOrderAndCalibration(t *testing.T) {
 			},
 		},
 	)
-	if e != nil || report.Coverage != .5 || report.Disagreements != 1 {
+	if e != nil || report.Rates.Coverage.Value == nil || *report.Rates.Coverage.Value != .5 || report.Counts.FN != 1 {
 		t.Fatal(e, report)
 	}
 }
@@ -153,7 +153,7 @@ func TestPairIsolationAndAttempts(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if be.Record().Manifest.PairOrder[0] != "candidate" || ce.Record().Manifest.PairID != "pair" ||
+	if be.Record().Manifest.PairSchedule.Slots[0].First != "candidate" || ce.Record().Manifest.PairID != "pair" ||
 		be.Record().Trials[0].ID == ce.Record().Trials[0].ID {
 		t.Fatal(be.Record(), ce.Record())
 	}
@@ -167,7 +167,14 @@ func TestPairIsolationAndAttempts(t *testing.T) {
 	comparison, e := evaly.Compare(
 		be,
 		shared,
-		evaly.GatePolicy{Revision: "p", MinimumCoverage: 1, BootstrapSamples: 100},
+		evaly.AssertionObjective{ID: "assertions", Revision: "v1", Policy: "all"},
+		evaly.GatePolicy{
+			Revision:               "p",
+			MinimumCoverage:        1,
+			MinimumMatchedCases:    1,
+			MinimumMatchedCoverage: 1,
+			BootstrapSamples:       100,
+		},
 	)
 	if e != nil || comparison.Verdict != evaly.GateInvalid {
 		t.Fatal(e, comparison)

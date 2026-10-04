@@ -1,0 +1,795 @@
+{
+  "$id": "urn:evaly:calibration:1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "counts": {
+      "additionalProperties": false,
+      "properties": {
+        "abstentions": {
+          "maximum": 9223372036854775807,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "eligible": {
+          "maximum": 9223372036854775807,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "errors": {
+          "maximum": 9223372036854775807,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fn": {
+          "maximum": 9223372036854775807,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fp": {
+          "maximum": 9223372036854775807,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "labeled": {
+          "maximum": 9223372036854775807,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "missing_labels": {
+          "maximum": 9223372036854775807,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "missing_records": {
+          "maximum": 9223372036854775807,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "reviewed": {
+          "maximum": 9223372036854775807,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tn": {
+          "maximum": 9223372036854775807,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tp": {
+          "maximum": 9223372036854775807,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "unreviewed": {
+          "maximum": 9223372036854775807,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "eligible",
+        "labeled",
+        "reviewed",
+        "tp",
+        "tn",
+        "fp",
+        "fn",
+        "unreviewed",
+        "missing_labels",
+        "missing_records",
+        "errors",
+        "abstentions"
+      ],
+      "type": "object"
+    },
+    "grader": {
+      "additionalProperties": false,
+      "properties": {
+        "configuration": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "implementation": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "rubric": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "implementation",
+        "rubric",
+        "model",
+        "prompt",
+        "configuration"
+      ],
+      "type": "object"
+    },
+    "groups": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "counts": {
+            "additionalProperties": false,
+            "properties": {
+              "abstentions": {
+                "maximum": 9223372036854775807,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "eligible": {
+                "maximum": 9223372036854775807,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "errors": {
+                "maximum": 9223372036854775807,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "fn": {
+                "maximum": 9223372036854775807,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "fp": {
+                "maximum": 9223372036854775807,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "labeled": {
+                "maximum": 9223372036854775807,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "missing_labels": {
+                "maximum": 9223372036854775807,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "missing_records": {
+                "maximum": 9223372036854775807,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "reviewed": {
+                "maximum": 9223372036854775807,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "tn": {
+                "maximum": 9223372036854775807,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "tp": {
+                "maximum": 9223372036854775807,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "unreviewed": {
+                "maximum": 9223372036854775807,
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "eligible",
+              "labeled",
+              "reviewed",
+              "tp",
+              "tn",
+              "fp",
+              "fn",
+              "unreviewed",
+              "missing_labels",
+              "missing_records",
+              "errors",
+              "abstentions"
+            ],
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "rates": {
+            "additionalProperties": false,
+            "properties": {
+              "accuracy": {
+                "additionalProperties": false,
+                "properties": {
+                  "denominator": {
+                    "maximum": 9223372036854775807,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "numerator": {
+                    "maximum": 9223372036854775807,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "value": {
+                    "anyOf": [
+                      {
+                        "maximum": 1,
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "numerator",
+                  "denominator",
+                  "value"
+                ],
+                "type": "object"
+              },
+              "coverage": {
+                "additionalProperties": false,
+                "properties": {
+                  "denominator": {
+                    "maximum": 9223372036854775807,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "numerator": {
+                    "maximum": 9223372036854775807,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "value": {
+                    "anyOf": [
+                      {
+                        "maximum": 1,
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "numerator",
+                  "denominator",
+                  "value"
+                ],
+                "type": "object"
+              },
+              "false_negative_rate": {
+                "additionalProperties": false,
+                "properties": {
+                  "denominator": {
+                    "maximum": 9223372036854775807,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "numerator": {
+                    "maximum": 9223372036854775807,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "value": {
+                    "anyOf": [
+                      {
+                        "maximum": 1,
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "numerator",
+                  "denominator",
+                  "value"
+                ],
+                "type": "object"
+              },
+              "false_positive_rate": {
+                "additionalProperties": false,
+                "properties": {
+                  "denominator": {
+                    "maximum": 9223372036854775807,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "numerator": {
+                    "maximum": 9223372036854775807,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "value": {
+                    "anyOf": [
+                      {
+                        "maximum": 1,
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "numerator",
+                  "denominator",
+                  "value"
+                ],
+                "type": "object"
+              },
+              "label_coverage": {
+                "additionalProperties": false,
+                "properties": {
+                  "denominator": {
+                    "maximum": 9223372036854775807,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "numerator": {
+                    "maximum": 9223372036854775807,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "value": {
+                    "anyOf": [
+                      {
+                        "maximum": 1,
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "numerator",
+                  "denominator",
+                  "value"
+                ],
+                "type": "object"
+              },
+              "precision": {
+                "additionalProperties": false,
+                "properties": {
+                  "denominator": {
+                    "maximum": 9223372036854775807,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "numerator": {
+                    "maximum": 9223372036854775807,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "value": {
+                    "anyOf": [
+                      {
+                        "maximum": 1,
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "numerator",
+                  "denominator",
+                  "value"
+                ],
+                "type": "object"
+              },
+              "recall": {
+                "additionalProperties": false,
+                "properties": {
+                  "denominator": {
+                    "maximum": 9223372036854775807,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "numerator": {
+                    "maximum": 9223372036854775807,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "value": {
+                    "anyOf": [
+                      {
+                        "maximum": 1,
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "numerator",
+                  "denominator",
+                  "value"
+                ],
+                "type": "object"
+              },
+              "specificity": {
+                "additionalProperties": false,
+                "properties": {
+                  "denominator": {
+                    "maximum": 9223372036854775807,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "numerator": {
+                    "maximum": 9223372036854775807,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "value": {
+                    "anyOf": [
+                      {
+                        "maximum": 1,
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "numerator",
+                  "denominator",
+                  "value"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "coverage",
+              "label_coverage",
+              "accuracy",
+              "precision",
+              "recall",
+              "specificity",
+              "false_positive_rate",
+              "false_negative_rate"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "name",
+          "counts",
+          "rates"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "rates": {
+      "additionalProperties": false,
+      "properties": {
+        "accuracy": {
+          "additionalProperties": false,
+          "properties": {
+            "denominator": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "numerator": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "numerator",
+            "denominator",
+            "value"
+          ],
+          "type": "object"
+        },
+        "coverage": {
+          "additionalProperties": false,
+          "properties": {
+            "denominator": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "numerator": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "numerator",
+            "denominator",
+            "value"
+          ],
+          "type": "object"
+        },
+        "false_negative_rate": {
+          "additionalProperties": false,
+          "properties": {
+            "denominator": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "numerator": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "numerator",
+            "denominator",
+            "value"
+          ],
+          "type": "object"
+        },
+        "false_positive_rate": {
+          "additionalProperties": false,
+          "properties": {
+            "denominator": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "numerator": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "numerator",
+            "denominator",
+            "value"
+          ],
+          "type": "object"
+        },
+        "label_coverage": {
+          "additionalProperties": false,
+          "properties": {
+            "denominator": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "numerator": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "numerator",
+            "denominator",
+            "value"
+          ],
+          "type": "object"
+        },
+        "precision": {
+          "additionalProperties": false,
+          "properties": {
+            "denominator": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "numerator": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "numerator",
+            "denominator",
+            "value"
+          ],
+          "type": "object"
+        },
+        "recall": {
+          "additionalProperties": false,
+          "properties": {
+            "denominator": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "numerator": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "numerator",
+            "denominator",
+            "value"
+          ],
+          "type": "object"
+        },
+        "specificity": {
+          "additionalProperties": false,
+          "properties": {
+            "denominator": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "numerator": {
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "numerator",
+            "denominator",
+            "value"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "coverage",
+        "label_coverage",
+        "accuracy",
+        "precision",
+        "recall",
+        "specificity",
+        "false_positive_rate",
+        "false_negative_rate"
+      ],
+      "type": "object"
+    },
+    "revision": {
+      "type": "string"
+    },
+    "version": {
+      "const": 1,
+      "maximum": 9223372036854775807,
+      "minimum": -9223372036854775808,
+      "type": "integer",
+      "x-evaly-version": true
+    }
+  },
+  "required": [
+    "version",
+    "revision",
+    "grader",
+    "counts",
+    "rates",
+    "groups"
+  ],
+  "type": "object"
+}

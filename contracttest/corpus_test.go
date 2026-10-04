@@ -35,6 +35,9 @@ func runtimeDecode(name string, raw []byte) error {
 	case "evidence":
 		_, e := evaly.DecodeWire[evaly.EvidenceRecord](raw)
 		return e
+	case "calibration":
+		_, e := evaly.DecodeWire[evaly.CalibrationReport](raw)
+		return e
 	case "comparison":
 		_, e := evaly.DecodeWire[evaly.Comparison](raw)
 		return e
@@ -83,8 +86,10 @@ func decodeDocument(t *testing.T, raw []byte) any {
 func wireSchemaPath(name string) string {
 	version := 1
 	switch name {
-	case "experiment", "scenario", "assessment", "observation-result", "search", "http-request", "http-response":
+	case "scenario", "comparison", "http-request", "http-response":
 		version = 2
+	case "experiment", "assessment", "observation-result", "search":
+		version = 3
 	}
 	return filepath.Join("..", "schemas", fmt.Sprintf("%s-v%d.json", name, version))
 }
@@ -217,6 +222,12 @@ func applyMutation(doc any, m mutation) any {
 // without a public restore API are covered by typed structural DecodeWire.
 func restorePositive(name string, raw []byte) error {
 	switch name {
+	case "calibration":
+		v, e := evaly.DecodeWire[evaly.CalibrationReport](raw)
+		if e != nil {
+			return e
+		}
+		return evaly.ValidateCalibrationReport(v)
 	case "envelope":
 		v, e := evaly.DecodeWire[evaly.Envelope](raw)
 		if e != nil {
@@ -272,8 +283,8 @@ func restorePositive(name string, raw []byte) error {
 func TestSharedStructuralCorpus(t *testing.T) {
 	// Arrange: genuine emitted values exercise every registered root and nested service record.
 	values := generatedWireValues(t)
-	if len(values) != 14 {
-		t.Fatalf("expected all 14 registered wire kinds, got %d", len(values))
+	if len(values) != 15 {
+		t.Fatalf("expected all 15 registered wire kinds, got %d", len(values))
 	}
 	for name, value := range values {
 		t.Run(name, func(t *testing.T) {

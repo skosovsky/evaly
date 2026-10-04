@@ -108,6 +108,7 @@ func main() {
 			CalibrationBaseline: calBase,
 			HoldoutBaseline:     holdBase,
 			Gate:                fixtures.Gate(),
+			Objective:           fixtures.Objective(),
 		},
 	)
 	if e != nil {

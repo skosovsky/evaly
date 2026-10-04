@@ -23,8 +23,10 @@ func compile(t *testing.T, name string) *jsonschema.Schema {
 	compiler.AssertFormat()
 	version := "1"
 	switch name {
-	case "experiment", "scenario", "assessment", "observation-result", "search", "http-request", "http-response":
+	case "scenario", "comparison", "http-request", "http-response":
 		version = "2"
+	case "experiment", "assessment", "observation-result", "search":
+		version = "3"
 	}
 	s, e := compiler.Compile(filepath.Join("..", "schemas", name+"-v"+version+".json"))
 	if e != nil {
@@ -59,11 +61,34 @@ func generatedWireValues(t *testing.T) map[string]any {
 	if e != nil {
 		t.Fatal(e)
 	}
-	experiment, e := evaly.Run(ctx, c)
+	originalGrader := c.Graders[0]
+	c.Graders = []evaly.Grader[fixtures.Calculation, fixtures.CalculationOutput, int]{
+		evaly.GraderFunc[fixtures.Calculation, fixtures.CalculationOutput, int]{
+			Identity: originalGrader.Revision(),
+			Evaluate: func(ctx context.Context, view evaly.View[fixtures.Calculation, fixtures.CalculationOutput, int]) (evaly.Grade, error) {
+				grade, err := originalGrader.Grade(ctx, view)
+				grade.Metrics = []evaly.Metric{
+					{
+						Name:          "fixture-cost",
+						Unit:          "units",
+						ScaleRevision: "units-v1",
+						Value:         1,
+						Minimum:       0,
+						Maximum:       10,
+						Direction:     "lower",
+					},
+				}
+				return grade, err
+			},
+		},
+	}
+	candidateConfig := c
+	candidateConfig.ID = "contract-candidate"
+	experiment, candidateExperiment, e := evaly.RunPaired(ctx, c, candidateConfig, "contract-pair")
 	if e != nil {
 		t.Fatal(e)
 	}
-	comparison, e := evaly.Compare(experiment, experiment, fixtures.Gate())
+	comparison, e := evaly.Compare(experiment, candidateExperiment, fixtures.Objective(), fixtures.Gate())
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -140,7 +165,16 @@ func generatedWireValues(t *testing.T) map[string]any {
 	if e != nil {
 		t.Fatal(e)
 	}
+	calibration, e := evaly.Calibrate(
+		c.Graders[0].Revision(),
+		[]evaly.CalibrationLabel{{CaseRevision: cases[0].Revision, Pass: true, Groups: []string{"fixture"}}},
+		[]evaly.CalibrationRecord{{CaseRevision: cases[0].Revision, Grade: experiment.Record().Trials[0].Grades[0]}},
+	)
+	if e != nil {
+		t.Fatal(e)
+	}
 	values := map[string]any{
+		"calibration":        calibration,
 		"envelope":           envelope,
 		"dataset":            c.Dataset.Record(),
 		"experiment":         experiment.Record(),
@@ -325,6 +359,7 @@ func searchResult(t *testing.T) optimizer.Result {
 			CalibrationBaseline: baseline,
 			HoldoutBaseline:     holdout,
 			Gate:                fixtures.Gate(),
+			Objective:           fixtures.Objective(),
 		},
 	)
 	if e != nil {

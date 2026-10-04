@@ -69,7 +69,7 @@ func run(ctx context.Context, args []string, out, errout io.Writer) int {
 			fmt.Fprintln(errout, e)
 			return 3
 		}
-		comp, e := evaly.Compare(b, c, fixtures.Gate())
+		comp, e := evaly.Compare(b, c, fixtures.Objective(), fixtures.Gate())
 		if e != nil {
 			fmt.Fprintln(errout, e)
 			return 3

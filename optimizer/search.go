@@ -157,16 +157,18 @@ type Config[T, I, R any] struct {
 	Ledger                               HoldoutLedger
 	CalibrationBaseline, HoldoutBaseline evaly.Experiment
 	Gate                                 evaly.GatePolicy
+	Objective                            evaly.Objective
 }
 type Evaluation struct {
 	Candidate     CandidateRecord
 	State, Reason string
 	Experiment    *evaly.ExperimentRecord
 	Comparison    *evaly.Comparison
-	Quality       float64
+	Quality       *float64
 }
 type Result struct {
 	Version                                                     int
+	Objective                                                   evaly.ObjectiveIdentity
 	ID, Revision, Algorithm, Split, StopRevision, State, Reason string
 	Seed                                                        int64
 	History                                                     []Evaluation
@@ -201,7 +203,7 @@ func validateSplit[I, R any](s Split[I, R]) error {
 }
 func Search[T, I, R any](ctx context.Context, c Config[T, I, R]) (Result, error) {
 	r := Result{
-		Version:      2,
+		Version:      3,
 		ID:           c.ID,
 		Algorithm:    c.Algorithm,
 		Split:        c.Split.Revision,
@@ -225,11 +227,16 @@ func Search[T, I, R any](ctx context.Context, c Config[T, I, R]) (Result, error)
 	if e := validateSplit(c.Split); e != nil {
 		return r, e
 	}
-	for _, port := range []any{c.Budget, c.Ledger} {
+	for _, port := range []any{c.Budget, c.Ledger, c.Objective} {
 		if e := evaly.ValidatePort(port); e != nil {
 			return r, e
 		}
 	}
+	objective := c.Objective.Identity()
+	if e := evaly.ValidateObjectiveIdentity(objective); e != nil {
+		return r, e
+	}
+	r.Objective = objective
 	if c.CalibrationBaseline.Record().Manifest.Dataset != c.Split.Calibration.Revision() ||
 		c.HoldoutBaseline.Record().Manifest.Dataset != c.Split.Holdout.Revision() {
 		return r, evaly.ErrConflict
@@ -248,8 +255,12 @@ func Search[T, I, R any](ctx context.Context, c Config[T, I, R]) (Result, error)
 		if baseline.Record().Manifest.State != "sealed" {
 			return r, evaly.ErrUnsealed
 		}
-		if _, e := evaly.Compare(baseline, baseline, c.Gate); e != nil {
+		comparison, e := evaly.Compare(baseline, baseline, c.Objective, c.Gate)
+		if e != nil {
 			return r, e
+		}
+		if comparison.Verdict == evaly.GateInvalid || comparison.Objective != objective {
+			return r, evaly.ErrConflict
 		}
 	}
 	if c.Proposal != nil {
@@ -398,16 +409,19 @@ func Search[T, I, R any](ctx context.Context, c Config[T, I, R]) (Result, error)
 			}
 			continue
 		}
-		comparison, e := evaly.Compare(c.CalibrationBaseline, experiment, c.Gate)
+		comparison, e := evaly.Compare(c.CalibrationBaseline, experiment, c.Objective, c.Gate)
 		if e != nil {
 			entry.State = "failed"
 			entry.Reason = "comparison_failure"
 		} else {
 			entry.Comparison = &comparison
-			entry.Quality = comparison.CandidateAggregate.MeanPassRate
+			if comparison.MatchedMeansAvailable {
+				value := comparison.MatchedCandidateMean
+				entry.Quality = &value
+			}
 			if experiment.Record().Manifest.State != "sealed" || comparison.CandidateAggregate.Coverage < 1 ||
 				comparison.Verdict == evaly.GateInvalid ||
-				comparison.Verdict == evaly.GateInconclusive {
+				comparison.Verdict == evaly.GateInconclusive || entry.Quality == nil {
 				entry.State = "incomplete"
 				entry.Reason = "ineligible_experiment"
 			} else {
@@ -432,7 +446,12 @@ func Search[T, I, R any](ctx context.Context, c Config[T, I, R]) (Result, error)
 		}
 	}
 	r.States = append(r.States, "selecting")
-	sort.SliceStable(eligible, func(i, j int) bool { return eligible[i].Quality > eligible[j].Quality })
+	sort.SliceStable(eligible, func(i, j int) bool {
+		if objective.Direction == "lower" {
+			return *eligible[i].Quality < *eligible[j].Quality
+		}
+		return *eligible[i].Quality > *eligible[j].Quality
+	})
 	for _, e := range eligible {
 		r.Ranking = append(r.Ranking, e.Candidate.Revision)
 	}
@@ -471,7 +490,7 @@ func Search[T, I, R any](ctx context.Context, c Config[T, I, R]) (Result, error)
 			if e != nil {
 				stop("holdout_evaluation_failure")
 			} else {
-				comparison, e := evaly.Compare(c.HoldoutBaseline, held, c.Gate)
+				comparison, e := evaly.Compare(c.HoldoutBaseline, held, c.Objective, c.Gate)
 				if e != nil {
 					stop("holdout_comparison_failure")
 				} else {

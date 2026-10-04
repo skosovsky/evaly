@@ -127,10 +127,15 @@ func constrain(parent, name string, s schema) {
 	if name == "Version" && s["type"] == "integer" {
 		s["const"] = 1
 		s["x-evaly-version"] = true
-		if parent == "ExperimentManifest" || parent == "ScenarioRecord" || parent == "Assessment" ||
-			parent == "Result" || parent == "Request" || parent == "Response" {
+		if parent == "ScenarioRecord" || parent == "Comparison" || parent == "Request" || parent == "Response" {
 			s["const"] = 2
 		}
+		if parent == "ExperimentManifest" || parent == "Assessment" || parent == "Result" {
+			s["const"] = 3
+		}
+	}
+	if parent == "CalibrationCounts" {
+		s["minimum"] = 0
 	}
 	switch parent + "." + name {
 	case "Envelope.Kind":
@@ -145,6 +150,7 @@ func constrain(parent, name string, s schema) {
 			"scenario",
 			"assessment",
 			"candidate",
+			"calibration",
 		}
 	case "Envelope.ID":
 		s["pattern"] = `^[a-zA-Z0-9_-]{1,128}$`
@@ -173,7 +179,7 @@ func constrain(parent, name string, s schema) {
 		}
 	case "LifecycleIdentity.Isolation":
 		s["enum"] = []string{"isolated", "serial/shared"}
-	case "Metric.Direction":
+	case "Metric.Direction", "ObjectiveIdentity.Direction":
 		s["enum"] = []string{"higher", "lower"}
 	case "CleanupStatus.State":
 		s["enum"] = []string{"not_needed", "completed", "failed"}
@@ -199,7 +205,7 @@ func constrain(parent, name string, s schema) {
 		s["minimum"] = 1
 	case "RunPlan.DispatchUnits", "RunPlan.GraderUnits":
 		s["minimum"] = 0
-	case "GatePolicy.MinimumCoverage", "GatePolicy.MinimumQuality", "GatePolicy.MaximumRegression":
+	case "GatePolicy.MinimumCoverage", "GatePolicy.MinimumMatchedCoverage":
 		s["minimum"] = 0
 		s["maximum"] = 1
 	case "Event.Sequence":
@@ -208,7 +214,28 @@ func constrain(parent, name string, s schema) {
 		s["maxItems"] = 32
 	case "Comparison.Unit":
 		s["const"] = "case"
-	case "Comparison.Metric":
-		s["const"] = "assertion_pass_rate"
+	case "GatePolicy.MinimumMatchedCases":
+		s["minimum"] = 1
+	case "GatePolicy.MaximumRegression":
+		s["minimum"] = 0
+	case "CalibrationRate.Numerator", "CalibrationRate.Denominator":
+		s["minimum"] = 0
+	case "CalibrationRate.Value":
+		branches := s["anyOf"].([]any)
+		branches[0].(schema)["minimum"] = 0
+		branches[0].(schema)["maximum"] = 1
+	case "CalibrationReport.Groups":
+		s["type"] = "array"
+	case "PairSchedule.Slots":
+		s["type"] = "array"
+	case "PairSchedule.Revision":
+		s["const"] = "case-repeat-v1"
+	case "PairSlot.Repeat":
+		s["minimum"] = 0
+	case "PairSchedule.Concurrency":
+		s["minimum"] = 1
+	case "GatePolicy.BootstrapSamples":
+		s["minimum"] = 100
+		s["maximum"] = 100000
 	}
 }

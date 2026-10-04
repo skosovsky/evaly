@@ -28,6 +28,7 @@ func main() {
 		"experiment":         evaly.ExperimentRecord{},
 		"evidence":           evaly.EvidenceRecord{},
 		"comparison":         evaly.Comparison{},
+		"calibration":        evaly.CalibrationReport{},
 		"view":               evaly.SavedViewRecord{},
 		"scenario":           evaly.ScenarioRecord{},
 		"assessment":         evaly.Assessment{},
@@ -43,8 +44,10 @@ func main() {
 		document["$schema"] = "https://json-schema.org/draft/2020-12/schema"
 		version := 1
 		switch name {
-		case "experiment", "scenario", "assessment", "observation-result", "search", "http-request", "http-response":
+		case "scenario", "comparison", "http-request", "http-response":
 			version = 2
+		case "experiment", "assessment", "observation-result", "search":
+			version = 3
 		}
 		document["$id"] = "urn:evaly:" + name + ":" + strconv.Itoa(version)
 		b, e := json.MarshalIndent(document, "", "  ")

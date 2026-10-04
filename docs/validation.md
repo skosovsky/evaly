@@ -1,5 +1,37 @@
 # Validation record
 
+## 5 October 2026 — measurement and paired execution
+
+Authority: task 03 and common task README, measurement, paired and calibration
+contracts. Source fingerprint:
+`554d9261c1d27994f427afc2b8485260dd5f3f8da475da86187922f0282a0bdc`
+(108 files; reports and this journal excluded).
+
+- `env GOCACHE=/private/tmp/evaly-final-1.27.1-cache make validate` — exit 0 on
+  Go 1.27.1 darwin/arm64, both modules' formatting/vet/race. Log:
+  `/private/tmp/evaly-measurement-validation.log`; contracttest race 98.456 s.
+- All six runnable examples — exit 0 on the same source; logs
+  `/private/tmp/evaly-measurement-example-*.log`.
+- Coverage regression uses 100 eligible cases and one matched case; repeats do
+  not inflate independent N. Native numeric directions, metadata incompatibility,
+  unavailable means, fixed aggregation and source provenance are covered.
+- Numerical regressions preserve identical subnormal measurements across repeats,
+  matched means and bootstrap; opposite finite extremes retain a finite mean.
+- Real paired callbacks verify seeded within-slot interleaving, isolated lifecycle
+  handles, bounded global concurrency and retained slots after cancellation,
+  shared-budget exhaustion or infrastructure stop. Forged schedules reject restore.
+- Calibration verifies TP/TN/FP/FN, missing/error/abstain counts, overlapping host
+  groups and unavailable zero-denominator rates. New conformance helpers exercise
+  assertion, numeric higher/lower and calibration reference implementations.
+- Independent schema corpus covers 15 wire kinds, including actual numeric grades,
+  paired schedule and calibration. Disposable generation checks byte/inventory drift.
+- `git diff --check` — PASS. Current formats: experiment/assessment/
+  observation-result/search v3, comparison v2, calibration v1.
+
+Independent final acceptance reports: `docs/reviews/measurement-completeness.md`
+and `measurement-correctness.md`. Repairs invalidate the fingerprint and require
+both reviewers to recheck; this journal records executed checks separately.
+
 ## 5 October 2026 — evidence and HTTP revision 2
 
 Authority: `.cursor/task/02-evidence-and-wire-contracts.md`, common README,
