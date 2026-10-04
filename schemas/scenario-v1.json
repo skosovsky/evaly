@@ -1,0 +1,162 @@
+{
+  "$id": "urn:evaly:scenario:1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "driver": {
+      "type": "string"
+    },
+    "output_codec": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "type": "object"
+    },
+    "outputs": {
+      "items": {},
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "plan": {
+      "additionalProperties": false,
+      "properties": {
+        "generation": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "driver_revision": {
+                  "type": "string"
+                },
+                "generator": {
+                  "type": "string"
+                },
+                "label_validated": {
+                  "type": "boolean"
+                },
+                "mode": {
+                  "enum": [
+                    "search",
+                    "replay"
+                  ],
+                  "type": "string"
+                },
+                "model": {
+                  "type": "string"
+                },
+                "parent_case": {
+                  "type": "string"
+                },
+                "seed": {
+                  "type": "integer"
+                },
+                "trajectory_revision": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "parent_case",
+                "generator",
+                "model",
+                "seed",
+                "mode",
+                "label_validated"
+              ],
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "max_steps": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "mode": {
+          "enum": [
+            "search",
+            "replay"
+          ],
+          "type": "string"
+        },
+        "seed": {
+          "type": "integer"
+        },
+        "timeout": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "mode",
+        "seed",
+        "max_steps",
+        "timeout"
+      ],
+      "type": "object"
+    },
+    "revision": {
+      "type": "string"
+    },
+    "state": {},
+    "state_codec": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "type": "object"
+    },
+    "steps": {
+      "type": "integer"
+    },
+    "stop": {
+      "enum": [
+        "completed",
+        "step_limit",
+        "deadline",
+        "error",
+        "codec_error"
+      ],
+      "type": "string"
+    },
+    "version": {
+      "const": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "version",
+    "revision",
+    "driver",
+    "plan",
+    "state_codec",
+    "output_codec",
+    "state",
+    "outputs",
+    "steps",
+    "stop"
+  ],
+  "type": "object"
+}

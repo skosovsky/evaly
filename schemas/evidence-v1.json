@@ -1,0 +1,116 @@
+{
+  "$id": "urn:evaly:evidence:1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "coverage": {
+      "additionalProperties": {
+        "type": "boolean"
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "errors": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 32,
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "events": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "correlation_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "payload": {},
+          "references": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "sequence": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "sequence",
+          "kind",
+          "correlation_id"
+        ],
+        "type": "object"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "gaps": {
+      "items": {
+        "type": "integer"
+      },
+      "maxItems": 32,
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "policy": {
+      "type": "string"
+    },
+    "redactions": {
+      "type": "integer"
+    },
+    "replay_available": {
+      "type": "boolean"
+    },
+    "revision": {
+      "type": "string"
+    },
+    "state": {
+      "enum": [
+        "sealed",
+        "incomplete"
+      ],
+      "type": "string"
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "version": {
+      "const": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "version",
+    "state",
+    "revision",
+    "policy",
+    "events",
+    "coverage",
+    "redactions",
+    "truncated",
+    "replay_available"
+  ],
+  "type": "object"
+}

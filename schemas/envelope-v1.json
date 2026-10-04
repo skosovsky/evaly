@@ -1,0 +1,52 @@
+{
+  "$id": "urn:evaly:envelope:1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "checksum": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "data": {
+      "type": "object"
+    },
+    "extensions": {
+      "additionalProperties": {},
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "id": {
+      "pattern": "^[a-zA-Z0-9_-]{1,128}$",
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "dataset",
+        "experiment",
+        "comparison",
+        "evidence",
+        "observation",
+        "search",
+        "view",
+        "scenario",
+        "assessment",
+        "candidate"
+      ],
+      "type": "string"
+    },
+    "version": {
+      "const": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "version",
+    "kind",
+    "id",
+    "data",
+    "checksum"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,317 @@
+{
+  "$id": "urn:evaly:observation-result:1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "Assessment": {
+      "additionalProperties": false,
+      "properties": {
+        "grades": {
+          "items": {
+            "additionalProperties": false,
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "status": {
+                      "enum": [
+                        "grader_error",
+                        "not_applicable",
+                        "insufficient_evidence"
+                      ]
+                    }
+                  }
+                },
+                "then": {
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "metrics"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "assertions"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            ],
+            "properties": {
+              "assertions": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "pass": {
+                      "type": "boolean"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "pass",
+                    "reason"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "evidence_refs": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 32,
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "metrics": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "direction": {
+                      "enum": [
+                        "higher",
+                        "lower"
+                      ],
+                      "type": "string"
+                    },
+                    "maximum": {
+                      "type": "number"
+                    },
+                    "minimum": {
+                      "type": "number"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "value",
+                    "minimum",
+                    "maximum",
+                    "direction"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "reasons": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 32,
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "revision": {
+                "additionalProperties": false,
+                "properties": {
+                  "configuration": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "implementation": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "prompt": {
+                    "type": "string"
+                  },
+                  "rubric": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "implementation",
+                  "rubric",
+                  "model",
+                  "prompt",
+                  "configuration"
+                ],
+                "type": "object"
+              },
+              "status": {
+                "enum": [
+                  "scored",
+                  "not_applicable",
+                  "insufficient_evidence",
+                  "grader_error"
+                ],
+                "type": "string"
+              },
+              "usage": {
+                "additionalProperties": false,
+                "properties": {
+                  "known": {
+                    "type": "boolean"
+                  },
+                  "units": {
+                    "minimum": 0,
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "known",
+                  "units"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "revision",
+              "status",
+              "usage"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "mode": {
+          "enum": [
+            "rescore",
+            "observation"
+          ],
+          "type": "string"
+        },
+        "parent": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        },
+        "view": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "version",
+        "revision",
+        "parent",
+        "source",
+        "view",
+        "mode",
+        "grades"
+      ],
+      "type": "object"
+    },
+    "Observation": {
+      "additionalProperties": false,
+      "properties": {
+        "ID": {
+          "type": "string"
+        },
+        "Parent": {
+          "type": "string"
+        },
+        "Revision": {
+          "type": "string"
+        },
+        "Sampling": {
+          "additionalProperties": false,
+          "properties": {
+            "OutcomeDelay": {
+              "type": "integer"
+            },
+            "Population": {
+              "type": "string"
+            },
+            "Probability": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "Reason": {
+              "type": "string"
+            },
+            "Rule": {
+              "type": "string"
+            },
+            "Window": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "Rule",
+            "Reason",
+            "Population",
+            "Window",
+            "Probability",
+            "OutcomeDelay"
+          ],
+          "type": "object"
+        },
+        "Version": {
+          "const": 1,
+          "type": "integer"
+        },
+        "View": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "Version",
+        "ID",
+        "Revision",
+        "Parent",
+        "View",
+        "Sampling"
+      ],
+      "type": "object"
+    },
+    "Reason": {
+      "type": "string"
+    },
+    "State": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "State",
+    "Observation",
+    "Assessment",
+    "Reason"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,45 @@
+{
+  "$id": "urn:evaly:candidate:1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "Algorithm": {
+      "type": "string"
+    },
+    "Codec": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "type": "object"
+    },
+    "Description": {},
+    "ID": {
+      "type": "string"
+    },
+    "Parent": {
+      "type": "string"
+    },
+    "Revision": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "ID",
+    "Revision",
+    "Parent",
+    "Algorithm",
+    "Description",
+    "Codec"
+  ],
+  "type": "object"
+}

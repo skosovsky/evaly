@@ -1,0 +1,379 @@
+{
+  "$id": "urn:evaly:comparison:1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "baseline": {
+      "type": "string"
+    },
+    "baseline_aggregate": {
+      "additionalProperties": false,
+      "properties": {
+        "all_repeats_success": {
+          "type": "integer"
+        },
+        "cleanup_failures": {
+          "type": "integer"
+        },
+        "coverage": {
+          "type": "number"
+        },
+        "eligible": {
+          "type": "integer"
+        },
+        "excluded": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "grader_failures": {
+          "type": "integer"
+        },
+        "mean_pass_rate": {
+          "type": "number"
+        },
+        "scored": {
+          "type": "integer"
+        },
+        "setup_failures": {
+          "type": "integer"
+        },
+        "success_at_least_once": {
+          "type": "integer"
+        },
+        "success_denominator": {
+          "type": "integer"
+        },
+        "target_failures": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "eligible",
+        "scored",
+        "coverage",
+        "mean_pass_rate",
+        "success_at_least_once",
+        "all_repeats_success",
+        "success_denominator",
+        "setup_failures",
+        "target_failures",
+        "grader_failures",
+        "cleanup_failures",
+        "excluded"
+      ],
+      "type": "object"
+    },
+    "candidate": {
+      "type": "string"
+    },
+    "candidate_aggregate": {
+      "additionalProperties": false,
+      "properties": {
+        "all_repeats_success": {
+          "type": "integer"
+        },
+        "cleanup_failures": {
+          "type": "integer"
+        },
+        "coverage": {
+          "type": "number"
+        },
+        "eligible": {
+          "type": "integer"
+        },
+        "excluded": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "grader_failures": {
+          "type": "integer"
+        },
+        "mean_pass_rate": {
+          "type": "number"
+        },
+        "scored": {
+          "type": "integer"
+        },
+        "setup_failures": {
+          "type": "integer"
+        },
+        "success_at_least_once": {
+          "type": "integer"
+        },
+        "success_denominator": {
+          "type": "integer"
+        },
+        "target_failures": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "eligible",
+        "scored",
+        "coverage",
+        "mean_pass_rate",
+        "success_at_least_once",
+        "all_repeats_success",
+        "success_denominator",
+        "setup_failures",
+        "target_failures",
+        "grader_failures",
+        "cleanup_failures",
+        "excluded"
+      ],
+      "type": "object"
+    },
+    "metric": {
+      "const": "assertion_pass_rate",
+      "type": "string"
+    },
+    "pairs": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "Baseline": {
+            "type": "number"
+          },
+          "Candidate": {
+            "type": "number"
+          },
+          "Difference": {
+            "type": "number"
+          },
+          "case_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "case_id",
+          "Baseline",
+          "Candidate",
+          "Difference"
+        ],
+        "type": "object"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "policy": {
+      "additionalProperties": false,
+      "properties": {
+        "bootstrap_samples": {
+          "type": "integer"
+        },
+        "maximum_regression": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "minimum_coverage": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "minimum_quality": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "seed": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "revision",
+        "minimum_coverage",
+        "minimum_quality",
+        "maximum_regression",
+        "bootstrap_samples",
+        "seed"
+      ],
+      "type": "object"
+    },
+    "reasons": {
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "revision": {
+      "type": "string"
+    },
+    "trials": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "Attempt": {
+            "type": "integer"
+          },
+          "CaseID": {
+            "type": "string"
+          },
+          "CaseRevision": {
+            "type": "string"
+          },
+          "Cleanup": {
+            "additionalProperties": false,
+            "properties": {
+              "reason": {
+                "type": "string"
+              },
+              "state": {
+                "enum": [
+                  "not_needed",
+                  "completed",
+                  "failed"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "state"
+            ],
+            "type": "object"
+          },
+          "EvidenceRevision": {
+            "type": "string"
+          },
+          "ExperimentID": {
+            "type": "string"
+          },
+          "Fixture": {
+            "type": "string"
+          },
+          "Repeat": {
+            "type": "integer"
+          },
+          "Reset": {
+            "type": "string"
+          },
+          "Seed": {
+            "type": "integer"
+          },
+          "Status": {
+            "type": "string"
+          },
+          "Target": {
+            "type": "string"
+          },
+          "TrialID": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ExperimentID",
+          "TrialID",
+          "CaseID",
+          "CaseRevision",
+          "Target",
+          "Fixture",
+          "Reset",
+          "EvidenceRevision",
+          "Repeat",
+          "Attempt",
+          "Seed",
+          "Status",
+          "Cleanup"
+        ],
+        "type": "object"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "uncertainty": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Lower": {
+              "type": "number"
+            },
+            "Upper": {
+              "type": "number"
+            },
+            "cases": {
+              "type": "integer"
+            },
+            "confidence": {
+              "type": "number"
+            },
+            "limitation": {
+              "type": "string"
+            },
+            "method": {
+              "type": "string"
+            },
+            "unit": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "method",
+            "unit",
+            "cases",
+            "Lower",
+            "Upper",
+            "confidence"
+          ],
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "unit": {
+      "const": "case",
+      "type": "string"
+    },
+    "verdict": {
+      "enum": [
+        "pass",
+        "fail",
+        "inconclusive",
+        "invalid_comparison"
+      ],
+      "type": "string"
+    },
+    "version": {
+      "const": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "trials",
+    "version",
+    "revision",
+    "baseline",
+    "candidate",
+    "verdict",
+    "reasons",
+    "policy",
+    "baseline_aggregate",
+    "candidate_aggregate",
+    "pairs",
+    "metric",
+    "unit"
+  ],
+  "type": "object"
+}

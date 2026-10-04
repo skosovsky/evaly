@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "scenarios": [
+    {
+      "id": "immutable-dataset",
+      "expected": "immutable_snapshot_generated_draft_bounded_scenario"
+    },
+    {
+      "id": "grading-outcomes",
+      "expected": "failed_outcome_distinct_judge_error_insufficient_trajectory"
+    },
+    {
+      "id": "fixture-isolation",
+      "expected": "reset_failure_blocks_dispatch_separate_cleanup_and_attempts"
+    },
+    {
+      "id": "privacy-and-rescore",
+      "expected": "redacted_before_persistence_incomplete_capture_no_target_rescore"
+    },
+    {
+      "id": "budget-and-cancellation",
+      "expected": "third_dispatch_rejected_unknown_usage_retained_cancel_stops_dispatch"
+    },
+    {
+      "id": "coverage-denominators",
+      "expected": "2_of_4_inconclusive_3_of_4_denominator_4_repeats_not_independent"
+    },
+    {
+      "id": "blind-pair-grading",
+      "expected": "blind_order_checks_disagreement_injection_is_data"
+    },
+    {
+      "id": "artifact-delivery",
+      "expected": "delivery_separate_partial_corrupt_baseline_rejected_explicit_loss"
+    },
+    {
+      "id": "observation-worker",
+      "expected": "bounded_worker_nonblocking_overload_fake_deadline_late_lineage"
+    },
+    {
+      "id": "optimizer-splits",
+      "expected": "bounded_typed_search_split_isolation_incomplete_no_win_contamination"
+    }
+  ]
+}

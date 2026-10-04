@@ -1,0 +1,119 @@
+{
+  "$id": "urn:evaly:http-response:1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "capabilities": {
+      "additionalProperties": false,
+      "properties": {
+        "Evidence": {
+          "type": "boolean"
+        },
+        "MetricScales": {
+          "type": "boolean"
+        },
+        "Outcome": {
+          "type": "boolean"
+        },
+        "ResetIdentity": {
+          "type": "boolean"
+        },
+        "RichStatus": {
+          "type": "boolean"
+        },
+        "Version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "Version",
+        "Outcome",
+        "ResetIdentity",
+        "Evidence",
+        "RichStatus",
+        "MetricScales"
+      ],
+      "type": "object"
+    },
+    "events": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "correlation_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "payload": {},
+          "references": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "sequence": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "version": {
+            "const": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "sequence",
+          "kind",
+          "correlation_id"
+        ],
+        "type": "object"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "output": {},
+    "status": {
+      "enum": [
+        "completed",
+        "target_error"
+      ],
+      "type": "string"
+    },
+    "usage": {
+      "additionalProperties": false,
+      "properties": {
+        "known": {
+          "type": "boolean"
+        },
+        "units": {
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "known",
+        "units"
+      ],
+      "type": "object"
+    },
+    "version": {
+      "const": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "version",
+    "status",
+    "usage",
+    "events",
+    "capabilities"
+  ],
+  "type": "object"
+}

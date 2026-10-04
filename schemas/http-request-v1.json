@@ -1,0 +1,80 @@
+{
+  "$id": "urn:evaly:http-request:1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "input": {},
+    "input_codec": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "type": "object"
+    },
+    "output_codec": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "type": "object"
+    },
+    "trial": {
+      "additionalProperties": false,
+      "properties": {
+        "case_revision": {
+          "type": "string"
+        },
+        "fixture": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "reset": {
+          "type": "string"
+        },
+        "seed": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "case_revision",
+        "seed",
+        "fixture",
+        "reset"
+      ],
+      "type": "object"
+    },
+    "version": {
+      "const": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "version",
+    "input_codec",
+    "output_codec",
+    "trial",
+    "input"
+  ],
+  "type": "object"
+}

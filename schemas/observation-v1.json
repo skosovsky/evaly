@@ -1,0 +1,71 @@
+{
+  "$id": "urn:evaly:observation:1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "ID": {
+      "type": "string"
+    },
+    "Parent": {
+      "type": "string"
+    },
+    "Revision": {
+      "type": "string"
+    },
+    "Sampling": {
+      "additionalProperties": false,
+      "properties": {
+        "OutcomeDelay": {
+          "type": "integer"
+        },
+        "Population": {
+          "type": "string"
+        },
+        "Probability": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "Reason": {
+          "type": "string"
+        },
+        "Rule": {
+          "type": "string"
+        },
+        "Window": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "Rule",
+        "Reason",
+        "Population",
+        "Window",
+        "Probability",
+        "OutcomeDelay"
+      ],
+      "type": "object"
+    },
+    "Version": {
+      "const": 1,
+      "type": "integer"
+    },
+    "View": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "Version",
+    "ID",
+    "Revision",
+    "Parent",
+    "View",
+    "Sampling"
+  ],
+  "type": "object"
+}
