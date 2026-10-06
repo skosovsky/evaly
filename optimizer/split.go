@@ -7,7 +7,11 @@ import (
 )
 
 // SplitValidator is a host's revisioned declaration of cross-split independence.
-// Search still checks technical case IDs independently of this port.
+// Search still checks technical case IDs independently of this port. Revision
+// and callbacks must remain stable after preflight, honor context and support
+// concurrent use if shared. Successful validation is a host declaration, not a
+// statistical proof. Config may omit this optional port; a provided typed-nil
+// or invalid adapter fails preflight.
 type SplitValidator[I, R any] interface {
 	ValidateSplit(context.Context, Split[I, R]) error
 	Revision() string

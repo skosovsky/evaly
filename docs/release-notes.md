@@ -1,3 +1,34 @@
+# Current remediation status — 6 October 2026
+
+Runtime baseline: `7a37ea3`. T01–T10 are implemented and independently accepted.
+The final T10 commit completes the local remediation sequence.
+
+- Exact conservative budget accounting and reversible generic JSON representation.
+- Structural capability preflight, validated absence grader and fallible HTTP setup.
+- Shared optimizer audit semantics, bound callback artifacts and concrete provenance.
+- Lifecycle cleanup and budget Claim/Release conformance regressions.
+- Direction-neutral QualityThreshold, canonical numeric descriptors, safe measurement
+  localization, binary agreement API and explicit runtime/serialization ownership.
+- Root-only isolated release checkout and exact atomic tag publication/recovery.
+
+Go 1.27.1; root runtime has no third-party dependencies. contracttest is test-only.
+Supported wire formats and API breaks: [authoritative migration](migration.md).
+Final T10 `make validate` passed root/contracttest race, pinned golangci-lint
+2.14.0 with **0 issues in both modules**, and **seven runnable examples**.
+Independent schema drift, corpus/semantic negatives and local release/baseline
+fixtures passed. Commands, independent verdicts and limits are recorded in
+[remediation verification](remediation-verification.md).
+
+Limits: cooperative cancellation, process-local reference budgets/ledger,
+local filesystem fixtures on macOS, scripted judges and short targeted fuzz.
+No real release/push, live provider quality, arbitrary callback safety or production
+infrastructure certification. See [concurrency](concurrency.md) and [release](release.md).
+
+## Historical initial release snapshot (superseded)
+
+The original undated text below predates the 6 October remediation. Its six-example
+and outstanding-lint counts are historical, not current guarantees.
+
 Initial Go library release for evaluating typed targets.
 
 - Immutable datasets, versioned codecs, bounded scenario runs and generation lineage.

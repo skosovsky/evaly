@@ -90,7 +90,7 @@ The mapping below assigns each D exactly once; related tasks may depend on it.
   3. D33 is measured before optimizing; record commands/data and decision. No
      mutable decoded values are cached. Other speculative optimizations require
      demonstrated need rather than expanding scope into infrastructure.
-- [ ] T10 — Documentation and integrated acceptance: all source documentation
+- [x] T10 — Documentation and integrated acceptance: all source documentation
   requirements and full Definition of Done; cross-check all F/D decisions.
   1. Release notes/current status (including `.cursor/task/README.md` and sibling
      `ai-libs/feature-specs/evaly.md`), public GoDoc, runnable end-to-end quickstart,

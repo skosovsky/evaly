@@ -58,7 +58,7 @@ Previously admitted nonreversible custom representations now fail early; provide
 a matching custom unmarshal implementation or an explicit reversible domain codec.
 No legacy decoding fallback or automatic identity rewrite is introduced.
 
-Verification: F04/F05 baseline repro uses a read-only overlay. AAA regressions cover
+Verification: F04/F05 baseline repro uses a disposable full checkout of the reviewed SHA. AAA regressions cover
 large numbers, nested containers, decimal/exponent lexemes, typed overflow,
 snapshot/dataset identities, aliases/cycles, ignored fields, UTF-8 and buffer/decode
 ownership under concurrency. Canonical JSON roundtrip fuzz checks arbitrary valid

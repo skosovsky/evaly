@@ -1,6 +1,6 @@
 # Binary calibration contract
 
-Calibration compares one declared grader revision with host supplied binary human labels. It does not measure human disagreement: each case has at most one label. Labels and records must have unique, nonempty case revisions, and every grade is validated, including records without labels. Different grader revisions are a conflict. Binary prediction means the existing `all` assertion rule; a scored numeric-only grade has no binary prediction and is an abstention.
+EvaluateBinaryAgreement compares one declared grader revision with host supplied binary human labels. It does not measure human disagreement: each case has at most one label. Labels and records must have unique, nonempty case revisions, and every grade is validated, including records without labels. Different grader revisions are a conflict. Binary prediction means the existing `all` assertion rule; a scored numeric-only grade has no binary prediction and is an abstention.
 
 The report is a new service wire format, `calibration` version 1. `Counts.Eligible` is the union of labeled and recorded cases, `Labeled` counts human labels, and `Reviewed` counts cases with both a label and a binary prediction. TP/TN/FP/FN use human pass as positive. `Unreviewed = Eligible - Reviewed`. Missing labels and missing records are counted explicitly. Errors count grader-error records; abstentions count non-applicable, insufficient-evidence, and numeric-only records. These diagnostic counts may overlap missing labels; they do not create predictions or zero scores.
 

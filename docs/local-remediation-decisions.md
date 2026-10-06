@@ -1,7 +1,7 @@
 # Local remediation decisions (T09)
 
-This is the decision record for the remaining review items. T09 is in progress;
-the entries below do not constitute acceptance of the entire task.
+This is the decision record for the remaining review items. T09 was independently accepted and committed as `7a37ea3`.
+Final integrated acceptance is recorded separately in remediation verification.
 
 ## D15 — localized measurement diagnostics
 

@@ -94,6 +94,10 @@ func (f TargetFunc[I, O, E]) Run(ctx context.Context, i I, t TrialContext[E]) (T
 	return f(ctx, i, t)
 }
 
+// RunPlan bounds execution. Its zero value is invalid: repeats, concurrency,
+// attempts and both timeouts must be positive. Seed zero is valid; zero dispatch
+// and grader units are valid. AssertionPolicy is all or any. Copying a plan does
+// not clone the adapters supplied by RunConfig; those remain host-owned.
 type RunPlan struct {
 	Repeats        int           `json:"repeats"`
 	Concurrency    int           `json:"concurrency"`
@@ -260,6 +264,10 @@ func validateExperimentRecord(r ExperimentRecord) error {
 	return validateExperimentAttempts(r, graders)
 }
 
+// RunConfig is executable configuration, not a wire record. Zero value is invalid.
+// Dataset must be sealed; codecs/ports and callback revisions remain stable after
+// preflight. Shared callbacks require concurrency safety; each trial owns its
+// lifecycle handle and each grader receives a fresh permitted view.
 type RunConfig[I, O, R, E any] struct {
 	ID          string
 	Dataset     Dataset[I, R]
@@ -277,6 +285,13 @@ type RunConfig[I, O, R, E any] struct {
 	CriticalEvidence   bool
 }
 
+// Run rejects invalid/unsealed configuration before effects. Trial target/setup/
+// grader/accounting failures and cooperative cancellation are retained as results;
+// a nil return error is not a quality pass. Return errors describe preflight or
+// experiment sealing failures. ErrInvalid denotes invalid configuration; validation
+// may also return a port validator error or integrity/version sentinel from records.
+// Cleanup has its own detached bounded context.
+// Host callbacks must honor contexts; no external effects are rolled back.
 func Run[I, O, R, E any](ctx context.Context, c RunConfig[I, O, R, E]) (Experiment, error) {
 	if err := ValidateRunConfig(c); err != nil {
 		return Experiment{}, err

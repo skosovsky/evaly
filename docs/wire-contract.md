@@ -12,7 +12,7 @@ Current revision breaks are explicit: comparison is version 3; experiment, asses
 
 Numeric grade metrics require `unit` and `scale_revision` alongside finite bounds and direction. Comparison records an objective identity, common eligible denominator, matched case count/coverage, exclusions and availability flags for observed means. Gate quality/regression thresholds use the declared native scale; only coverage remains in [0, 1]. Paired experiment records contain the complete case/repeat schedule rather than experiment-wide order. Calibration stores nonnegative confusion counts and rates with nullable values; a rate's zero-denominator relationship, schedule integrity and compatible measurement metadata are semantic validations after structural decoding.
 
-Search v4 records bounded rounds, received proposal lineage, measurements,
+Search v6 records bounded rounds, received proposal lineage, measurements,
 feasibility and the distinct best measured candidate and selected winner. Runtime
 restore additionally validates candidate/experiment/comparison links, deterministic
 ranking, bounds, stopped-state ordering and nonnegative budget/usage fields. Rejected

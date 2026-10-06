@@ -19,6 +19,10 @@ type EvaluationSummary struct {
 	Quality     *float64          `json:"Quality"`
 	Measurement evaly.Aggregate   `json:"Measurement"`
 }
+
+// Constraints evaluates host feasibility on permitted summaries. Revision/behavior
+// remain stable and Check cooperates with context. Feasibility is not a deployment
+// approval; arbitrary callback safety and concurrency belong to host.
 type Constraints[T any] interface {
 	Revision() string
 	Check(context.Context, T, EvaluationSummary) (Feasibility, error)
@@ -61,6 +65,10 @@ type Feedback struct {
 	Measurement evaly.Aggregate  `json:"Measurement"`
 	References  []string         `json:"References"`
 }
+
+// FeedbackProjector selects permitted calibration feedback. Revision must be
+// stable; implementations protect secrets, honor context and bound host strings.
+// Holdout is excluded from this protocol. Host callbacks are not sandboxed.
 type FeedbackProjector interface {
 	Revision() string
 	Project(context.Context, Evaluation) ([]string, error)

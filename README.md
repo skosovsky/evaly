@@ -53,7 +53,7 @@ quality; `Winner` additionally requires complete measurement, host feasibility
 and a passing gate. Feedback contains lineage and service summaries; references
 require explicit projection. Holdout runs after winner selection and never feeds
 another proposal round. Host split validation checks declared group/content keys;
-ID disjointness alone does not establish independence. Search v4 supports validated
+ID disjointness alone does not establish independence. Search v6 supports validated
 round-trip restoration without invoking proposal or evaluation callbacks. See
 [bounded search](docs/search-contract.md).
 
@@ -181,3 +181,10 @@ See [release safety and recovery](docs/release.md) for failure handling and loca
 fixtures. Commit identity/signing use the resolved source Git configuration.
 
 Optimizer candidate records use schema v2 (`ParentRevision`); search v6 includes concrete provenance and bounded received counts. See [migration](docs/optimizer-remediation.md).
+
+
+For the current API, use the [runnable quickstart](docs/quickstart.md),
+[authoritative migration guide](docs/migration.md) and
+[ownership/concurrency matrix](docs/concurrency.md). Remediation decisions and
+executed checks are recorded in [the plan](docs/remediation-plan.md) and
+[verification record](docs/remediation-verification.md).

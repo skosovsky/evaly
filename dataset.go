@@ -249,6 +249,10 @@ type ScenarioContext struct {
 	Step int    `json:"Step"`
 }
 
+// ScenarioStep is a host-owned driver with a stable revision. Step must honor
+// context, treat replay/search mode and seed explicitly, and own mutable state
+// isolation. Outputs are snapshot before the next step; no host goroutine is
+// forcibly stopped. Nil or invalid adapters fail preflight before Step.
 type ScenarioStep[S, O any] interface {
 	Revision() string
 	Step(context.Context, S, ScenarioContext) (S, O, bool, error)

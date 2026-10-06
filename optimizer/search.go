@@ -88,6 +88,11 @@ type ProposalResult[T any] struct {
 	Candidates []Proposal[T] `json:"Candidates"`
 	Usage      evaly.Usage   `json:"Usage"`
 }
+
+// Proposer generates host-owned candidates from training/calibration feedback,
+// never holdout feedback. Revision and behavior must remain stable. Propose must
+// cooperate with context and respect Maximum; oversize is rejected, not trimmed.
+// Partial proposal usage/errors are retained without implicit retries.
 type Proposer[T, I, R any] interface {
 	Propose(context.Context, ProposalRequest[I, R]) (ProposalResult[T], error)
 	Revision() string
@@ -127,7 +132,15 @@ type EvaluationRequest[T, I, R any] struct {
 	Dataset      evaly.Dataset[I, R]
 	Budget       evaly.Budget
 }
+
+// Evaluate returns a measurement bound to the requested experiment ID and dataset.
+// Valid partial records/usage may accompany errors; foreign records are rejected.
+// The host owns fresh trial environments, cleanup, cancellation and shared state.
 type Evaluate[T, I, R any] func(context.Context, EvaluationRequest[T, I, R]) (evaly.Experiment, error)
+
+// HoldoutLedger records attempted holdout claims. Implementations need atomic
+// concurrency-safe Claim; an error may be ambiguous and is not a refund receipt.
+// Durability/reconciliation belong to host; MemoryLedger is process-local.
 type HoldoutLedger interface {
 	Claim(context.Context, string, string) (bool, error)
 }
@@ -160,6 +173,12 @@ func (l *MemoryLedger) Claim(ctx context.Context, holdout, search string) (bool,
 	return contaminated, nil
 }
 
+// Config supplies bounded search and executable host ports; zero value is invalid.
+// IDs/revisions, limits and timeout must be valid, datasets/baselines sealed and
+// callbacks/codecs stable after preflight. Optional Constraints, SplitValidator and
+// FeedbackProjector do not imply independence without host validation. Evaluate
+// owns target lifecycle/cleanup; Budget/Ledger recovery remains host responsibility.
+// Config and reachable settings must not mutate concurrently with Search.
 type Config[T, I, R any] struct {
 	ID                  string
 	Algorithm           string
@@ -207,6 +226,10 @@ type Provenance struct {
 	HoldoutBaseline     string `json:"HoldoutBaseline"`
 }
 
+// Result is a caller-owned audit artifact; zero value is invalid/unsealed. Do not
+// mutate concurrently with validation/restore. Ranking, states, usage and links are
+// validated derived data, not separate truths. Winner is a calibration winner;
+// holdout comparison and contamination remain explicit and grant no permission.
 type Result struct {
 	Provenance              Provenance              `json:"Provenance"`
 	MaximumRounds           int                     `json:"MaximumRounds"`
@@ -261,6 +284,16 @@ func validateSplit[I, R any](s Split[I, R]) error {
 	}
 	return nil
 }
+
+// Search performs bounded proposal/calibration/selection/holdout evaluation.
+// Preflight errors can return an unsealed initial Result; only a validated sealed
+// result is returned with nil error. Operational stops/errors normally appear in
+// State/Reason and retained partial histories rather than as return errors.
+// Invalid configuration/accounting returns evaly.ErrInvalid; supplied validators
+// may return their errors. Restore rejects incompatible versions with
+// evaly.ErrUnsupported, invalid semantics with evaly.ErrInvalid, and revision
+// mismatches with evaly.ErrConflict.
+// Cancellation is cooperative and stops further dispatch, without rollback.
 func Search[T, I, R any](ctx context.Context, c Config[T, I, R]) (Result, error) {
 	var s searchExecution[T, I, R]
 	s.config = c

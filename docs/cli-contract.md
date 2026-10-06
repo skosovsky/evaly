@@ -1,7 +1,7 @@
 # CLI comparison contract
 
 `evaly compare --store DIR --baseline ID --candidate ID --policy FILE` requires
-an explicit JSON `ComparisonPolicy` version 1. The policy contains `version`,
+an explicit JSON `ComparisonPolicy` version 2. The policy contains `version`,
 `objective_kind` (`assertion` or `numeric`), a complete task-03 `objective`
 identity, and `gate`. No policy is inferred from target names or fixtures.
 

@@ -279,3 +279,67 @@ Limits: local macOS/arm64, scripted callbacks and short synthetic benchmark;
 arbitrary host stability/concurrency and production infrastructure are not certified.
 Only acceptance metadata changed after final reviews.
 Commit subject: `fix: align measurement and runtime contracts`.
+
+
+## T10 — accepted
+
+Previous accepted task: T09 commit `7a37ea3`.
+Prepared authoritative `docs/migration.md`, ownership/concurrency matrix and a
+runnable `ExampleRun` linked from `docs/quickstart.md`. Existing seven runnable
+examples remain in Makefile. Release notes distinguish current seven/zero-lint
+checks from the preserved historical initial snapshot. Added current-status
+annotations to ignored local backlog and non-Git sibling feature spec, preserving
+historical analysis/reports. No ignore changes or forced Git additions.
+Local backlog SHA256 `d5b98260d5a6c8edbb35102c92c3437f7a94bf54778f7ef3d7d3dcfbafb2d63c`.
+Sibling feature spec SHA256 `39f82a98526cf36e705a960dac7ccd692414a4752f6c2f65c55ffe3272c590dd`.
+The sibling directory is not a Git repository; its authorized status update is a
+local document deliverable. Both local status files must be re-read at final audit.
+Public RunPlan/RunConfig/Run, scenario plan/record/driver, optimizer config/result/
+ports/search GoDoc now describe zero values, ownership, callback stability,
+cooperative cancellation and result-vs-return-error boundaries; optimizer package
+comment names current search v6. The misplaced codec comment was fixed in T05.
+Initial checks: `go test . -run '^ExampleRun$' -v` — PASS (0.467s); root pinned
+lint 2.14.0 — 0 issues; `git diff --check` — PASS. Final integrated validation,
+requirement inventory and two independent final reviewers are still outstanding.
+
+T10 integrated validation on runtime HEAD 7a37ea3 plus T10 diff:
+`make validate GOLANGCI_LINT=golangci-lint` — exit 0; config/format/vet PASS,
+root and contracttest lint 2.14.0: 0 issues; race root 6.458s, HTTP 1.825s,
+CLI 4.283s, conformance 2.843s, fixtures 1.579s, observation 1.618s,
+optimizer 9.162s; contracttest 141.999s; all seven examples PASS.
+Independent `go run ./internal/schemagen TEMP` plus `diff -r schemas TEMP`
+— exit 0, all 16 schemas and inventory byte-identical.
+`go list -deps` for root — only stdlib, evaly and internal wirecontract;
+root go.mod has no external requirements. No network provider/harness dependency.
+Final local release fixtures — 10/10 PASS; baseline mode — two repros PASS,
+eight new-contract skips. Budget/preflight/optimizer/conformance baseline scripts
+— PASS; codec first overlay failed compilation, then repaired full disposable
+76c224a checkout — PASS numeric loss, own-record corruption and aliases rejection.
+This tooling failure is not counted as behavioral evidence.
+Full source audit and F/D inventories: docs/remediation-audit.md.
+Limits remain local macOS/arm64, scripted callbacks, cooperative cancellation,
+short prior targeted fuzz and local filesystem/bare-remotes; no real release,
+live LLM quality, arbitrary host safety or distributed durability certification.
+
+Initial T10 independent review found current CLI policy version1 and README/wire
+Searchv4 statements; corrected to policy2/search6. Correctness found weakened
+custom codec buffer lifetime wording in concurrency/migration; corrected to
+caller-owned Encode bytes stable after return without subsequent-call reuse.
+Main sentinel self-check corrected Search restore GoDoc to Unsupported/Invalid/
+Conflict. Both reviewers must recheck the repaired final diff. No runtime behavior
+changed after integrated validation; final root lint and diff check remain PASS.
+
+Final T10 independent acceptance: /root/t10_completeness — 4/4, 100%;
+/root/t10_correctness — no unresolved confirmed errors in checked scope.
+Both rechecked all repaired version/ownership wording on the final diff.
+Independent completeness uncached quickstart PASS 0.471s; focused race root/
+optimizer/conformance PASS 1.349s/2.277s/2.724s. Independent correctness focused
+race root/optimizer PASS 1.680s/3.601s, codec baseline reproduction PASS and diff
+check PASS. Full expensive validation was not needlessly repeated.
+Only acceptance/status metadata changes follow these final independent reviews.
+Commit subject: docs: complete remediation acceptance.
+
+Final local status snapshots (historical sections retained):
+`.cursor/task/README.md` SHA256 `6aafbd50ea95d03846fa63e1b2e055731dd8447a342207aed3d62b47402e3e31`.
+`../ai-libs/feature-specs/evaly.md` SHA256 `0ffed95b658104f2acc67da6a5b37855124133f17ea6247fd224a94242368702`.
+Final post-review GoDoc format diff and `git diff --check` — PASS.

@@ -1,17 +1,20 @@
-"""Read-only Go overlay for F04/F05 baseline behavioral repros."""
-import json
+"""Reproduce F04/F05 against a disposable archive of the reviewed baseline."""
+import io
 import os
-import pathlib
+from pathlib import Path
 import subprocess
+import tarfile
 import tempfile
 
-root = pathlib.Path(__file__).resolve().parents[1]
-with tempfile.TemporaryDirectory(prefix='evaly-codec-baseline-') as directory:
-    base = pathlib.Path(directory)
-    old = base / 'codec.go'
-    old.write_bytes(subprocess.check_output(
-        ['git', 'show', '76c224a:codec.go'], cwd=root))
-    overlay = base / 'overlay.json'
-    overlay.write_text(json.dumps({'Replace': {str(root / 'codec.go'): str(old)}}))
-    subprocess.run(['go', 'run', '-overlay=' + str(overlay), 'testdata/repro/codec.go'],
-                   cwd=root, env=dict(os.environ, GOCACHE='/tmp/evaly-go-build'), check=True)
+root = Path(__file__).resolve().parents[1]
+archive = subprocess.run(["git", "archive", "76c224a"], cwd=root, check=True, capture_output=True).stdout
+with tempfile.TemporaryDirectory(prefix="evaly-codec-baseline-") as directory:
+    baseline = Path(directory)
+    with tarfile.open(fileobj=io.BytesIO(archive)) as source:
+        source.extractall(baseline, filter="data")
+    fixture = baseline / "testdata/repro/codec.go"
+    fixture.parent.mkdir(parents=True, exist_ok=True)
+    fixture.write_bytes((root / "testdata/repro/codec.go").read_bytes())
+    subprocess.run(["go", "run", "testdata/repro/codec.go"], cwd=baseline,
+                   env=dict(os.environ, GOCACHE="/tmp/evaly-go-build"), check=True)
+print("F04/F05 baseline behavior reproduced; source checkout unchanged")

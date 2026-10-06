@@ -6,6 +6,10 @@ import (
 	"time"
 )
 
+// ScenarioPlan bounds a host driver. Zero value is invalid; Mode is search or
+// replay, MaxSteps/Timeout are positive, Seed zero is valid. Generation metadata
+// is caller-owned and must remain stable during execution/serialization.
+// Timeout starts after initial encoding and does not bound final sealing.
 type ScenarioPlan struct {
 	Mode       string        `json:"mode"`
 	Seed       int64         `json:"seed"`
@@ -13,6 +17,12 @@ type ScenarioPlan struct {
 	Timeout    time.Duration `json:"timeout"`
 	Generation *Generation   `json:"generation,omitempty"`
 }
+
+// ScenarioRecord is a caller-owned portable trajectory snapshot, not an executable
+// driver. Zero value is unsealed. StateStep distinguishes the retained state from
+// attempted Steps after partial encoding failure. Do not mutate while restoring.
+// Restore validates format/integrity and supplied codecs; checksums do not prove
+// producer authenticity or domain correctness.
 type ScenarioRecord struct {
 	Version     int               `json:"version"`
 	Revision    string            `json:"revision"`
@@ -29,6 +39,12 @@ type ScenarioRecord struct {
 
 // RunScenario snapshots each output before the next host step. It distinguishes
 // replaying a fixed scenario from searching for a new adversarial trajectory.
+// Driver/codecs remain host-owned and stable. Invalid configuration returns a
+// preflight error before stepping. Driver/cancellation failures can return a sealed
+// partial record with a nonnil error; inspect Stop and retained outputs/state.
+// ErrInvalid denotes invalid plan/identity; port and codec errors propagate. Restore
+// uses ErrUnsupported for incompatible versions/codecs and ErrCorrupt for integrity.
+// Arbitrary host callbacks cooperate with contexts; there is no hard timeout.
 func RunScenario[S, O any](
 	ctx context.Context,
 	driver ScenarioStep[S, O],
