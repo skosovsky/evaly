@@ -178,7 +178,10 @@ func RestoreDataset[I, R any](r DatasetRecord, ic Codec[I], rc Codec[R]) (Datase
 	if r.State != sealedState {
 		return Dataset[I, R]{}, ErrUnsealed
 	}
-	if ic == nil || rc == nil || r.InputCodec != ic.Identity() || r.ReferenceCodec != rc.Identity() {
+	if err := validateCodecPorts(ic, rc); err != nil {
+		return Dataset[I, R]{}, err
+	}
+	if r.InputCodec != ic.Identity() || r.ReferenceCodec != rc.Identity() {
 		return Dataset[I, R]{}, ErrUnsupported
 	}
 	rcopy, e := cloneJSON(r)

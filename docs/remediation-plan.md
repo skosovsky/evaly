@@ -51,7 +51,7 @@ The mapping below assigns each D exactly once; related tasks may depend on it.
   2. Aliases and ignored fields follow declared semantics; genuine cycles fail;
      UTF-8/custom marshaler limits and byte ownership are tested/documented.
   3. Targeted canonicalization edge/race/fuzz checks and codec migration recorded.
-- [ ] T05 — Preflight/grading/storage: F06/F07; D08/D20/D21/D27/D28.
+- [x] T05 — Preflight/grading/storage: F06/F07; D08/D20/D21/D27/D28.
   1. Restore codecs and public store helpers reject nil/typed nil/invalid ports
      before dispatch; unsupported nonnil codec identity remains distinct.
   2. Invalid AbsenceGrader predicate/kind fails ValidatePort, Assess, Run and

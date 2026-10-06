@@ -87,6 +87,8 @@ trailing data and unrepresentable values. No implicit reflection-based store cod
 Generic decoded numbers are json.Number; stock Encode verifies reversible canonical
 bytes before success. [Codec representation and ownership](codecs.md) describes
 custom callbacks, byte lifetime and conservative source-string UTF-8 validation.
+Required codecs and stores undergo [structural preflight](preflight.md) before
+dispatch. Stock absence grading validates its predicate independently of evidence.
 
 `DatasetDraft[I,R]` validates then seals through codecs. Sealing encodes all caller
 values and stores private bytes; every access decodes new values. Identity includes

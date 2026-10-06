@@ -3,6 +3,7 @@ package evaly
 import (
 	"context"
 	"math"
+	"unicode/utf8"
 )
 
 type GradeStatus string
@@ -194,45 +195,70 @@ func AssertionOutcome(grades []Grade, policy string) (bool, bool) {
 	return passed > 0, true
 }
 
+// Absence is a structurally validated stock grader. Its configuration is private;
+// the predicate must remain stable and concurrency-safe when the grader is shared.
+// The zero value is invalid. Use AbsenceGrader to supply a revision, kind and predicate.
+type Absence[I, O, R any] struct {
+	identity  GraderRevision
+	kind      string
+	forbidden func(Event) bool
+}
+
 // AbsenceGrader requires complete coverage of the relevant event kind.
-func AbsenceGrader[I, O, R any](rev GraderRevision, kind string, forbidden func(Event) bool) GraderFunc[I, O, R] {
+// Nil predicates and empty or invalid UTF-8 kinds are rejected by Validate/Grade
+// and by Run, Assess and observation preflight before callback dispatch.
+func AbsenceGrader[I, O, R any](rev GraderRevision, kind string, forbidden func(Event) bool) Absence[I, O, R] {
+	return Absence[I, O, R]{identity: rev, kind: kind, forbidden: forbidden}
+}
+
+func (g Absence[I, O, R]) Validate() error {
+	if g.forbidden == nil || g.kind == "" || !utf8.ValidString(g.kind) {
+		return ErrInvalid
+	}
+	return ValidateGraderRevisions([]GraderRevision{g.identity})
+}
+
+func (g Absence[I, O, R]) Revision() GraderRevision { return g.identity }
+
+func (g Absence[I, O, R]) Grade(ctx context.Context, v View[I, O, R]) (Grade, error) {
 	var zeroGraderRevision GraderRevision
 	var zeroUsage Usage
-	return GraderFunc[I, O, R]{Identity: rev, Evaluate: func(ctx context.Context, v View[I, O, R]) (Grade, error) {
-		if e := ctx.Err(); e != nil {
-			return Grade{}, e
-		}
-		if !CompleteFor(v.Evidence, kind) {
-			return Grade{
-				Status:       InsufficientEvidence,
-				Reasons:      []string{"capture_incomplete"},
-				Dispatched:   false,
-				Revision:     zeroGraderRevision,
-				Metrics:      nil,
-				Assertions:   nil,
-				EvidenceRefs: nil,
-				Usage:        zeroUsage,
-			}, nil
-		}
-		pass := true
-		for _, event := range v.Evidence.Events {
-			if event.Kind == kind && forbidden(event) {
-				pass = false
-			}
-		}
+	if err := g.Validate(); err != nil {
+		return Grade{}, err
+	}
+	if e := ctx.Err(); e != nil {
+		return Grade{}, e
+	}
+	if !CompleteFor(v.Evidence, g.kind) {
 		return Grade{
-			Status: Scored,
-			Assertions: []Assertion{
-				{Name: "absence:" + kind, Pass: pass, Reason: "trajectory"},
-			},
+			Status:       InsufficientEvidence,
+			Reasons:      []string{"capture_incomplete"},
 			Dispatched:   false,
 			Revision:     zeroGraderRevision,
 			Metrics:      nil,
-			Reasons:      nil,
+			Assertions:   nil,
 			EvidenceRefs: nil,
 			Usage:        zeroUsage,
 		}, nil
-	}}
+	}
+	pass := true
+	for _, event := range v.Evidence.Events {
+		if event.Kind == g.kind && g.forbidden(event) {
+			pass = false
+		}
+	}
+	return Grade{
+		Status: Scored,
+		Assertions: []Assertion{
+			{Name: "absence:" + g.kind, Pass: pass, Reason: "trajectory"},
+		},
+		Dispatched:   false,
+		Revision:     zeroGraderRevision,
+		Metrics:      nil,
+		Reasons:      nil,
+		EvidenceRefs: nil,
+		Usage:        zeroUsage,
+	}, nil
 }
 
 // JudgeRequest separates trusted rubric from untrusted projected content.

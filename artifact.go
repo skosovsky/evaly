@@ -213,6 +213,9 @@ func (s *FileStore) Get(ctx context.Context, id string) (Envelope, error) {
 	return out, nil
 }
 func SaveExperiment(ctx context.Context, s ArtifactStore, e Experiment) error {
+	if err := ValidatePort(s); err != nil {
+		return err
+	}
 	if _, err := RestoreExperiment(e.Record()); err != nil {
 		return err
 	}
@@ -223,6 +226,9 @@ func SaveExperiment(ctx context.Context, s ArtifactStore, e Experiment) error {
 	return s.Put(ctx, env)
 }
 func LoadExperiment(ctx context.Context, s ArtifactStore, id string) (Experiment, error) {
+	if err := ValidatePort(s); err != nil {
+		return Experiment{}, err
+	}
 	env, err := s.Get(ctx, id)
 	if err != nil {
 		return Experiment{}, err

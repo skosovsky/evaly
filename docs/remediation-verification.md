@@ -108,3 +108,20 @@ certify arbitrary host callbacks. Generic decoded representation changes to
 json.Number, without rewriting valid canonical bytes or wire schemas.
 Only acceptance metadata changed after review.
 Commit subject: `fix: preserve canonical JSON values`.
+
+## T05 — accepted
+
+Previous accepted task: T04 commit `bd8ba96`.
+Changes: structural codec preflight for dataset/scenario/saved-view/candidate/search
+restore and Save/Load helpers, Absence stock type with private validated config,
+finite typed-nil kind detection and corrected GoDoc. D08/D20/D21/D27/D28 decisions
+and constructor/error migration recorded in `docs/preflight.md`.
+Final independent acceptance: `/root/t05_completeness` — 3/3, 100%;
+`/root/t05_correctness` — no errors found in scope.
+Commands: final root `go test -race ./...` — PASS; pinned golangci-lint 2.14.0
+root run — 0 issues; independent focused preflight/absence/ownership tests — PASS;
+`python3 scripts/preflight_baseline_repro.py` — PASS (original F06 typed-nil
+panics and F07 empty-pass/matching-event-panic); `git diff --check` — PASS.
+Limits: arbitrary host panics, unstable Identity/Validate and callback thread
+safety remain host responsibilities. Only acceptance metadata changed after review.
+Commit subject: `fix: validate capabilities before dispatch`.

@@ -13,8 +13,14 @@ import (
 )
 
 func RestoreCandidate[T any](r CandidateRecord, c evaly.Codec[T]) (Candidate[T], error) {
-	if evaly.ValidatePort(c) != nil || r.Codec != c.Identity() || evaly.ValidateCodecIdentity(r.Codec) != nil {
-		return Candidate[T]{}, evaly.ErrConflict
+	if err := evaly.ValidatePort(c); err != nil {
+		return Candidate[T]{}, err
+	}
+	if err := evaly.ValidateCodecIdentity(c.Identity()); err != nil {
+		return Candidate[T]{}, err
+	}
+	if r.Codec != c.Identity() {
+		return Candidate[T]{}, evaly.ErrUnsupported
 	}
 	value, e := c.Decode(append([]byte(nil), r.Description...))
 	if e != nil {
@@ -60,6 +66,9 @@ func RestoreResult[T any](r Result, c evaly.Codec[T]) (Result, error) {
 		return Result{}, e
 	}
 	if e := evaly.ValidatePort(c); e != nil {
+		return Result{}, e
+	}
+	if e := evaly.ValidateCodecIdentity(c.Identity()); e != nil {
 		return Result{}, e
 	}
 	for _, entry := range r.History {

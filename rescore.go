@@ -33,15 +33,13 @@ func SaveView[I, O, R any](
 	rc Codec[R],
 ) (SavedView[I, O, R], error) {
 	var out SavedView[I, O, R]
-	if projection == "" || ValidatePort(ic) != nil || ValidatePort(oc) != nil || ValidatePort(rc) != nil ||
+	if err := validateCodecPorts(ic, oc, rc); err != nil {
+		return out, err
+	}
+	if projection == "" ||
 		view.Case.ID == "" ||
 		view.Case.Revision == "" {
 		return out, ErrInvalid
-	}
-	for _, identity := range []CodecIdentity{ic.Identity(), oc.Identity(), rc.Identity()} {
-		if identity.ID == "" || identity.Version == "" {
-			return out, ErrInvalid
-		}
 	}
 	if e := ValidateEvidence(view.Evidence); e != nil {
 		return out, e
@@ -297,7 +295,10 @@ func RestoreSavedView[I, O, R any](
 	if r.Version != 1 {
 		return out, ErrUnsupported
 	}
-	if ValidatePort(ic) != nil || ValidatePort(oc) != nil || ValidatePort(rc) != nil || r.InputCodec != ic.Identity() ||
+	if err := validateCodecPorts(ic, oc, rc); err != nil {
+		return out, err
+	}
+	if r.InputCodec != ic.Identity() ||
 		r.OutputCodec != oc.Identity() ||
 		r.ReferenceCodec != rc.Identity() {
 		return out, ErrUnsupported
@@ -334,6 +335,9 @@ func RestoreSavedView[I, O, R any](
 	return rebuilt, nil
 }
 func SaveSavedView[I, O, R any](ctx context.Context, s ArtifactStore, id string, v SavedView[I, O, R]) error {
+	if err := ValidatePort(s); err != nil {
+		return err
+	}
 	if v.Revision() == "" {
 		return ErrUnsealed
 	}
@@ -355,6 +359,12 @@ func LoadSavedView[I, O, R any](
 	oc Codec[O],
 	rc Codec[R],
 ) (SavedView[I, O, R], error) {
+	if err := ValidatePort(s); err != nil {
+		return SavedView[I, O, R]{}, err
+	}
+	if err := validateCodecPorts(ic, oc, rc); err != nil {
+		return SavedView[I, O, R]{}, err
+	}
 	env, e := s.Get(ctx, id)
 	if e != nil {
 		return SavedView[I, O, R]{}, e

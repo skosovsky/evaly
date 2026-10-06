@@ -1,6 +1,9 @@
 package evaly
 
-import "reflect"
+import (
+	"reflect"
+	"slices"
+)
 
 // StructuralValidator optionally declares local configuration invariants for a
 // port. Validate must be side-effect-free and must not probe paid capabilities.
@@ -15,15 +18,10 @@ func ValidatePort(port any) error {
 		return ErrInvalid
 	}
 	value := reflect.ValueOf(port)
-	switch value.Kind() {
-	case reflect.Pointer, reflect.Func, reflect.Interface, reflect.Map, reflect.Slice, reflect.Chan:
-		if value.IsNil() {
-			return ErrInvalid
-		}
-	case reflect.Invalid, reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.
-
-		// ValidateCodecIdentity validates an identity without executing a codec.
-		Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr, reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128, reflect.Array, reflect.String, reflect.Struct, reflect.UnsafePointer:
+	if slices.Contains([]reflect.Kind{
+		reflect.Pointer, reflect.Func, reflect.Interface, reflect.Map, reflect.Slice, reflect.Chan,
+	}, value.Kind()) && value.IsNil() {
+		return ErrInvalid
 	}
 	if validator, ok := port.(StructuralValidator); ok {
 		return validator.Validate()
@@ -31,9 +29,27 @@ func ValidatePort(port any) error {
 	return nil
 }
 
+// ValidateCodecIdentity validates an identity without executing a codec.
 func ValidateCodecIdentity(identity CodecIdentity) error {
 	if identity.ID == "" || identity.Version == "" {
 		return ErrInvalid
+	}
+	return nil
+}
+
+type codecIdentityPort interface{ Identity() CodecIdentity }
+
+// Validate all structures before invoking any codec identity method.
+func validateCodecPorts(codecs ...codecIdentityPort) error {
+	for _, codec := range codecs {
+		if err := ValidatePort(codec); err != nil {
+			return err
+		}
+	}
+	for _, codec := range codecs {
+		if err := ValidateCodecIdentity(codec.Identity()); err != nil {
+			return err
+		}
 	}
 	return nil
 }

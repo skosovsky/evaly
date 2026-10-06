@@ -111,7 +111,10 @@ func RestoreScenario[S, O any](r ScenarioRecord, sc Codec[S], oc Codec[O]) (Scen
 	if err := validateScenario(r); err != nil {
 		return out, err
 	}
-	if sc == nil || oc == nil || r.StateCodec != sc.Identity() || r.OutputCodec != oc.Identity() {
+	if err := validateCodecPorts(sc, oc); err != nil {
+		return out, err
+	}
+	if r.StateCodec != sc.Identity() || r.OutputCodec != oc.Identity() {
 		return out, ErrUnsupported
 	}
 	var e error
