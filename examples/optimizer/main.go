@@ -122,7 +122,7 @@ func run[T any](name string, initial, repaired T, offset func(T) int) error {
 		return err
 	}
 	if len(result.History) != 2 || result.Winner != result.History[1].Candidate.Revision ||
-		result.History[1].Candidate.Parent != result.History[0].Candidate.Revision {
+		result.History[1].Candidate.ParentRevision != result.History[0].Candidate.Revision {
 		return fmt.Errorf("feedback improvement contract: %+v", result)
 	}
 	fmt.Println(name, "rounds:", len(result.RoundHistory), "state:", result.State, "winner:", result.Winner)
@@ -163,16 +163,16 @@ func proposeRepair[T any](
 	initial *T,
 	repaired *T,
 ) (optimizer.ProposalResult[T], error) {
-	proposal := optimizer.Proposal[T]{ID: "initial", Value: (*initial), Parent: ""}
+	proposal := optimizer.Proposal[T]{ID: "initial", Value: (*initial), ParentRevision: ""}
 	if request.Round == 1 {
 		if len(request.Feedback) != 1 || request.Feedback[0].Quality == nil ||
 			*request.Feedback[0].Quality != 0 {
 			return optimizer.ProposalResult[T]{}, evaly.ErrInvalid
 		}
 		proposal = optimizer.Proposal[T]{
-			ID:     "repaired",
-			Parent: request.Feedback[0].Candidate.Revision,
-			Value:  (*repaired),
+			ID:             "repaired",
+			ParentRevision: request.Feedback[0].Candidate.Revision,
+			Value:          (*repaired),
 		}
 	}
 	return optimizer.ProposalResult[T]{

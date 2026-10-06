@@ -125,3 +125,37 @@ panics and F07 empty-pass/matching-event-panic); `git diff --check` — PASS.
 Limits: arbitrary host panics, unstable Identity/Validate and callback thread
 safety remain host responsibilities. Only acceptance metadata changed after review.
 Commit subject: `fix: validate capabilities before dispatch`.
+
+## T06 — accepted
+
+Previous accepted task: T05 commit `dd27a6f`.
+Changes: shared audit semantics, binding before canonical assignment, exact proposal
+usage, ParentRevision migration, concrete provenance, static proposal preflight,
+bounded received counts and checked JSON clones. Decisions D39–D45/D47–D50 are in
+`docs/optimizer-remediation.md`. Search v5 and candidate v2 schemas synchronized.
+Commit subject: `fix: validate optimizer artifact semantics`.
+
+Initial T06 acceptance: completeness 3/4, 75% (candidate v1 stale inventory);
+correctness found rehashed phase/stop contradictions retaining holdout after
+candidate/round/proposal stop or ledger failure. Fixed phase/artifact consistency
+and limit bounds with explicit mutations; synchronized candidate v2 inventory.
+A subsequent lint check required extracting selection readiness and the deadline
+literal; no thresholds were relaxed. Both reviewers rechecked the final version.
+Final independent acceptance: `/root/t06_completeness` — 4/4, 100%;
+`/root/t06_correctness` — no errors found in scope, previous finding closed.
+Commands: final root `go test -race ./...` — PASS; contracttest `go test -race
+./...` — PASS (98.310s); root and contracttest pinned lint 2.14.0 — 0 issues;
+final independent optimizer race — PASS (3.859s/7.645s); independent contracttest
+race `-count=1` — PASS (97.839s); baseline F08/F09 — all 5+4 original defects
+reproduced; exact usage fuzz 10s — 159,859 executions PASS; final semantic audit
+fuzz 10s — 1,156 executions PASS (before semantics-preserving lint extraction);
+reviewer semantic fuzz 3s — 408 executions PASS; eight phase mutation regressions
+and independent adversarial overlay — PASS; `git diff --check` — PASS.
+Reviewed semantics SHA256 `28bd71a2787b4cb441370e95c36750ea7585d8e9a632a28f631e795c4c2be858`;
+execution SHA256 `bf8bde4e1d82ce95b3016ae61c05bcf4d00fd53b77bfabe2704574dcd60ecc85`;
+search schema `693c46582cac8a305fae7a69c1c7076343019dac2f64237b35a1411e88b210e8`;
+candidate schema `0edd387359e8e6264b428e51af63b89b30ec66362864bd4d7c2821bc9ffb9485`.
+Limits: short targeted fuzz; provenance is internally bound, not proof of host
+truth/independence. Received count cap does not bound host string/description bytes.
+Private must-clone failures indicate internal invariant breaches; arbitrary callbacks
+remain host responsibility. Only acceptance metadata changed after final reviews.

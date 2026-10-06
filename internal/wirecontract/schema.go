@@ -78,7 +78,7 @@ func constrain(pkg, parent, name string, s schema) {
 			s["const"] = 3
 		}
 		if parent == schemaResult && pkg == optimizerPackagePath {
-			s["const"] = 4
+			s["const"] = 5
 		}
 	}
 	if parent == "CalibrationCounts" {

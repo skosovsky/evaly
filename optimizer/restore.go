@@ -26,7 +26,7 @@ func RestoreCandidate[T any](r CandidateRecord, c evaly.Codec[T]) (Candidate[T],
 	if e != nil {
 		return Candidate[T]{}, e
 	}
-	candidate, e := Seal(r.ID, r.Parent, r.Algorithm, value, c)
+	candidate, e := Seal(r.ID, r.ParentRevision, r.Algorithm, value, c)
 	if e != nil {
 		return Candidate[T]{}, e
 	}
@@ -39,6 +39,9 @@ func RestoreCandidate[T any](r CandidateRecord, c evaly.Codec[T]) (Candidate[T],
 // ValidateResult verifies persisted protocol semantics without dispatching host callbacks.
 func ValidateResult(r Result) error {
 	if err := validateResultEnvelope(r); err != nil {
+		return err
+	}
+	if err := validateResultSemantics(r); err != nil {
 		return err
 	}
 	dispatch := map[string]bool{}
@@ -196,7 +199,8 @@ func validateResultRounds(r Result, dispatch map[string]bool) error {
 
 func validateEvaluationArtifacts(r Result, entry Evaluation) error {
 	if entry.Experiment != nil {
-		if entry.Experiment.Manifest.ID != evaluationExperimentID(r.ID, "calibration", entry.Candidate.Revision) {
+		if entry.Experiment.Manifest.ID != evaluationExperimentID(r.ID, "calibration", entry.Candidate.Revision) ||
+			entry.Experiment.Manifest.Dataset != r.Provenance.Calibration {
 			return evaly.ErrConflict
 		}
 		if _, e := evaly.RestoreExperiment(*entry.Experiment); e != nil {
@@ -207,7 +211,7 @@ func validateEvaluationArtifacts(r Result, entry Evaluation) error {
 		return nil
 	}
 	if entry.Experiment == nil || entry.Comparison.Candidate != entry.Experiment.Manifest.Revision ||
-		entry.Comparison.Objective != r.Objective {
+		entry.Comparison.Objective != r.Objective || entry.Comparison.Baseline != r.Provenance.CalibrationBaseline {
 		return evaly.ErrConflict
 	}
 	if entry.Comparison.MatchedMeansAvailable {
@@ -267,7 +271,7 @@ func validateResultEvaluation(
 		return evaly.ErrInvalid
 	}
 	switch entry.State {
-	case invalidState, failedState, "incomplete", evaluatedState:
+	case invalidState, failedState, incompleteState, evaluatedState:
 	default:
 		return evaly.ErrInvalid
 	}
@@ -336,7 +340,7 @@ func validateResultRanking(r Result, candidate map[string]Evaluation) ([]Evaluat
 }
 
 func validateResultSelection(r Result, candidate map[string]Evaluation, expected []Evaluation) error {
-	if r.State == completedState {
+	if len(r.States) == selectedPathLength {
 		want := ""
 		for _, entry := range expected {
 			if entry.State == evaluatedState && entry.Feasible && entry.Comparison != nil &&
@@ -364,7 +368,8 @@ func validateResultHoldout(r Result) error {
 		if r.Winner == "" {
 			return evaly.ErrInvalid
 		}
-		if r.Holdout.Manifest.ID != evaluationExperimentID(r.ID, "holdout", r.Winner) {
+		if r.Holdout.Manifest.ID != evaluationExperimentID(r.ID, "holdout", r.Winner) ||
+			r.Holdout.Manifest.Dataset != r.Provenance.Holdout {
 			return evaly.ErrConflict
 		}
 		if _, e := evaly.RestoreExperiment(*r.Holdout); e != nil {
@@ -376,7 +381,7 @@ func validateResultHoldout(r Result) error {
 			return evaly.ErrInvalid
 		}
 		if r.HoldoutComparison.Candidate != r.Holdout.Manifest.Revision ||
-			r.HoldoutComparison.Objective != r.Objective {
+			r.HoldoutComparison.Objective != r.Objective || r.HoldoutComparison.Baseline != r.Provenance.HoldoutBaseline {
 			return evaly.ErrConflict
 		}
 		if e := validateComparison(*r.HoldoutComparison); e != nil {

@@ -3,7 +3,7 @@
 Status: implementation contract. Original requirement authority: `.cursor/tasks/task1.md`.
 Current execution changes are governed by `.cursor/task/01-execution-and-assessments.md`
 and the normative [execution contract revision 2](execution-contract.md).
-Experiment, assessment and observation-result formats use revision 3; search uses revision 4;
+Experiment, assessment and observation-result formats use revision 3; search uses revision 5;
 scenario, comparison and HTTP formats use revision 2. Calibration uses revision 1.
 Their previous major formats are unsupported. Unaffected formats retain
 their declared revisions. No compatibility reader or migration layer is supplied.
@@ -294,3 +294,5 @@ usage, grading, aggregate, observation, search, saved view and HTTP records.
 validator. It validates produced artifacts and rejects invalid nested usage,
 cleanup, grade status, plan and major version. These test dependencies do not enter
 the core module graph. Domain RawMessage fields are governed by caller codecs.
+
+Optimizer semantics and wire migration: [optimizer remediation](optimizer-remediation.md).

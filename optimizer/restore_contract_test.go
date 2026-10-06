@@ -11,7 +11,7 @@ import (
 	"github.com/skosovsky/evaly/optimizer"
 )
 
-func resealSearch(t *testing.T, r optimizer.Result) optimizer.Result {
+func resealSearch(t testing.TB, r optimizer.Result) optimizer.Result {
 	t.Helper()
 	r.Revision = ""
 	bytes, err := json.Marshal(r)

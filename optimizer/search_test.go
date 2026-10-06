@@ -15,7 +15,7 @@ type recipe struct {
 	Offset int `json:"offset"`
 }
 
-func splitDataset(t *testing.T, id string) evaly.Dataset[fixtures.Calculation, int] {
+func splitDataset(t testing.TB, id string) evaly.Dataset[fixtures.Calculation, int] {
 	t.Helper()
 	left := map[string]int{"train": 1, "calibration": 3, "holdout": 5}[id]
 	ref := left + 2
@@ -28,7 +28,7 @@ func splitDataset(t *testing.T, id string) evaly.Dataset[fixtures.Calculation, i
 	}
 	return d
 }
-func searchConfig(t *testing.T, budget float64) optimizer.Config[recipe, fixtures.Calculation, int] {
+func searchConfig(t testing.TB, budget float64) optimizer.Config[recipe, fixtures.Calculation, int] {
 	t.Helper()
 	training, calibration, holdout := splitDataset(
 		t,

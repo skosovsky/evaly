@@ -58,7 +58,7 @@ The mapping below assigns each D exactly once; related tasks may depend on it.
      observation preflight without effects, regardless of evidence contents.
   3. Valid roundtrips, absence/coverage behavior and BYOT view ownership remain;
      constructor migration and correctly placed GoDoc are recorded.
-- [ ] T06 — Optimizer artifacts: F08/F09; D39–D45/D47–D50.
+- [x] T06 — Optimizer artifacts: F08/F09; D39–D45/D47–D50.
   1. Live/restore share semantic validation of all declared state relationships;
      five independently rehashed F08 mutations fail both validators.
   2. Calibration and holdout wrong-ID outputs with/without callback error stop

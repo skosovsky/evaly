@@ -28,7 +28,9 @@ func compile(t *testing.T, name string) *jsonschema.Schema {
 	case "experiment", "assessment", "observation-result":
 		version = "3"
 	case "search":
-		version = "4"
+		version = "5"
+	case "candidate":
+		version = "2"
 	}
 	s, e := compiler.Compile(filepath.Join("..", "schemas", name+"-v"+version+".json"))
 	if e != nil {

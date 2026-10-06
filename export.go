@@ -126,8 +126,7 @@ func (s *MemoryExport) Deliver(ctx context.Context, r DeliveryRecord) error {
 func (s *MemoryExport) Records() []DeliveryRecord {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	r, _ := cloneJSON(s.records)
-	return r
+	return mustCloneJSON(s.records)
 }
 
 type InteropCapabilities struct {

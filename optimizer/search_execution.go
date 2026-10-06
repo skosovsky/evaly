@@ -2,7 +2,6 @@ package optimizer
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"math"
 	"sort"
@@ -27,7 +26,14 @@ func initialResult[T, I, R any](c Config[T, I, R]) Result {
 	var zeroObjectiveIdentity evaly.ObjectiveIdentity
 	var zeroUsage evaly.Usage
 	r := Result{
-		Version:                 resultWireRevision,
+		Version: resultWireRevision,
+		Provenance: Provenance{
+			Training:            c.Split.Training.Revision(),
+			Calibration:         c.Split.Calibration.Revision(),
+			Holdout:             c.Split.Holdout.Revision(),
+			CalibrationBaseline: c.CalibrationBaseline.Revision(),
+			HoldoutBaseline:     c.HoldoutBaseline.Revision(),
+		},
 		ID:                      c.ID,
 		Algorithm:               c.Algorithm,
 		Split:                   c.Split.Revision,
@@ -82,6 +88,9 @@ func (s *searchExecution[T, I, R]) preflight() error {
 			return e
 		}
 	}
+	if err := s.validateProposalMaximum(); err != nil {
+		return err
+	}
 	if e := validateSplit(s.config.Split); e != nil {
 		return e
 	}
@@ -105,7 +114,7 @@ func (s *searchExecution[T, I, R]) preflight() error {
 		if _, e := evaly.RestoreExperiment(b.Record()); e != nil {
 			return e
 		}
-		if b.Record().Manifest.State != "sealed" {
+		if b.Record().Manifest.State != sealedState {
 			return evaly.ErrUnsealed
 		}
 	}
@@ -175,7 +184,7 @@ func (s *searchExecution[T, I, R]) reconcile(res evaly.Reservation, u evaly.Usag
 func (s *searchExecution[T, I, R]) runRounds() {
 	for round := 0; round < s.config.MaximumRounds && s.result.State != stoppedState; round++ {
 		if s.ctx.Err() != nil {
-			s.stop("deadline")
+			s.stop(deadlineReason)
 			break
 		}
 		if s.attempts >= s.config.MaximumCandidates {
@@ -211,7 +220,8 @@ func (s *searchExecution[T, I, R]) proposeRound(round int) (Round, ProposalResul
 	var proposal ProposalResult[T]
 	dispatch := s.config.ID + "/proposal/" + strconv.Itoa(round)
 	rr := Round{
-		Index:            round,
+		Index:         round,
+		ReceivedCount: 0, ReceivedTruncated: false,
 		DispatchID:       dispatch,
 		ProposalRevision: s.result.ProposalRevision,
 		State:            proposingState,
@@ -227,9 +237,14 @@ func (s *searchExecution[T, I, R]) proposeRound(round int) (Round, ProposalResul
 		return rr, proposal, false
 	}
 
-	fbBytes, _ := json.Marshal(s.feedback)
-	var fb []Feedback
-	_ = json.Unmarshal(fbBytes, &fb)
+	fb, cloneErr := cloneServiceValue(s.feedback)
+	if cloneErr != nil {
+		rr.State = stoppedState
+		rr.Reason = "feedback_encoding_failure"
+		s.result.RoundHistory = append(s.result.RoundHistory, rr)
+		s.stop(rr.Reason)
+		return rr, proposal, false
+	}
 	proposal, err = s.config.Proposal.Propose(
 		s.ctx,
 		ProposalRequest[I, R]{
@@ -246,25 +261,8 @@ func (s *searchExecution[T, I, R]) proposeRound(round int) (Round, ProposalResul
 		proposal.Usage = evaly.Usage{Known: false, Units: 0}
 		err = evaly.ErrInvalid
 	}
-	for _, p := range proposal.Candidates {
-		rr.Received = append(
-			rr.Received,
-			CandidateLineage{
-				ID:        p.ID,
-				Parent:    p.Parent,
-				Algorithm: s.config.Algorithm,
-				Codec:     s.config.Codec.Identity(),
-				Revision:  "",
-			},
-		)
-	}
+	s.recordReceived(&rr, proposal)
 	rr.Usage = proposal.Usage
-	s.result.ProposalUsage.Units += proposal.Usage.Units
-	if round == 0 {
-		s.result.ProposalUsage.Known = proposal.Usage.Known
-	} else {
-		s.result.ProposalUsage.Known = s.result.ProposalUsage.Known && proposal.Usage.Known
-	}
 	if s.config.Proposal.Revision() != s.result.ProposalRevision || s.config.Codec.Identity() != s.codecIdentity {
 		err = evaly.ErrConflict
 	}
@@ -273,7 +271,7 @@ func (s *searchExecution[T, I, R]) proposeRound(round int) (Round, ProposalResul
 		rr.State = stoppedState
 		rr.Reason = "proposal_failure"
 		if s.ctx.Err() != nil {
-			rr.Reason = "deadline"
+			rr.Reason = deadlineReason
 		}
 		if usageErr != nil {
 			rr.Reason = "proposal_usage_failure"
@@ -303,7 +301,7 @@ func (s *searchExecution[T, I, R]) evaluateCandidate(round, index int, p Proposa
 
 	s.attempts++
 	if s.ctx.Err() != nil {
-		s.stop("deadline")
+		s.stop(deadlineReason)
 		return false
 	}
 	entry := Evaluation{
@@ -313,12 +311,12 @@ func (s *searchExecution[T, I, R]) evaluateCandidate(round, index int, p Proposa
 		Feasible:          false,
 		FeasibilityReason: "",
 		Candidate: CandidateRecord{
-			ID:          "",
-			Revision:    "",
-			Parent:      "",
-			Algorithm:   "",
-			Description: nil,
-			Codec:       evaly.CodecIdentity{ID: "", Version: ""},
+			ID:             "",
+			Revision:       "",
+			ParentRevision: "",
+			Algorithm:      "",
+			Description:    nil,
+			Codec:          evaly.CodecIdentity{ID: "", Version: ""},
 		},
 		State:      "",
 		Reason:     "",
@@ -326,21 +324,22 @@ func (s *searchExecution[T, I, R]) evaluateCandidate(round, index int, p Proposa
 		Comparison: nil,
 		Quality:    nil,
 	}
-	candidate, err := Seal(p.ID, p.Parent, s.config.Algorithm, p.Value, s.config.Codec)
+	candidate, err := Seal(p.ID, p.ParentRevision, s.config.Algorithm, p.Value, s.config.Codec)
 	entry.Candidate = candidate.Record()
+	rr.Received[index].Revision = entry.Candidate.Revision
 	switch {
 	case err != nil:
 		entry.Candidate = CandidateRecord{
-			ID:        p.ID,
-			Parent:    p.Parent,
-			Algorithm: s.config.Algorithm,
-			Codec:     s.config.Codec.Identity(), Revision: "", Description: nil,
+			ID:             p.ID,
+			ParentRevision: p.ParentRevision,
+			Algorithm:      s.config.Algorithm,
+			Codec:          s.config.Codec.Identity(), Revision: "", Description: nil,
 		}
 		entry.State = invalidState
-		entry.Reason = "candidate_encoding"
-	case s.seen[p.ID] || (p.Parent != "" && s.candidates[p.Parent].Record().Revision == ""):
+		entry.Reason = candidateEncoding
+	case s.seen[p.ID] || (p.ParentRevision != "" && s.candidates[p.ParentRevision].Record().Revision == ""):
 		entry.State = invalidState
-		entry.Reason = "identity_conflict"
+		entry.Reason = identityConflict
 	default:
 		s.seen[p.ID] = true
 		s.candidates[entry.Candidate.Revision] = candidate
@@ -348,17 +347,17 @@ func (s *searchExecution[T, I, R]) evaluateCandidate(round, index int, p Proposa
 		s.dispatchCandidate(&entry, candidate)
 	}
 	if s.ctx.Err() != nil {
-		s.stop("deadline")
+		s.stop(deadlineReason)
 	}
 	s.projectFeedback(&entry)
 	s.result.History = append(s.result.History, entry)
 	f := Feedback{
 		Candidate: CandidateLineage{
-			ID:        entry.Candidate.ID,
-			Revision:  entry.Candidate.Revision,
-			Parent:    entry.Candidate.Parent,
-			Algorithm: entry.Candidate.Algorithm,
-			Codec:     entry.Candidate.Codec,
+			ID:             entry.Candidate.ID,
+			Revision:       entry.Candidate.Revision,
+			ParentRevision: entry.Candidate.ParentRevision,
+			Algorithm:      entry.Candidate.Algorithm,
+			Codec:          entry.Candidate.Codec,
 		},
 		Round:      round,
 		State:      entry.State,
@@ -377,7 +376,7 @@ func (s *searchExecution[T, I, R]) dispatchCandidate(entry *Evaluation, candidat
 	reservation, err := s.authorize(entry.DispatchID, s.config.EvaluationUnits)
 	if err != nil {
 		entry.State = failedState
-		entry.Reason = "evaluation_budget"
+		entry.Reason = evaluationBudget
 		s.stop(entry.Reason)
 		return
 	}
@@ -398,12 +397,17 @@ func (s *searchExecution[T, I, R]) dispatchCandidate(entry *Evaluation, candidat
 
 	settleErr := s.reconcile(reservation, evaly.Usage{Known: s.config.EvaluationUnits == 0, Units: 0})
 	if experiment.Revision() != "" {
-		record := experiment.Record()
-		entry.Experiment = &record
-	}
-	if err == nil &&
-		experiment.ID() != evaluationExperimentID(s.config.ID, "calibration", entry.Candidate.Revision) {
-		err = evaly.ErrConflict
+		if experiment.ID() != evaluationExperimentID(s.config.ID, "calibration", entry.Candidate.Revision) ||
+			experiment.Record().Manifest.Dataset != s.config.Split.Calibration.Revision() {
+			err = evaly.ErrConflict
+		} else if _, bindingErr := evaly.RestoreExperiment(experiment.Record()); bindingErr != nil {
+			err = evaly.ErrConflict
+		} else {
+			record := experiment.Record()
+			entry.Experiment = &record
+		}
+	} else if err == nil {
+		err = evaly.ErrUnsealed
 	}
 	if err != nil {
 		entry.State = failedState
@@ -413,7 +417,7 @@ func (s *searchExecution[T, I, R]) dispatchCandidate(entry *Evaluation, candidat
 			s.stop("evaluation_protocol_failure")
 		}
 		if errors.Is(err, evaly.ErrBudget) {
-			s.stop("evaluation_budget")
+			s.stop(evaluationBudget)
 		}
 	} else {
 		s.measureCandidate(entry, candidate, experiment)
@@ -423,7 +427,7 @@ func (s *searchExecution[T, I, R]) dispatchCandidate(entry *Evaluation, candidat
 		s.stop("evaluation_usage_failure")
 	}
 	if s.ctx.Err() != nil {
-		s.stop("deadline")
+		s.stop(deadlineReason)
 	}
 }
 
@@ -435,7 +439,7 @@ func (s *searchExecution[T, I, R]) measureCandidate(
 	comparison, err := evaly.Compare(s.config.CalibrationBaseline, experiment, s.config.Objective, s.config.Gate)
 	if err != nil {
 		entry.State = failedState
-		entry.Reason = "comparison_failure"
+		entry.Reason = comparisonFailure
 		s.stop(entry.Reason)
 	} else {
 		entry.Comparison = &comparison
@@ -444,12 +448,12 @@ func (s *searchExecution[T, I, R]) measureCandidate(
 			entry.Quality = &q
 		}
 		entry.State = evaluatedState
-		if experiment.Record().Manifest.State != "sealed" ||
+		if experiment.Record().Manifest.State != sealedState ||
 			comparison.CandidateAggregate.Coverage < 1 ||
 			comparison.Verdict == evaly.GateInvalid ||
 			comparison.Verdict == evaly.GateInconclusive ||
 			entry.Quality == nil {
-			entry.State = "incomplete"
+			entry.State = incompleteState
 			entry.Reason = "ineligible_experiment"
 		}
 		s.checkConstraints(entry, candidate, comparison)
@@ -485,13 +489,22 @@ func (s *searchExecution[T, I, R]) checkConstraints(
 			s.stop("constraint_failure")
 		}
 	} else {
-		entry.State = invalidState
-		entry.Reason = "candidate_decoding"
+		entry.State = failedState
+		entry.Reason = candidateDecoding
+		s.stop(candidateDecoding)
 	}
 }
 func (s *searchExecution[T, I, R]) projectFeedback(entry *Evaluation) {
-	if s.config.FeedbackProjector != nil && s.result.State != stoppedState {
-		refs, err := s.config.FeedbackProjector.Project(s.ctx, cloneEvaluation(*entry))
+	if s.config.FeedbackProjector == nil || s.result.State == stoppedState {
+		return
+	}
+	{
+		cloned, err := cloneServiceValue(*entry)
+		if err != nil {
+			s.stop("feedback_encoding_failure")
+			return
+		}
+		refs, err := s.config.FeedbackProjector.Project(s.ctx, cloned)
 		if s.config.FeedbackProjector.Revision() != s.result.FeedbackRevision {
 			err = evaly.ErrConflict
 		}
@@ -530,12 +543,12 @@ func (s *searchExecution[T, I, R]) checkEvaluationBudget(entry Evaluation) {
 }
 func (s *searchExecution[T, I, R]) checkTrialBudget(trial evaly.TrialRecord) {
 	if trial.Status == evaly.BudgetExhausted {
-		s.stop("evaluation_budget")
+		s.stop(evaluationBudget)
 	}
 	for _, grade := range trial.Grades {
 		for _, reason := range grade.Reasons {
 			if reason == "grader_budget_exhausted" {
-				s.stop("evaluation_budget")
+				s.stop(evaluationBudget)
 			}
 		}
 	}
@@ -565,7 +578,7 @@ func (s *searchExecution[T, I, R]) selectWinner() {
 		s.result.BestMeasured = measured[0].Candidate.Revision
 	}
 	if s.result.State != stoppedState {
-		s.result.States = append(s.result.States, "selecting")
+		s.result.States = append(s.result.States, selectingState)
 		for _, e := range measured {
 			if e.State == evaluatedState && e.Feasible && e.Comparison != nil &&
 				e.Comparison.Verdict == evaly.GatePass {
@@ -580,7 +593,7 @@ func (s *searchExecution[T, I, R]) evaluateHoldout() {
 		return
 	}
 	if s.ctx.Err() != nil {
-		s.stop("deadline")
+		s.stop(deadlineReason)
 		return
 	}
 	contaminated, err := s.config.Ledger.Claim(s.ctx, s.config.Split.Holdout.Revision(), s.config.ID)
@@ -610,17 +623,23 @@ func (s *searchExecution[T, I, R]) evaluateHoldout() {
 	)
 	settleErr := s.reconcile(res, evaly.Usage{Known: s.config.EvaluationUnits == 0, Units: 0})
 	if held.Revision() != "" {
-		record := held.Record()
-		s.result.Holdout = &record
-	}
-	if err == nil && held.ID() != evaluationExperimentID(s.config.ID, "holdout", s.result.Winner) {
-		err = evaly.ErrConflict
+		if held.ID() != evaluationExperimentID(s.config.ID, "holdout", s.result.Winner) ||
+			held.Record().Manifest.Dataset != s.config.Split.Holdout.Revision() {
+			err = evaly.ErrConflict
+		} else if _, bindingErr := evaly.RestoreExperiment(held.Record()); bindingErr != nil {
+			err = evaly.ErrConflict
+		} else {
+			record := held.Record()
+			s.result.Holdout = &record
+		}
+	} else if err == nil {
+		err = evaly.ErrUnsealed
 	}
 	switch {
 	case err != nil:
 		s.stop("holdout_evaluation_failure")
 	case s.ctx.Err() != nil:
-		s.stop("deadline")
+		s.stop(deadlineReason)
 	default:
 		comparison, err := evaly.Compare(
 			s.config.HoldoutBaseline,
@@ -649,5 +668,34 @@ func (s *searchExecution[T, I, R]) evaluateRound(round int, proposal ProposalRes
 		if !s.evaluateCandidate(round, index, p, rr) {
 			break
 		}
+	}
+}
+
+func (s *searchExecution[T, I, R]) validateProposalMaximum() error {
+	if bounded, ok := s.config.Proposal.(interface{ ValidateMaximum(int) error }); ok {
+		if err := bounded.ValidateMaximum(s.config.MaximumCandidates); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *searchExecution[T, I, R]) recordReceived(rr *Round, proposal ProposalResult[T]) {
+	rr.ReceivedCount = len(proposal.Candidates)
+	rr.ReceivedTruncated = rr.ReceivedCount > s.config.MaximumCandidates
+	for index, p := range proposal.Candidates {
+		if index == s.config.MaximumCandidates {
+			break
+		}
+		rr.Received = append(
+			rr.Received,
+			CandidateLineage{
+				ID:             p.ID,
+				ParentRevision: p.ParentRevision,
+				Algorithm:      s.config.Algorithm,
+				Codec:          s.codecIdentity,
+				Revision:       "",
+			},
+		)
 	}
 }

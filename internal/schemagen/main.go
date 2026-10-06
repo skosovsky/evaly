@@ -50,7 +50,9 @@ func main() {
 		case "experiment", "assessment", "observation-result":
 			version = 3
 		case "search":
-			version = 4
+			version = 5
+		case "candidate":
+			version = 2
 		}
 		document["$id"] = "urn:evaly:" + name + ":" + strconv.Itoa(version)
 		b, e := json.MarshalIndent(document, "", "  ")

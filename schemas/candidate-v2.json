@@ -1,5 +1,5 @@
 {
-  "$id": "urn:evaly:candidate:1",
+  "$id": "urn:evaly:candidate:2",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
@@ -26,7 +26,7 @@
     "ID": {
       "type": "string"
     },
-    "Parent": {
+    "ParentRevision": {
       "type": "string"
     },
     "Revision": {
@@ -36,7 +36,7 @@
   "required": [
     "ID",
     "Revision",
-    "Parent",
+    "ParentRevision",
     "Algorithm",
     "Description",
     "Codec"

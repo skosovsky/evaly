@@ -46,11 +46,11 @@ func (c ConstraintsFunc[T]) Check(ctx context.Context, v T, e EvaluationSummary)
 }
 
 type CandidateLineage struct {
-	ID        string              `json:"ID"`
-	Revision  string              `json:"Revision"`
-	Parent    string              `json:"Parent"`
-	Algorithm string              `json:"Algorithm"`
-	Codec     evaly.CodecIdentity `json:"Codec"`
+	ID             string              `json:"ID"`
+	Revision       string              `json:"Revision"`
+	ParentRevision string              `json:"ParentRevision"`
+	Algorithm      string              `json:"Algorithm"`
+	Codec          evaly.CodecIdentity `json:"Codec"`
 }
 type Feedback struct {
 	Candidate   CandidateLineage `json:"Candidate"`
@@ -95,6 +95,14 @@ type StaticProposer[T, I, R any] struct {
 func NewStaticProposer[T, I, R any](identity string, candidates []Candidate[T]) StaticProposer[T, I, R] {
 	return StaticProposer[T, I, R]{identity, append([]Candidate[T](nil), candidates...)}
 }
+
+// ValidateMaximum rejects an oversized static batch before search budget dispatch.
+func (p StaticProposer[T, I, R]) ValidateMaximum(maximum int) error {
+	if maximum <= 0 || len(p.candidates) > maximum {
+		return evaly.ErrInvalid
+	}
+	return p.Validate()
+}
 func (p StaticProposer[T, I, R]) Revision() string { return p.identity }
 func (p StaticProposer[T, I, R]) Validate() error {
 	if p.identity == "" {
@@ -105,6 +113,12 @@ func (p StaticProposer[T, I, R]) Validate() error {
 func (p StaticProposer[T, I, R]) Propose(ctx context.Context, r ProposalRequest[I, R]) (ProposalResult[T], error) {
 	if err := ctx.Err(); err != nil {
 		return ProposalResult[T]{}, err
+	}
+	if p.Validate() != nil || r.Maximum <= 0 {
+		return ProposalResult[T]{}, evaly.ErrInvalid
+	}
+	if r.Round == 0 && len(p.candidates) > r.Maximum {
+		return ProposalResult[T]{}, evaly.ErrInvalid
 	}
 	if r.Round != 0 {
 		return ProposalResult[T]{
@@ -120,18 +134,23 @@ func (p StaticProposer[T, I, R]) Propose(ctx context.Context, r ProposalRequest[
 			return out, err
 		}
 		rec := candidate.Record()
-		out.Candidates = append(out.Candidates, Proposal[T]{ID: rec.ID, Parent: rec.Parent, Value: value})
+		out.Candidates = append(
+			out.Candidates,
+			Proposal[T]{ID: rec.ID, ParentRevision: rec.ParentRevision, Value: value},
+		)
 	}
 	return out, nil
 }
 
 type Round struct {
-	Index            int                `json:"Index"`
-	DispatchID       string             `json:"DispatchID"`
-	ProposalRevision string             `json:"ProposalRevision"`
-	State            string             `json:"State"`
-	Reason           string             `json:"Reason"`
-	Usage            evaly.Usage        `json:"Usage"`
-	Candidates       []string           `json:"Candidates"`
-	Received         []CandidateLineage `json:"Received"`
+	ReceivedCount     int                `json:"ReceivedCount"`
+	ReceivedTruncated bool               `json:"ReceivedTruncated"`
+	Index             int                `json:"Index"`
+	DispatchID        string             `json:"DispatchID"`
+	ProposalRevision  string             `json:"ProposalRevision"`
+	State             string             `json:"State"`
+	Reason            string             `json:"Reason"`
+	Usage             evaly.Usage        `json:"Usage"`
+	Candidates        []string           `json:"Candidates"`
+	Received          []CandidateLineage `json:"Received"`
 }

@@ -283,7 +283,7 @@ func Rescore[I, O, R any](
 }
 
 // Record returns a portable permitted projection with explicit consumer codecs.
-func (s SavedView[I, O, R]) Record() SavedViewRecord { r, _ := cloneJSON(s.record); return r }
+func (s SavedView[I, O, R]) Record() SavedViewRecord { return mustCloneJSON(s.record) }
 
 func RestoreSavedView[I, O, R any](
 	r SavedViewRecord,

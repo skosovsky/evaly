@@ -94,7 +94,9 @@ func wireSchemaPath(name string) string {
 	case "experiment", "assessment", "observation-result":
 		version = 3
 	case "search":
-		version = 4
+		version = 5
+	case "candidate":
+		version = 2
 	}
 	return filepath.Join("..", "schemas", fmt.Sprintf("%s-v%d.json", name, version))
 }

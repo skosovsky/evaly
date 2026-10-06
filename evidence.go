@@ -265,8 +265,7 @@ func (c *Capture) Seal() EvidenceRecord {
 		}
 		c.record.Revision = digest(b)
 	}
-	r, _ := cloneJSON(c.record)
-	return r
+	return mustCloneJSON(c.record)
 }
 func ValidateEvidence(r EvidenceRecord) error {
 	if r.Version != 1 {

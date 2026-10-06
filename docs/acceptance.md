@@ -31,9 +31,9 @@ fingerprints remain historical and cannot substitute for current checks.
 | Six existing examples plus offline integration example | `examples/*` | commands recorded in [validation](validation.md) |
 | Opt-in real host/judge procedure without SDK/secrets in core/CI | [live integration](live-integration.md) | **Not run:** no host credentials supplied; scripted checks are not LLM accuracy evidence |
 
-Current format inventory: envelope, dataset, evidence, observation, view, candidate,
-calibration and comparison-policy v1; scenario, comparison and HTTP request/response
-v2; experiment, assessment and observation-result v3; search v4. Readers reject
+Current format inventory: envelope, dataset, evidence, observation, view,
+calibration and comparison-policy v1; candidate, scenario, comparison and HTTP request/response
+v2; experiment, assessment and observation-result v3; search v5. Readers reject
 unsupported prior major formats. There is no migration or compatibility path.
 Domain codecs remain independently versioned and owned by the host.
 
@@ -284,3 +284,5 @@ Results will be recorded in `docs/validation.md` after full checks and reviews.
 - Synthetic fixture additions: `TestPairedCaseRevisionsAndIndependentEnvironments`, `TestSharedFixtureActuallySerial`, `TestBudgetBlocksThirdRealDispatchAndCancellationRetainsEffects`, `TestSecretAbsentInJudgeExportAndVerdictUnchanged`, `TestPairAbstentionIsVisible`.
 - Report/replay: `Comparison.Trials`, `Report`, CLI seed/behavior replay; `TestCLIExitCodesAndSealedBaseline` asserts bad trial identity, evidence reference and accurate bad replay command.
 - Independent adversarial regressions: `evidence_validation_test.go`, `runner_validation_test.go`, and audit tests in observation/optimizer. Repaired semantic restore, bounded diagnostics, deadline precedence, atomic dispatch Claim, stopped-search dispatch and canonical assessment identity.
+
+Optimizer candidate records use schema v2 (`ParentRevision`). See [optimizer migration](optimizer-remediation.md).

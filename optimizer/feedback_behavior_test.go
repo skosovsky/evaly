@@ -114,7 +114,7 @@ func TestFeedbackRoundRepairsFailureWithoutHoldoutLeakageOrReselection(t *testin
 			// Holdout rejects the repaired winner; this result must never feed another proposal.
 			bad, err := optimizer.Seal(
 				"repaired",
-				request.Candidate.Record().Parent,
+				request.Candidate.Record().ParentRevision,
 				c.Algorithm,
 				recipe{Offset: 1},
 				c.Codec,
@@ -134,7 +134,7 @@ func TestFeedbackRoundRepairsFailureWithoutHoldoutLeakageOrReselection(t *testin
 		t.Fatal(err, proposals, calibrations, holdouts, r)
 	}
 	if r.State != "completed" ||
-		r.History[1].Candidate.Parent != r.History[0].Candidate.Revision ||
+		r.History[1].Candidate.ParentRevision != r.History[0].Candidate.Revision ||
 		r.History[1].Experiment == nil ||
 		r.History[1].Experiment.Manifest.State != "sealed" ||
 		r.History[1].Quality == nil ||
@@ -175,7 +175,7 @@ func TestTwoRoundProposalImprovesMeasuredCandidateFromFeedback(t *testing.T) {
 			}
 			return optimizer.ProposalResult[recipe]{
 				Candidates: []optimizer.Proposal[recipe]{
-					{ID: "improved", Parent: previous.Candidate.Revision, Value: recipe{}},
+					{ID: "improved", ParentRevision: previous.Candidate.Revision, Value: recipe{}},
 				},
 				Usage:     evaly.Usage{Known: true},
 				Exhausted: true,
@@ -191,7 +191,7 @@ func TestTwoRoundProposalImprovesMeasuredCandidateFromFeedback(t *testing.T) {
 	if r.History[0].Quality == nil || *r.History[0].Quality != 0 ||
 		r.History[1].Quality == nil ||
 		*r.History[1].Quality != 1 ||
-		r.History[1].Candidate.Parent != r.History[0].Candidate.Revision ||
+		r.History[1].Candidate.ParentRevision != r.History[0].Candidate.Revision ||
 		r.History[1].Experiment == nil ||
 		r.History[1].Experiment.Manifest.State != "sealed" ||
 		r.Winner != r.History[1].Candidate.Revision ||
@@ -280,7 +280,7 @@ func repairFailureProposal(
 	}
 	return optimizer.ProposalResult[recipe]{
 		Candidates: []optimizer.Proposal[recipe]{
-			{ID: "repaired", Parent: f.Candidate.Revision, Value: recipe{}},
+			{ID: "repaired", ParentRevision: f.Candidate.Revision, Value: recipe{}},
 		},
 		Usage:     evaly.Usage{Known: true},
 		Exhausted: true,

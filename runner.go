@@ -189,7 +189,7 @@ type ExperimentRecord struct {
 // Experiment retains private frozen records, including unsuccessful attempts.
 type Experiment struct{ record ExperimentRecord }
 
-func (e Experiment) Record() ExperimentRecord { r, _ := cloneJSON(e.record); return r }
+func (e Experiment) Record() ExperimentRecord { return mustCloneJSON(e.record) }
 func (e Experiment) Revision() string         { return e.record.Manifest.Revision }
 func (e Experiment) ID() string               { return e.record.Manifest.ID }
 func RestoreExperiment(r ExperimentRecord) (Experiment, error) {

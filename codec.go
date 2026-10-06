@@ -331,3 +331,13 @@ func readJSONArray(d *json.Decoder) (any, error) {
 	}
 	return a, nil
 }
+
+// mustCloneJSON copies private JSON wire data. A failure is an internal invariant
+// breach: constructors validate the representation before storing these records.
+func mustCloneJSON[T any](v T) T {
+	out, err := cloneJSON(v)
+	if err != nil {
+		panic(err)
+	}
+	return out
+}

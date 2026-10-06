@@ -60,7 +60,7 @@ type Dataset[I, R any] struct {
 
 func (d Dataset[I, R]) Revision() string      { return d.record.Revision }
 func (d Dataset[I, R]) Len() int              { return len(d.record.Cases) }
-func (d Dataset[I, R]) Record() DatasetRecord { r, _ := cloneJSON(d.record); return r }
+func (d Dataset[I, R]) Record() DatasetRecord { return mustCloneJSON(d.record) }
 
 // CaseAt returns a fresh decoded copy of only the requested case.
 func (d Dataset[I, R]) CaseAt(index int) (Case[I, R], error) {

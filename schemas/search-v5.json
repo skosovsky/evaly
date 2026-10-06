@@ -1,5 +1,5 @@
 {
-  "$id": "urn:evaly:search:4",
+  "$id": "urn:evaly:search:5",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
@@ -53,7 +53,7 @@
               "ID": {
                 "type": "string"
               },
-              "Parent": {
+              "ParentRevision": {
                 "type": "string"
               },
               "Revision": {
@@ -63,7 +63,7 @@
             "required": [
               "ID",
               "Revision",
-              "Parent",
+              "ParentRevision",
               "Algorithm",
               "Description",
               "Codec"
@@ -3259,6 +3259,34 @@
       ],
       "type": "object"
     },
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "Calibration": {
+          "type": "string"
+        },
+        "CalibrationBaseline": {
+          "type": "string"
+        },
+        "Holdout": {
+          "type": "string"
+        },
+        "HoldoutBaseline": {
+          "type": "string"
+        },
+        "Training": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "Training",
+        "Calibration",
+        "Holdout",
+        "CalibrationBaseline",
+        "HoldoutBaseline"
+      ],
+      "type": "object"
+    },
     "Ranking": {
       "items": {
         "type": "string"
@@ -3327,7 +3355,7 @@
                 "ID": {
                   "type": "string"
                 },
-                "Parent": {
+                "ParentRevision": {
                   "type": "string"
                 },
                 "Revision": {
@@ -3337,7 +3365,7 @@
               "required": [
                 "ID",
                 "Revision",
-                "Parent",
+                "ParentRevision",
                 "Algorithm",
                 "Codec"
               ],
@@ -3347,6 +3375,14 @@
               "array",
               "null"
             ]
+          },
+          "ReceivedCount": {
+            "maximum": 9223372036854775807,
+            "minimum": -9223372036854775808,
+            "type": "integer"
+          },
+          "ReceivedTruncated": {
+            "type": "boolean"
           },
           "State": {
             "enum": [
@@ -3376,6 +3412,8 @@
           }
         },
         "required": [
+          "ReceivedCount",
+          "ReceivedTruncated",
           "Index",
           "DispatchID",
           "ProposalRevision",
@@ -3432,7 +3470,7 @@
       "type": "integer"
     },
     "Version": {
-      "const": 4,
+      "const": 5,
       "maximum": 9223372036854775807,
       "minimum": -9223372036854775808,
       "type": "integer",
@@ -3443,6 +3481,7 @@
     }
   },
   "required": [
+    "Provenance",
     "MaximumRounds",
     "MaximumCandidates",
     "TimeoutNanoseconds",

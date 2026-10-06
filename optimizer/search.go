@@ -12,12 +12,12 @@ import (
 )
 
 type CandidateRecord struct {
-	ID          string              `json:"ID"`
-	Revision    string              `json:"Revision"`
-	Parent      string              `json:"Parent"`
-	Algorithm   string              `json:"Algorithm"`
-	Description json.RawMessage     `json:"Description"`
-	Codec       evaly.CodecIdentity `json:"Codec"`
+	ID             string              `json:"ID"`
+	Revision       string              `json:"Revision"`
+	ParentRevision string              `json:"ParentRevision"`
+	Algorithm      string              `json:"Algorithm"`
+	Description    json.RawMessage     `json:"Description"`
+	Codec          evaly.CodecIdentity `json:"Codec"`
 }
 type Candidate[T any] struct {
 	record CandidateRecord
@@ -37,12 +37,12 @@ func Seal[T any](id, parent, algorithm string, v T, c evaly.Codec[T]) (Candidate
 		return Candidate[T]{}, e
 	}
 	r := CandidateRecord{
-		ID:          id,
-		Parent:      parent,
-		Algorithm:   algorithm,
-		Description: b,
-		Codec:       c.Identity(),
-		Revision:    "",
+		ID:             id,
+		ParentRevision: parent,
+		Algorithm:      algorithm,
+		Description:    b,
+		Codec:          c.Identity(),
+		Revision:       "",
 	}
 	bytes, e := json.Marshal(r)
 	if e != nil {
@@ -70,9 +70,9 @@ func (c Candidate[T]) Record() CandidateRecord {
 }
 
 type Proposal[T any] struct {
-	ID     string `json:"ID"`
-	Parent string `json:"Parent"`
-	Value  T      `json:"Value"`
+	ID             string `json:"ID"`
+	ParentRevision string `json:"ParentRevision"`
+	Value          T      `json:"Value"`
 }
 type ProposalRequest[I, R any] struct {
 	Training    evaly.Dataset[I, R] `json:"Training"`
@@ -197,7 +197,18 @@ type Evaluation struct {
 	Comparison        *evaly.Comparison       `json:"Comparison"`
 	Quality           *float64                `json:"Quality"`
 }
+
+// Provenance binds the host split label to the concrete measurement artifacts.
+type Provenance struct {
+	Training            string `json:"Training"`
+	Calibration         string `json:"Calibration"`
+	Holdout             string `json:"Holdout"`
+	CalibrationBaseline string `json:"CalibrationBaseline"`
+	HoldoutBaseline     string `json:"HoldoutBaseline"`
+}
+
 type Result struct {
+	Provenance              Provenance              `json:"Provenance"`
 	MaximumRounds           int                     `json:"MaximumRounds"`
 	MaximumCandidates       int                     `json:"MaximumCandidates"`
 	TimeoutNanoseconds      int64                   `json:"TimeoutNanoseconds"`
@@ -279,7 +290,15 @@ func Search[T, I, R any](ctx context.Context, c Config[T, I, R]) (Result, error)
 		}
 	}
 	s.result.States = append(s.result.States, s.result.State)
+	usage, e := proposalUsage(s.result.RoundHistory)
+	if e != nil {
+		return s.result, e
+	}
+	s.result.ProposalUsage = usage
 	if e := sealResult(&s.result); e != nil {
+		return s.result, e
+	}
+	if e := ValidateResult(s.result); e != nil {
 		return s.result, e
 	}
 	return s.result, nil
@@ -319,9 +338,14 @@ func cloneAggregate(a evaly.Aggregate) evaly.Aggregate {
 	a.Excluded = append([]evaly.Exclusion(nil), a.Excluded...)
 	return a
 }
-func cloneEvaluation(e Evaluation) Evaluation {
-	b, _ := json.Marshal(e)
-	var out Evaluation
-	_ = json.Unmarshal(b, &out)
-	return out
+
+// cloneServiceValue is a checked copy of callback-facing wire data.
+func cloneServiceValue[T any](value T) (T, error) {
+	var out T
+	b, err := json.Marshal(value)
+	if err != nil {
+		return out, err
+	}
+	err = json.Unmarshal(b, &out)
+	return out, err
 }
