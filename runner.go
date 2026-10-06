@@ -3,7 +3,6 @@ package evaly
 import (
 	"context"
 	"errors"
-	"strings"
 	"sync"
 	"time"
 )
@@ -29,9 +28,10 @@ type Lifecycle[E any] interface {
 
 // LifecycleFuncs is a runnable reference adapter for host-owned fixtures.
 type LifecycleFuncs[E any] struct {
-	IdentityValue          LifecycleIdentity
-	PrepareFunc            func(context.Context, string) (E, error)
-	ResetFunc, CleanupFunc func(context.Context, E) error
+	IdentityValue LifecycleIdentity                        `json:"IdentityValue"`
+	PrepareFunc   func(context.Context, string) (E, error) `json:"PrepareFunc"`
+	ResetFunc     func(context.Context, E) error           `json:"ResetFunc"`
+	CleanupFunc   func(context.Context, E) error           `json:"CleanupFunc"`
 }
 
 // Validate checks callback presence without preparing an environment.
@@ -64,16 +64,18 @@ func (l LifecycleFuncs[E]) Cleanup(ctx context.Context, e E) error {
 }
 
 type TrialContext[E any] struct {
-	ID, CaseRevision string
-	Repeat, Attempt  int
-	Seed             int64
-	Environment      E
-	Evidence         EvidenceSink
-	Budget           Budget
+	ID           string       `json:"ID"`
+	CaseRevision string       `json:"CaseRevision"`
+	Repeat       int          `json:"Repeat"`
+	Attempt      int          `json:"Attempt"`
+	Seed         int64        `json:"Seed"`
+	Environment  E            `json:"Environment"`
+	Evidence     EvidenceSink `json:"Evidence"`
+	Budget       Budget       `json:"Budget"`
 }
 type TargetResult[O any] struct {
-	Output O
-	Usage  Usage
+	Output O     `json:"Output"`
+	Usage  Usage `json:"Usage"`
 }
 type Target[I, O, E any] interface {
 	Run(context.Context, I, TrialContext[E]) (TargetResult[O], error)
@@ -116,10 +118,10 @@ type Provenance struct {
 type TrialStatus string
 
 const (
-	Completed          TrialStatus = "completed"
+	Completed          TrialStatus = completedState
 	TargetError        TrialStatus = "target_error"
 	SetupError         TrialStatus = "setup_error"
-	Cancelled          TrialStatus = "cancelled"
+	Cancelled          TrialStatus = cancelledState
 	BudgetExhausted    TrialStatus = "budget_exhausted"
 	InfrastructureStop TrialStatus = "infrastructure_stop"
 )
@@ -191,10 +193,10 @@ func (e Experiment) Record() ExperimentRecord { r, _ := cloneJSON(e.record); ret
 func (e Experiment) Revision() string         { return e.record.Manifest.Revision }
 func (e Experiment) ID() string               { return e.record.Manifest.ID }
 func RestoreExperiment(r ExperimentRecord) (Experiment, error) {
-	if r.Manifest.Version != 3 {
+	if r.Manifest.Version != experimentWireRevision {
 		return Experiment{}, ErrUnsupported
 	}
-	if r.Manifest.State != "sealed" && r.Manifest.State != "incomplete" {
+	if r.Manifest.State != sealedState && r.Manifest.State != incompleteState {
 		return Experiment{}, ErrUnsealed
 	}
 	rev := r.Manifest.Revision
@@ -229,217 +231,47 @@ func validatePlan(p RunPlan) error {
 		p.CleanupTimeout <= 0 ||
 		!finiteNonnegative(p.DispatchUnits) ||
 		!finiteNonnegative(p.GraderUnits) ||
-		(p.AssertionPolicy != "all" && p.AssertionPolicy != "any") {
+		(p.AssertionPolicy != assertionAll && p.AssertionPolicy != assertionAny) {
 		return ErrInvalid
 	}
 	return nil
 }
 func validateExperimentRecord(r ExperimentRecord) error {
-	m := r.Manifest
-	if m.Version != 3 {
-		return ErrUnsupported
-	}
-	if !validArtifactID(m.ID) || m.Provenance.Target == "" || m.Dataset == "" || m.Mode != "controlled" ||
-		m.Projection == "" ||
-		m.CapturePolicy == "" ||
-		len(m.Cases) == 0 {
-		return ErrInvalid
-	}
-	if err := validatePlan(m.Plan); err != nil {
+	if err := validateExperimentManifest(r.Manifest); err != nil {
 		return err
 	}
-	if len(m.Cases) > 1000000/m.Plan.Repeats {
-		return ErrInvalid
-	}
-	if err := validatePairSchedule(m); err != nil {
+	cases, err := experimentCases(r.Manifest)
+	if err != nil {
 		return err
 	}
-	if m.Lifecycle.Fixture == "" || m.Lifecycle.Reset == "" ||
-		(m.Lifecycle.Isolation != Isolated && m.Lifecycle.Isolation != SerialShared) {
-		return ErrInvalid
-	}
-	if m.Started.IsZero() || m.Finished.Before(m.Started) || m.OutputCodec.ID == "" || m.OutputCodec.Version == "" ||
-		m.CaptureMaxEvents <= 0 ||
-		m.CaptureMaxBytes <= 0 ||
-		strings.Join(m.States, ",") != "planned,running,"+m.State {
-		return ErrInvalid
-	}
-	if err := validateProvenance(m.Provenance); err != nil {
+	if err = validateExperimentTrials(r, cases); err != nil {
 		return err
 	}
-	cases := map[string]string{}
-	for _, c := range m.Cases {
-		if c.ID == "" || c.Revision == "" || cases[c.ID] != "" {
-			return ErrConflict
-		}
-		cases[c.ID] = c.Revision
+	graders, err := experimentGraders(r.Manifest)
+	if err != nil {
+		return err
 	}
-	seen := map[string]bool{}
-	for _, t := range r.Trials {
-		if seen[t.ID] || cases[t.CaseID] != t.CaseRevision || t.Repeat < 0 || t.Repeat >= m.Plan.Repeats ||
-			t.Attempt < 0 ||
-			t.Attempt >= m.Plan.MaxAttempts {
-			return ErrInvalid
-		}
-		seen[t.ID] = true
-		if !finiteNonnegative(t.TargetUsage.Units) {
-			return ErrInvalid
-		}
-		switch t.Cleanup.State {
-		case "not_needed":
-			if len(t.States) != 2 {
-				return ErrInvalid
-			}
-		case "completed":
-			if t.Cleanup.Reason != "" {
-				return ErrInvalid
-			}
-		case "failed":
-			if t.Cleanup.Reason == "" {
-				return ErrInvalid
-			}
-		default:
-			return ErrUnsupported
-		}
-		chain := strings.Join(t.States, ",")
-		full := "queued,preparing,running,collecting,terminal"
-		if chain != "queued,terminal" && chain != "queued,preparing,terminal" && chain != full {
-			return ErrInvalid
-		}
-		if (t.Status == Completed || t.Status == TargetError) && chain != full {
-			return ErrInvalid
-		}
-		if chain == full && t.Cleanup.State == "not_needed" {
-			return ErrInvalid
-		}
-		switch t.Status {
-		case Completed, TargetError, SetupError, Cancelled, BudgetExhausted, InfrastructureStop:
-		default:
-			return ErrUnsupported
-		}
-		if err := ValidateEvidence(t.Evidence); err != nil {
-			return err
-		}
-		for _, g := range t.Grades {
-			if err := ValidateGrade(g); err != nil {
-				return err
-			}
-		}
+	if err = validateTrialGrading(r, graders); err != nil {
+		return err
 	}
-	if len(m.Graders) == 0 {
-		return ErrInvalid
-	}
-	graderIDs := map[string]GraderRevision{}
-	for _, g := range m.Graders {
-		if g.ID == "" || g.Implementation == "" || g.Rubric == "" {
-			return ErrInvalid
-		}
-		if _, ok := graderIDs[g.ID]; ok {
-			return ErrConflict
-		}
-		graderIDs[g.ID] = g
-	}
-	for _, t := range r.Trials {
-		if t.GradingState != "complete" && t.GradingState != "partial" {
-			return ErrInvalid
-		}
-		represented := map[string]bool{}
-		for _, g := range t.Grades {
-			if !g.Dispatched {
-				return ErrInvalid
-			}
-			represented[g.Revision.ID] = true
-		}
-		for _, skipped := range t.SkippedGraders {
-			if skipped.Reason == "" || graderIDs[skipped.Revision.ID] != skipped.Revision ||
-				represented[skipped.Revision.ID] {
-				return ErrInvalid
-			}
-			represented[skipped.Revision.ID] = true
-		}
-		if len(represented) != len(graderIDs) {
-			return ErrIncomplete
-		}
-		if t.GradingState == "complete" && (len(t.SkippedGraders) > 0 || t.GradingStopReason != "") {
-			return ErrInvalid
-		}
-		if t.GradingState == "partial" && t.GradingStopReason == "" {
-			return ErrInvalid
-		}
-	}
-	slots := map[string]int{}
-	attempts := map[string]map[int]TrialRecord{}
-	for _, t := range r.Trials {
-		key := t.CaseID + "/" + identityPart(t.Repeat)
-		slots[key]++
-		if attempts[key] == nil {
-			attempts[key] = map[int]TrialRecord{}
-		}
-		if _, exists := attempts[key][t.Attempt]; exists {
-			return ErrConflict
-		}
-		attempts[key][t.Attempt] = t
-		if t.ID != m.ID+"/"+t.CaseID+"/"+identityPart(t.Repeat)+"/"+identityPart(t.Attempt) {
-			return ErrConflict
-		}
-		graded := map[string]bool{}
-		for _, g := range t.Grades {
-			if expected, ok := graderIDs[g.Revision.ID]; !ok || expected != g.Revision || graded[g.Revision.ID] {
-				return ErrConflict
-			}
-			graded[g.Revision.ID] = true
-		}
-	}
-	for _, attemptSet := range attempts {
-		for attempt := 0; attempt < len(attemptSet); attempt++ {
-			trial, ok := attemptSet[attempt]
-			if !ok {
-				return ErrInvalid
-			}
-			if attempt < len(attemptSet)-1 && trial.Status != SetupError {
-				return ErrInvalid
-			}
-		}
-	}
-	if m.PairSchedule != nil {
-		for _, slot := range m.PairSchedule.Slots {
-			if slots[slot.CaseID+"/"+identityPart(slot.Repeat)] == 0 {
-				return ErrIncomplete
-			}
-		}
-	}
-	if m.State == "sealed" {
-		for _, cs := range m.Cases {
-			for repeat := 0; repeat < m.Plan.Repeats; repeat++ {
-				if slots[cs.ID+"/"+identityPart(repeat)] == 0 {
-					return ErrIncomplete
-				}
-			}
-		}
-		for _, t := range r.Trials {
-			if t.Status == Cancelled || t.Status == BudgetExhausted || t.Status == InfrastructureStop {
-				return ErrIncomplete
-			}
-		}
-	}
-	return nil
+	return validateExperimentAttempts(r, graders)
 }
 
 type RunConfig[I, O, R, E any] struct {
-	ID          string
-	Dataset     Dataset[I, R]
-	Target      Target[I, O, E]
-	OutputCodec Codec[O]
-	Lifecycle   Lifecycle[E]
-	Plan        RunPlan
-	Provenance  Provenance
-	Capture     CaptureConfig
-	Graders     []Grader[I, O, R]
+	ID          string            `json:"ID"`
+	Dataset     Dataset[I, R]     `json:"Dataset"`
+	Target      Target[I, O, E]   `json:"Target"`
+	OutputCodec Codec[O]          `json:"OutputCodec"`
+	Lifecycle   Lifecycle[E]      `json:"Lifecycle"`
+	Plan        RunPlan           `json:"Plan"`
+	Provenance  Provenance        `json:"Provenance"`
+	Capture     CaptureConfig     `json:"Capture"`
+	Graders     []Grader[I, O, R] `json:"Graders"`
 	// Project must return a permitted grading view and is part of identity.
-	Project            func(context.Context, Case[I, R], O, EvidenceRecord) (View[I, O, R], error)
-	ProjectionRevision string
-	Budget             Budget
-	CriticalEvidence   bool
+	Project            func(context.Context, Case[I, R], O, EvidenceRecord) (View[I, O, R], error) `json:"Project"`
+	ProjectionRevision string                                                                      `json:"ProjectionRevision"`
+	Budget             Budget                                                                      `json:"Budget"`
+	CriticalEvidence   bool                                                                        `json:"CriticalEvidence"`
 }
 
 func Run[I, O, R, E any](ctx context.Context, c RunConfig[I, O, R, E]) (Experiment, error) {
@@ -451,7 +283,11 @@ func Run[I, O, R, E any](ctx context.Context, c RunConfig[I, O, R, E]) (Experime
 	m := experimentManifest(c)
 	count := len(cases) * c.Plan.Repeats
 	results := make([][]TrialRecord, count)
-	type job struct{ index, caseIndex, repeat int }
+	type job struct {
+		index     int
+		caseIndex int
+		repeat    int
+	}
 	jobs := make(chan job)
 	runctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
@@ -479,13 +315,13 @@ func Run[I, O, R, E any](ctx context.Context, c RunConfig[I, O, R, E]) (Experime
 	}
 	close(jobs)
 	wg.Wait()
-	r := ExperimentRecord{Manifest: m}
-	r.Manifest.State = "sealed"
+	r := ExperimentRecord{Manifest: m, Trials: nil}
+	r.Manifest.State = sealedState
 	for _, group := range results {
 		r.Trials = append(r.Trials, group...)
 		for _, t := range group {
 			if t.Status == Cancelled || t.Status == BudgetExhausted || t.Status == InfrastructureStop {
-				r.Manifest.State = "incomplete"
+				r.Manifest.State = incompleteState
 			}
 		}
 	}
@@ -501,6 +337,8 @@ func runTrial[I, O, R, E any](
 	caseIndex int,
 	repeat, attempt int,
 ) TrialRecord {
+	var zeroEvidenceRecord EvidenceRecord
+	var zeroUsage Usage
 	id := c.ID + "/" + cs.ID + "/" + identityPart(repeat) + "/" + identityPart(attempt)
 	r := TrialRecord{
 		ID:           id,
@@ -510,7 +348,19 @@ func runTrial[I, O, R, E any](
 		Attempt:      attempt,
 		Seed:         c.Plan.Seed + int64(repeat),
 		States:       []string{"queued"},
-		Cleanup:      CleanupStatus{State: "not_needed"},
+		Cleanup: CleanupStatus{
+			State:  cleanupNotNeeded,
+			Reason: "",
+		},
+		Status:            "",
+		Reason:            "",
+		Grades:            nil,
+		Evidence:          zeroEvidenceRecord,
+		TargetUsage:       zeroUsage,
+		UsageError:        "",
+		GradingState:      "",
+		GradingStopReason: "",
+		SkippedGraders:    nil,
 	}
 	cfg := c.Capture
 	cfg.RequiredKinds = append(append([]string(nil), cfg.RequiredKinds...), cs.RequiredEvidence...)
@@ -541,207 +391,20 @@ func runTrial[I, O, R, E any](
 	}
 	trialctx, cancel := context.WithTimeout(ctx, c.Plan.Timeout)
 	defer cancel()
-	r.States = append(r.States, "preparing")
-	env, err := c.Lifecycle.Prepare(trialctx, id)
-	cleanup := func() {
-		cleanctx, done := context.WithTimeout(context.WithoutCancel(ctx), c.Plan.CleanupTimeout)
-		defer done()
-		e := c.Lifecycle.Cleanup(cleanctx, env)
-		if e == nil {
-			e = cleanctx.Err()
-		}
-		r.Cleanup = CleanupStatus{State: "completed"}
-		if e != nil {
-			r.Cleanup = CleanupStatus{State: "failed", Reason: "cleanup_failure"}
+	env, prepared := prepareTrial(trialctx, c, id, &r)
+	if prepared {
+		reservation, authorized := authorizeTrial(trialctx, ctx, c, id, &r)
+		if authorized {
+			dispatchTrial(trialctx, ctx, c, cs, caseIndex, id, env, capture, reservation, &r)
 		}
 	}
-	if err == nil {
-		err = c.Lifecycle.Reset(trialctx, env)
-	}
-	if err != nil || trialctx.Err() != nil {
-		r.Status = SetupError
-		r.Reason = "setup_failure"
-		if trialctx.Err() != nil {
-			r.Status = Cancelled
-			r.Reason = "setup_cancelled"
-		}
-		cleanup()
-		finish()
-		return r
-	}
-	var reservation Reservation
-	if c.Budget != nil {
-		reservation, err = c.Budget.Reserve(trialctx, id+"/target", c.Plan.DispatchUnits)
-		if err != nil {
-			r.Status = BudgetExhausted
-			r.Reason = "reservation_failure"
-			if trialctx.Err() != nil {
-				r.Status = Cancelled
-			}
-			cleanup()
-			finish()
-			return r
-		}
-	}
-	if trialctx.Err() != nil {
-		if c.Budget != nil {
-			releaseCtx, done := context.WithTimeout(context.WithoutCancel(ctx), c.Plan.CleanupTimeout)
-			if e := c.Budget.Release(releaseCtx, reservation); e != nil {
-				r.UsageError = "release_failure"
-			}
-			done()
-		}
-		r.Status = Cancelled
-		cleanup()
-		finish()
-		return r
-	}
-	if c.Budget != nil {
-		if e := c.Budget.Claim(trialctx, reservation); e != nil {
-			r.Status = BudgetExhausted
-			r.Reason = "dispatch_claim_failure"
-			if trialctx.Err() != nil {
-				r.Status = Cancelled
-			}
-			cleanup()
-			finish()
-			return r
-		}
-	}
-	if trialctx.Err() != nil {
-		r.Status = Cancelled
-		r.Reason = "cancelled_before_dispatch"
-		cleanup()
-		finish()
-		return r
-	}
-	r.States = append(r.States, "running")
-	out, err := c.Target.Run(
-		trialctx,
-		cs.Input,
-		TrialContext[E]{
-			ID:           id,
-			CaseRevision: cs.Revision,
-			Repeat:       repeat,
-			Attempt:      attempt,
-			Seed:         r.Seed,
-			Environment:  env,
-			Evidence:     capture,
-			Budget:       c.Budget,
-		},
-	)
-	r.TargetUsage = out.Usage
-	if !finiteNonnegative(out.Usage.Units) {
-		r.TargetUsage = Usage{}
-		r.UsageError = "invalid_usage"
-	}
-	if c.Budget != nil {
-		usagectx, done := context.WithTimeout(context.WithoutCancel(ctx), c.Plan.CleanupTimeout)
-		if e := c.Budget.Reconcile(usagectx, reservation, r.TargetUsage); e != nil {
-			r.UsageError = "reconciliation_failure"
-		}
-		done()
-	}
-	r.Status = Completed
-	if err != nil {
-		r.Status = TargetError
-		r.Reason = "target_failure"
-	}
-	if trialctx.Err() != nil {
-		r.Status = Cancelled
-		r.Reason = "target_cancelled"
-	}
-	r.States = append(r.States, "collecting")
-	evidence := capture.Seal()
-	if r.Status == Completed {
-		if c.CriticalEvidence && evidence.State != "sealed" {
-			r.Reason = "critical_evidence_loss"
-		}
-		outputBytes, outputErr := c.OutputCodec.Encode(out.Output)
-		factory := func() (View[I, O, R], error) {
-			var zero View[I, O, R]
-			if outputErr != nil {
-				return zero, outputErr
-			}
-			original, err := c.Dataset.CaseAt(caseIndex)
-			if err != nil {
-				return zero, err
-			}
-			freshOutput, err := c.OutputCodec.Decode(append([]byte(nil), outputBytes...))
-			if err != nil {
-				return zero, err
-			}
-			freshEvidence, err := cloneJSON(evidence)
-			if err != nil {
-				return zero, err
-			}
-			return c.Project(trialctx, original, freshOutput, freshEvidence)
-		}
-		for _, g := range c.Graders {
-			if trialctx.Err() != nil {
-				r.UsageError = "grading_cancelled"
-				break
-			}
-			if c.CriticalEvidence && evidence.State != "sealed" {
-				r.UsageError = "projection_unavailable"
-				break
-			}
-			view, viewErr := factory()
-			if viewErr != nil {
-				r.UsageError = "projection_unavailable"
-				break
-			}
-			supplied := false
-			permitted := func() (View[I, O, R], error) {
-				if supplied {
-					return View[I, O, R]{}, ErrConflict
-				}
-				supplied = true
-				return view, nil
-			}
-			var gradeReservation Reservation
-			if c.Budget != nil {
-				gradeReservation, err = c.Budget.Reserve(trialctx, id+"/grader/"+g.Revision().ID, c.Plan.GraderUnits)
-				if err != nil {
-					r.UsageError = "grader_budget_exhausted"
-					break
-				}
-				if err = c.Budget.Claim(trialctx, gradeReservation); err != nil {
-					r.UsageError = "grader_dispatch_claim_failure"
-					break
-				}
-			}
-			if trialctx.Err() != nil {
-				r.UsageError = "grading_cancelled"
-				break
-			}
-			grade := Assess(trialctx, []Grader[I, O, R]{g}, permitted)[0]
-			if !grade.Dispatched {
-				r.UsageError = "grading_not_dispatched"
-				break
-			}
-			r.Grades = append(r.Grades, grade)
-			if c.Budget != nil {
-				usagectx, done := context.WithTimeout(context.WithoutCancel(ctx), c.Plan.CleanupTimeout)
-				reconciliationErr := c.Budget.Reconcile(usagectx, gradeReservation, grade.Usage)
-				done()
-				if reconciliationErr != nil {
-					r.UsageError = "grader_reconciliation_failure"
-					break
-				}
-			}
-			if c.Plan.StopOnInfrastructure && grade.Status == GraderError {
-				break
-			}
-		}
-
-	}
-	cleanup()
+	cleanupTrial(ctx, c, env, &r)
 	finish()
 	return r
 }
 
 func experimentManifest[I, O, R, E any](c RunConfig[I, O, R, E]) ExperimentManifest {
+	var zeroTime time.Time
 	cases := c.Dataset.record.Cases
 	life := c.Lifecycle.Identity()
 	m := ExperimentManifest{
@@ -751,10 +414,10 @@ func experimentManifest[I, O, R, E any](c RunConfig[I, O, R, E]) ExperimentManif
 		CaptureMaxEvents:    c.Capture.MaxEvents,
 		CaptureMaxBytes:     c.Capture.MaxBytes,
 		CriticalEvidence:    c.CriticalEvidence,
-		Version:             3,
+		Version:             experimentWireRevision,
 		ID:                  c.ID,
 		State:               "running",
-		Mode:                "controlled",
+		Mode:                controlledMode,
 		Dataset:             c.Dataset.Revision(),
 		Selection:           c.Dataset.record.Selection,
 		Provenance:          c.Provenance,
@@ -763,7 +426,15 @@ func experimentManifest[I, O, R, E any](c RunConfig[I, O, R, E]) ExperimentManif
 		CapturePolicy:       c.Capture.Policy.Revision(),
 		CaptureKinds:        append([]string(nil), c.Capture.KnownKinds...),
 		Projection:          c.ProjectionRevision,
-		Started:             time.Now().UTC(),
+		Started: time.Now().
+			UTC(),
+		Revision:       "",
+		Cases:          nil,
+		Graders:        nil,
+		Finished:       zeroTime,
+		PairID:         "",
+		PairSchedule:   nil,
+		ParentRevision: "",
 	}
 	for _, cs := range cases {
 		m.Cases = append(m.Cases, CaseIdentity{cs.ID, cs.Revision})
@@ -794,26 +465,33 @@ func validateProvenance(p Provenance) error {
 }
 
 func codecFailure[I, O, R, E any](c RunConfig[I, O, R, E], cs Case[I, R], repeat, attempt int) TrialRecord {
+	var zeroUsage Usage
 	capture, _ := NewCapture(c.Capture)
 	r := TrialRecord{
-		ID:           c.ID + "/" + cs.ID + "/" + identityPart(repeat) + "/" + identityPart(attempt),
-		CaseID:       cs.ID,
-		CaseRevision: cs.Revision,
-		Repeat:       repeat,
-		Attempt:      attempt,
-		Seed:         c.Plan.Seed + int64(repeat),
-		States:       []string{"queued", "terminal"},
-		Status:       SetupError,
-		Reason:       "codec_failure",
-		Cleanup:      CleanupStatus{State: "not_needed"},
-		Evidence:     capture.Seal(),
+		ID:                c.ID + "/" + cs.ID + "/" + identityPart(repeat) + "/" + identityPart(attempt),
+		CaseID:            cs.ID,
+		CaseRevision:      cs.Revision,
+		Repeat:            repeat,
+		Attempt:           attempt,
+		Seed:              c.Plan.Seed + int64(repeat),
+		States:            []string{"queued", "terminal"},
+		Status:            SetupError,
+		Reason:            "codec_failure",
+		Cleanup:           CleanupStatus{State: cleanupNotNeeded, Reason: ""},
+		Evidence:          capture.Seal(),
+		Grades:            nil,
+		TargetUsage:       zeroUsage,
+		UsageError:        "",
+		GradingState:      "",
+		GradingStopReason: "",
+		SkippedGraders:    nil,
 	}
 	finalizeTrialGrading(&r, c.Graders)
 	return r
 }
 
 func trialInfrastructureFailure(r TrialRecord) bool {
-	if r.Status == SetupError || r.Status == BudgetExhausted || r.Cleanup.State == "failed" || r.UsageError != "" {
+	if r.Status == SetupError || r.Status == BudgetExhausted || r.Cleanup.State == failedState || r.UsageError != "" {
 		return true
 	}
 	for _, g := range r.Grades {
@@ -825,7 +503,7 @@ func trialInfrastructureFailure(r TrialRecord) bool {
 }
 
 func finalizeTrialGrading[I, O, R any](r *TrialRecord, graders []Grader[I, O, R]) {
-	r.GradingState = "complete"
+	r.GradingState = gradingComplete
 	reason := r.UsageError
 	if reason == "" && r.Status != Completed {
 		reason = r.Reason
@@ -846,7 +524,7 @@ func finalizeTrialGrading[I, O, R any](r *TrialRecord, graders []Grader[I, O, R]
 		}
 	}
 	if len(r.SkippedGraders) > 0 || r.UsageError != "" {
-		r.GradingState = "partial"
+		r.GradingState = gradingPartial
 		r.GradingStopReason = reason
 	}
 }

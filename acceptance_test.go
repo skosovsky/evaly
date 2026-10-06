@@ -66,6 +66,7 @@ func TestSharedFixtureActuallySerial(t *testing.T) {
 		func(ctx context.Context, i input, tc evaly.TrialContext[*int]) (evaly.TargetResult[int], error) {
 			count := active.Add(1)
 			for old := maximum.Load(); count > old && !maximum.CompareAndSwap(old, count); old = maximum.Load() {
+				continue
 			}
 			defer active.Add(-1)
 			time.Sleep(time.Millisecond)
@@ -107,14 +108,14 @@ func TestBudgetBlocksThirdRealDispatchAndCancellationRetainsEffects(t *testing.T
 	c = config(t, 2)
 	c.Plan.Concurrency = 1
 	c.Target = evaly.TargetFunc[input, int, *int](
-		func(ctx context.Context, i input, tc evaly.TrialContext[*int]) (evaly.TargetResult[int], error) {
+		func(_ context.Context, _ input, _ evaly.TrialContext[*int]) (evaly.TargetResult[int], error) {
 			effects.Add(1)
 			cancel()
 			return evaly.TargetResult[int]{Output: 1}, nil
 		},
 	)
 	life := c.Lifecycle.(evaly.LifecycleFuncs[*int])
-	life.CleanupFunc = func(ctx context.Context, env *int) error {
+	life.CleanupFunc = func(ctx context.Context, _ *int) error {
 		if ctx.Err() != nil {
 			t.Error("cleanup cancelled with target")
 		}
@@ -242,7 +243,7 @@ func (s *booleanSink) Deliver(context.Context, evaly.DeliveryRecord) error {
 
 type abstainer struct{}
 
-func (abstainer) JudgePair(ctx context.Context, r evaly.PairRequest[string]) (evaly.PairJudgment, error) {
+func (abstainer) JudgePair(ctx context.Context, _ evaly.PairRequest[string]) (evaly.PairJudgment, error) {
 	return evaly.PairJudgment{Preferred: "abstain"}, ctx.Err()
 }
 func TestPairAbstentionIsVisible(t *testing.T) {

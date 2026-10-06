@@ -12,25 +12,27 @@ import (
 
 type schema map[string]any
 
-func Schema(t reflect.Type) schema {
+func Schema(t reflect.Type) map[string]any { return typeSchema(t) }
+
+func typeSchema(t reflect.Type) schema {
 	if t == reflect.TypeFor[json.RawMessage]() {
 		return schema{}
 	}
 	if t == reflect.TypeFor[time.Time]() {
 		return schema{
-			"type":    "string",
-			"format":  "date-time",
-			"pattern": `^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\.[0-9]+)?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$`,
+			schemaType: schemaString,
+			"format":   "date-time",
+			"pattern":  `^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\.[0-9]+)?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$`,
 		}
 	}
 	switch t.Kind() {
 	case reflect.Pointer:
-		base := Schema(t.Elem())
-		return schema{"anyOf": []any{base, schema{"type": "null"}}}
+		base := typeSchema(t.Elem())
+		return schema{"anyOf": []any{base, schema{schemaType: schemaNull}}}
 	case reflect.String:
-		return schema{"type": "string"}
+		return schema{schemaType: schemaString}
 	case reflect.Bool:
-		return schema{"type": "boolean"}
+		return schema{schemaType: "boolean"}
 	case reflect.Int,
 		reflect.Int8,
 		reflect.Int16,
@@ -41,105 +43,55 @@ func Schema(t reflect.Type) schema {
 		reflect.Uint16,
 		reflect.Uint32,
 		reflect.Uint64:
-		bits := t.Bits()
-		if t.Kind() >= reflect.Uint && t.Kind() <= reflect.Uint64 {
-			maximum := uint64(^uint64(0))
-			if bits < 64 {
-				maximum = (uint64(1) << bits) - 1
-			}
-			return schema{"type": "integer", "minimum": uint64(0), "maximum": maximum}
-		}
-		maximum := int64(^uint64(0) >> 1)
-		if bits < 64 {
-			maximum = (int64(1) << (bits - 1)) - 1
-		}
-		return schema{"type": "integer", "minimum": -maximum - 1, "maximum": maximum}
+		return integerSchema(t)
 	case reflect.Float32:
-		return schema{"type": "number", "minimum": -math.MaxFloat32, "maximum": math.MaxFloat32}
+		return schema{schemaType: schemaNumber, schemaMinimum: -math.MaxFloat32, schemaMaximum: math.MaxFloat32}
 	case reflect.Float64:
-		return schema{"type": "number", "minimum": -math.MaxFloat64, "maximum": math.MaxFloat64}
+		return schema{schemaType: schemaNumber, schemaMinimum: -math.MaxFloat64, schemaMaximum: math.MaxFloat64}
 	case reflect.Slice, reflect.Array:
-		return schema{"type": []string{"array", "null"}, "items": Schema(t.Elem())}
+		return schema{schemaType: []string{schemaArray, schemaNull}, "items": typeSchema(t.Elem())}
 	case reflect.Map:
-		return schema{"type": []string{"object", "null"}, "additionalProperties": Schema(t.Elem())}
+		return schema{schemaType: []string{schemaObject, schemaNull}, "additionalProperties": typeSchema(t.Elem())}
 	case reflect.Struct:
-		properties := map[string]any{}
-		required := []string{}
-		for field := range t.Fields() {
-			field := field
-			if !field.IsExported() {
-				continue
-			}
-			tag := strings.Split(field.Tag.Get("json"), ",")
-			name := tag[0]
-			if name == "-" {
-				continue
-			}
-			if name == "" {
-				name = field.Name
-			}
-			value := Schema(field.Type)
-			constrain(t.PkgPath(), t.Name(), field.Name, value)
-			properties[name] = value
-			optional := false
-			for _, option := range tag[1:] {
-				if option == "omitempty" {
-					optional = true
-				}
-			}
-			if !optional {
-				required = append(required, name)
-			}
-		}
-		document := schema{
-			"type":                 "object",
-			"properties":           properties,
-			"required":             required,
-			"additionalProperties": false,
-		}
-		if t.Name() == "Grade" {
-			document["allOf"] = []any{
-				schema{
-					"if": schema{
-						"properties": schema{
-							"status": schema{
-								"enum": []string{"grader_error", "not_applicable", "insufficient_evidence"},
-							},
-						},
-					},
-					"then": schema{
-						"not": schema{
-							"anyOf": []any{
-								schema{"required": []string{"metrics"}},
-								schema{"required": []string{"assertions"}},
-							},
-						},
-					},
-				},
-			}
-		}
-		return document
+		return structSchema(t)
+	case reflect.Invalid,
+		reflect.Uintptr,
+		reflect.Complex64,
+		reflect.Complex128,
+		reflect.Chan,
+		reflect.Func,
+		reflect.Interface,
+		reflect.UnsafePointer:
+		fallthrough
 	default:
 		panic(fmt.Sprintf("unsupported wire type %v", t))
 	}
 }
 func constrain(pkg, parent, name string, s schema) {
-	if name == "Version" && s["type"] == "integer" {
+	if name == "Version" && s[schemaType] == schemaInteger {
 		s["const"] = 1
 		s["x-evaly-version"] = true
 		if parent == "ScenarioRecord" || parent == "Comparison" || parent == "Request" || parent == "Response" {
 			s["const"] = 2
 		}
-		if parent == "ExperimentManifest" || parent == "Assessment" || parent == "Result" {
+		if parent == "ExperimentManifest" || parent == "Assessment" || parent == schemaResult {
 			s["const"] = 3
 		}
-		if parent == "Result" && pkg == "github.com/skosovsky/evaly/optimizer" {
+		if parent == schemaResult && pkg == optimizerPackagePath {
 			s["const"] = 4
 		}
 	}
 	if parent == "CalibrationCounts" {
-		s["minimum"] = 0
+		s[schemaMinimum] = 0
 	}
+	constrainEnvelope(parent, name, s)
+	constrainStates(parent, name, s)
+	constrainExecution(parent, name, s)
+	constrainMeasurement(parent, name, s)
+	constrainOptimizer(pkg, parent, name, s)
+}
+
+func constrainEnvelope(parent, name string, s schema) {
 	switch parent + "." + name {
 	case "Envelope.Kind":
 		s["enum"] = []string{
@@ -160,7 +112,12 @@ func constrain(pkg, parent, name string, s schema) {
 	case "Envelope.Checksum":
 		s["pattern"] = `^[0-9a-f]{64}$`
 	case "Envelope.Data":
-		s["type"] = "object"
+		s[schemaType] = schemaObject
+	}
+}
+
+func constrainStates(parent, name string, s schema) {
+	switch parent + "." + name {
 	case "DatasetRecord.State":
 		s["const"] = "sealed"
 	case "EvidenceRecord.State", "ExperimentManifest.State":
@@ -172,9 +129,7 @@ func constrain(pkg, parent, name string, s schema) {
 	case "TrialRecord.GradingState":
 		s["enum"] = []string{"complete", "partial"}
 	case "TrialRecord.Status":
-		s["enum"] = []string{
-			"completed",
-			"target_error",
+		s["enum"] = []string{schemaCompleted, "target_error",
 			"setup_error",
 			"cancelled",
 			"budget_exhausted",
@@ -185,7 +140,7 @@ func constrain(pkg, parent, name string, s schema) {
 	case "Metric.Direction", "ObjectiveIdentity.Direction":
 		s["enum"] = []string{"higher", "lower"}
 	case "CleanupStatus.State":
-		s["enum"] = []string{"not_needed", "completed", "failed"}
+		s["enum"] = []string{"not_needed", schemaCompleted, schemaFailed}
 	case "ComparisonPolicy.ObjectiveKind":
 		s["enum"] = []string{"assertion", "numeric"}
 	case "Comparison.Verdict":
@@ -193,81 +148,177 @@ func constrain(pkg, parent, name string, s schema) {
 	case "Generation.Mode", "ScenarioPlan.Mode":
 		s["enum"] = []string{"search", "replay"}
 	case "ScenarioRecord.Stop":
-		s["enum"] = []string{"completed", "step_limit", "deadline", "error", "codec_error"}
+		s["enum"] = []string{schemaCompleted, "step_limit", "deadline", "error", "codec_error"}
 	case "Response.Status":
-		s["enum"] = []string{"completed", "target_error"}
+		s["enum"] = []string{schemaCompleted, "target_error"}
 	case "Assessment.State":
 		s["enum"] = []string{"complete", "partial"}
 	case "Assessment.Mode":
 		s["enum"] = []string{"rescore", "observation"}
-	case "RunPlan.AssertionPolicy":
-		s["enum"] = []string{"all", "any"}
-	case "Usage.Units", "Reservation.Units":
-		s["minimum"] = 0
-	case "RunPlan.Repeats", "RunPlan.Concurrency", "RunPlan.MaxAttempts", "ScenarioPlan.MaxSteps":
-		s["minimum"] = 1
-	case "RunPlan.Timeout", "RunPlan.CleanupTimeout", "ScenarioPlan.Timeout":
-		s["minimum"] = 1
-	case "RunPlan.DispatchUnits", "RunPlan.GraderUnits":
-		s["minimum"] = 0
-	case "GatePolicy.MinimumCoverage", "GatePolicy.MinimumMatchedCoverage":
-		s["minimum"] = 0
-		s["maximum"] = 1
-	case "Event.Sequence":
-		s["minimum"] = 1
-	case "EvidenceRecord.Errors", "EvidenceRecord.Gaps", "Grade.Reasons", "Grade.EvidenceRefs":
-		s["maxItems"] = 32
-	case "Comparison.Unit":
-		s["const"] = "case"
-	case "GatePolicy.MinimumMatchedCases":
-		s["minimum"] = 1
-	case "GatePolicy.MaximumRegression":
-		s["minimum"] = 0
-	case "CalibrationRate.Numerator", "CalibrationRate.Denominator":
-		s["minimum"] = 0
-	case "CalibrationRate.Value":
-		branches := s["anyOf"].([]any)
-		branches[0].(schema)["minimum"] = 0
-		branches[0].(schema)["maximum"] = 1
-	case "Result.MaximumRounds", "Result.MaximumCandidates":
-		if pkg == "github.com/skosovsky/evaly/optimizer" {
-			s["minimum"] = 1
-			s["maximum"] = 10000
-		}
-	case "Result.TimeoutNanoseconds":
-		if pkg == "github.com/skosovsky/evaly/optimizer" {
-			s["minimum"] = 1
-		}
-	case "Result.ProposalUnits", "Result.EvaluationUnits":
-		if pkg == "github.com/skosovsky/evaly/optimizer" {
-			s["minimum"] = 0
-		}
-	case "Result.State":
-		if pkg == "github.com/skosovsky/evaly/optimizer" {
-			s["enum"] = []string{"completed", "stopped"}
-		}
-	case "Result.TieRevision":
-		if pkg == "github.com/skosovsky/evaly/optimizer" {
-			s["const"] = "candidate-revision-lexical-v1"
-		}
 	case "Evaluation.Round", "Round.Index":
-		s["minimum"] = 0
+		s[schemaMinimum] = 0
 	case "Evaluation.State":
-		s["enum"] = []string{"invalid", "failed", "incomplete", "evaluated"}
+		s["enum"] = []string{"invalid", schemaFailed, "incomplete", "evaluated"}
 	case "Round.State":
-		s["enum"] = []string{"completed", "stopped", "failed"}
+		s["enum"] = []string{schemaCompleted, "stopped", schemaFailed}
 	case "CalibrationReport.Groups":
-		s["type"] = "array"
+		s[schemaType] = schemaArray
 	case "PairSchedule.Slots":
-		s["type"] = "array"
+		s[schemaType] = schemaArray
 	case "PairSchedule.Revision":
 		s["const"] = "case-repeat-v1"
 	case "PairSlot.Repeat":
-		s["minimum"] = 0
+		s[schemaMinimum] = 0
 	case "PairSchedule.Concurrency":
-		s["minimum"] = 1
-	case "GatePolicy.BootstrapSamples":
-		s["minimum"] = 100
-		s["maximum"] = 100000
+		s[schemaMinimum] = 1
 	}
+}
+
+func constrainExecution(parent, name string, s schema) {
+	switch parent + "." + name {
+	case "RunPlan.AssertionPolicy":
+		s["enum"] = []string{"all", "any"}
+	case "Usage.Units", "Reservation.Units":
+		s[schemaMinimum] = 0
+	case "RunPlan.Repeats", "RunPlan.Concurrency", "RunPlan.MaxAttempts", "ScenarioPlan.MaxSteps":
+		s[schemaMinimum] = 1
+	case "RunPlan.Timeout", "RunPlan.CleanupTimeout", "ScenarioPlan.Timeout":
+		s[schemaMinimum] = 1
+	case "RunPlan.DispatchUnits", "RunPlan.GraderUnits":
+		s[schemaMinimum] = 0
+	case "Event.Sequence":
+		s[schemaMinimum] = 1
+	case "EvidenceRecord.Errors", "EvidenceRecord.Gaps", "Grade.Reasons", "Grade.EvidenceRefs":
+		s["maxItems"] = 32
+	}
+}
+
+func constrainMeasurement(parent, name string, s schema) {
+	switch parent + "." + name {
+	case "GatePolicy.MinimumCoverage", "GatePolicy.MinimumMatchedCoverage":
+		s[schemaMinimum] = 0
+		s[schemaMaximum] = 1
+	case "Comparison.Unit":
+		s["const"] = "case"
+	case "GatePolicy.MinimumMatchedCases":
+		s[schemaMinimum] = 1
+	case "GatePolicy.MaximumRegression":
+		s[schemaMinimum] = 0
+	case "CalibrationRate.Numerator", "CalibrationRate.Denominator":
+		s[schemaMinimum] = 0
+	case "CalibrationRate.Value":
+		branches, ok := s["anyOf"].([]any)
+		if !ok || len(branches) == 0 {
+			return
+		}
+		branch, ok := branches[0].(schema)
+		if !ok {
+			return
+		}
+		branch[schemaMinimum] = 0
+		branch[schemaMaximum] = 1
+	case "GatePolicy.BootstrapSamples":
+		s[schemaMinimum] = 100
+		s[schemaMaximum] = 100000
+	}
+}
+
+func constrainOptimizer(pkg, parent, name string, s schema) {
+	switch parent + "." + name {
+	case "Result.MaximumRounds", "Result.MaximumCandidates":
+		if pkg == optimizerPackagePath {
+			s[schemaMinimum] = 1
+			s[schemaMaximum] = 10000
+		}
+	case "Result.TimeoutNanoseconds":
+		if pkg == optimizerPackagePath {
+			s[schemaMinimum] = 1
+		}
+	case "Result.ProposalUnits", "Result.EvaluationUnits":
+		if pkg == optimizerPackagePath {
+			s[schemaMinimum] = 0
+		}
+	case "Result.State":
+		if pkg == optimizerPackagePath {
+			s["enum"] = []string{schemaCompleted, "stopped"}
+		}
+	case "Result.TieRevision":
+		if pkg == optimizerPackagePath {
+			s["const"] = "candidate-revision-lexical-v1"
+		}
+	}
+}
+
+func integerSchema(t reflect.Type) schema {
+	bits := t.Bits()
+	if t.Kind() >= reflect.Uint && t.Kind() <= reflect.Uint64 {
+		maximum := ^uint64(0)
+		if bits < integerBits {
+			maximum = (uint64(1) << bits) - 1
+		}
+		return schema{schemaType: schemaInteger, schemaMinimum: uint64(0), schemaMaximum: maximum}
+	}
+	maximum := int64(^uint64(0) >> 1)
+	if bits < integerBits {
+		maximum = (int64(1) << (bits - 1)) - 1
+	}
+	return schema{schemaType: schemaInteger, schemaMinimum: -maximum - 1, schemaMaximum: maximum}
+}
+
+func structSchema(t reflect.Type) schema {
+	properties := map[string]any{}
+	required := []string{}
+	for field := range t.Fields() {
+		if !field.IsExported() {
+			continue
+		}
+		tag := strings.Split(field.Tag.Get("json"), ",")
+		name := tag[0]
+		if name == "-" {
+			continue
+		}
+		if name == "" {
+			name = field.Name
+		}
+		value := typeSchema(field.Type)
+		constrain(t.PkgPath(), t.Name(), field.Name, value)
+		properties[name] = value
+		optional := false
+		for _, option := range tag[1:] {
+			if option == "omitempty" {
+				optional = true
+			}
+		}
+		if !optional {
+			required = append(required, name)
+		}
+	}
+	document := schema{
+		schemaType:             schemaObject,
+		"properties":           properties,
+		schemaRequired:         required,
+		"additionalProperties": false,
+	}
+	if t.Name() == "Grade" {
+		document["allOf"] = []any{
+			schema{
+				"if": schema{
+					"properties": schema{
+						"status": schema{
+							"enum": []string{"grader_error", "not_applicable", "insufficient_evidence"},
+						},
+					},
+				},
+				"then": schema{
+					"not": schema{
+						"anyOf": []any{
+							schema{schemaRequired: []string{"metrics"}},
+							schema{schemaRequired: []string{"assertions"}},
+						},
+					},
+				},
+			},
+		}
+	}
+	return document
 }

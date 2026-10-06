@@ -22,26 +22,26 @@ func main() {
 	if len(os.Args) == 2 {
 		directory = os.Args[1]
 	}
-	types := map[string]any{
-		"envelope":           evaly.Envelope{},
-		"dataset":            evaly.DatasetRecord{},
-		"experiment":         evaly.ExperimentRecord{},
-		"evidence":           evaly.EvidenceRecord{},
-		"comparison":         evaly.Comparison{},
-		"comparison-policy":  evaly.ComparisonPolicy{},
-		"calibration":        evaly.CalibrationReport{},
-		"view":               evaly.SavedViewRecord{},
-		"scenario":           evaly.ScenarioRecord{},
-		"assessment":         evaly.Assessment{},
-		"observation":        observation.Record{},
-		"observation-result": observation.Result{},
-		"search":             optimizer.Result{},
-		"candidate":          optimizer.CandidateRecord{},
-		"http-request":       httpjson.Request{},
-		"http-response":      httpjson.Response{},
+	types := map[string]reflect.Type{
+		"envelope":           reflect.TypeFor[evaly.Envelope](),
+		"dataset":            reflect.TypeFor[evaly.DatasetRecord](),
+		"experiment":         reflect.TypeFor[evaly.ExperimentRecord](),
+		"evidence":           reflect.TypeFor[evaly.EvidenceRecord](),
+		"comparison":         reflect.TypeFor[evaly.Comparison](),
+		"comparison-policy":  reflect.TypeFor[evaly.ComparisonPolicy](),
+		"calibration":        reflect.TypeFor[evaly.CalibrationReport](),
+		"view":               reflect.TypeFor[evaly.SavedViewRecord](),
+		"scenario":           reflect.TypeFor[evaly.ScenarioRecord](),
+		"assessment":         reflect.TypeFor[evaly.Assessment](),
+		"observation":        reflect.TypeFor[observation.Record](),
+		"observation-result": reflect.TypeFor[observation.Result](),
+		"search":             reflect.TypeFor[optimizer.Result](),
+		"candidate":          reflect.TypeFor[optimizer.CandidateRecord](),
+		"http-request":       reflect.TypeFor[httpjson.Request](),
+		"http-response":      reflect.TypeFor[httpjson.Response](),
 	}
 	for name, value := range types {
-		document := wirecontract.Schema(reflect.TypeOf(value))
+		document := wirecontract.Schema(value)
 		document["$schema"] = "https://json-schema.org/draft/2020-12/schema"
 		version := 1
 		switch name {
@@ -57,6 +57,7 @@ func main() {
 		if e != nil {
 			panic(e)
 		}
+		// #nosec G703 -- the local operator explicitly selects the schema output directory.
 		if e = os.WriteFile(
 			filepath.Join(directory, name+"-v"+strconv.Itoa(version)+".json"),
 			append(b, '\n'),

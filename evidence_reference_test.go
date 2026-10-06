@@ -34,52 +34,9 @@ func TestReferenceContractAcrossCaptureRestoreAndGrades(t *testing.T) {
 		{"missing-host", "https:/trace", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			// Arrange.
-			c, err := NewCapture(
-				CaptureConfig{
-					Policy:     FieldPolicy{ID: "refs", KeepReferences: true},
-					KnownKinds: []string{"tool"},
-					MaxEvents:  2,
-					MaxBytes:   4096,
-				},
-			)
-			if err != nil {
-				t.Fatal(err)
-			}
-			event := Event{Version: 1, Sequence: 1, Kind: "tool", References: []string{tc.ref}}
-			r := rehashEvidence(
-				EvidenceRecord{
-					Version:         1,
-					State:           "sealed",
-					Policy:          "refs",
-					Events:          []Event{event},
-					Coverage:        map[string]bool{"tool": true},
-					ReplayAvailable: true,
-				},
-			)
-			g := Grade{
-				Revision:     GraderRevision{ID: "g", Implementation: "1", Rubric: "1"},
-				Status:       NotApplicable,
-				EvidenceRefs: []string{tc.ref},
-			}
-			// Act.
-			captureErr := c.Record(context.Background(), event)
-			captured := c.Seal()
-			restoreErr, gradeErr := ValidateEvidence(r), ValidateGrade(g)
-			// Assert.
-			for _, err := range []error{captureErr, restoreErr, gradeErr} {
-				if (err == nil) != tc.valid {
-					t.Fatalf("valid=%v error=%v", tc.valid, err)
-				}
-				if err != nil && (!errors.Is(err, ErrInvalid) || strings.Contains(err.Error(), "private-secret")) {
-					t.Fatal(err)
-				}
-			}
-			if !tc.valid &&
-				(len(captured.Events) != 0 || captured.State != "incomplete" || CompleteFor(captured, "tool")) {
-				t.Fatal(captured)
-			}
-		})
+			checkReferenceContractAcrossCaptureRestoreAndGrades(t, &tc)
+		},
+		)
 	}
 }
 
@@ -100,5 +57,61 @@ func TestDefaultPolicyDropsUntrustedReferences(t *testing.T) {
 	// Assert: classification precedes retention.
 	if err != nil || len(r.Events) != 1 || len(r.Events[0].References) != 0 || r.Redactions != 1 {
 		t.Fatal(err, r)
+	}
+}
+func checkReferenceContractAcrossCaptureRestoreAndGrades(t *testing.T, tc *struct {
+	name string
+
+	ref string
+
+	valid bool
+}) {
+	t.Helper()
+	// Arrange.
+	c, err := NewCapture(
+		CaptureConfig{
+			Policy:     FieldPolicy{ID: "refs", KeepReferences: true},
+			KnownKinds: []string{"tool"},
+			MaxEvents:  2,
+			MaxBytes:   4096,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	event := Event{Version: 1, Sequence: 1, Kind: "tool", References: []string{tc.ref}}
+	r := rehashEvidence(
+		EvidenceRecord{
+			Version:         1,
+			State:           "sealed",
+			Policy:          "refs",
+			Events:          []Event{event},
+			Coverage:        map[string]bool{"tool": true},
+			ReplayAvailable: true,
+		},
+	)
+	g := Grade{
+		Revision:     GraderRevision{ID: "g", Implementation: "1", Rubric: "1"},
+		Status:       NotApplicable,
+		EvidenceRefs: []string{tc.ref},
+	}
+
+	// Act.
+	captureErr := c.Record(context.Background(), event)
+	captured := c.Seal()
+	restoreErr, gradeErr := ValidateEvidence(r), ValidateGrade(g)
+
+	// Assert.
+	for _, err := range []error{captureErr, restoreErr, gradeErr} {
+		if (err == nil) != tc.valid {
+			t.Fatalf("valid=%v error=%v", tc.valid, err)
+		}
+		if err != nil && (!errors.Is(err, ErrInvalid) || strings.Contains(err.Error(), "private-secret")) {
+			t.Fatal(err)
+		}
+	}
+	if !tc.valid &&
+		(len(captured.Events) != 0 || captured.State != "incomplete" || CompleteFor(captured, "tool")) {
+		t.Fatal(captured)
 	}
 }

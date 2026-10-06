@@ -19,13 +19,13 @@ type ObjectiveIdentity struct {
 	AggregationRevision string  `json:"aggregation_revision"`
 }
 type Eligibility struct {
-	Eligible bool
-	Reason   string
+	Eligible bool   `json:"Eligible"`
+	Reason   string `json:"Reason"`
 }
 type Measurement struct {
-	Present bool
-	Value   float64
-	Reason  string
+	Present bool    `json:"Present"`
+	Value   float64 `json:"Value"`
+	Reason  string  `json:"Reason"`
 }
 
 // Objective sees only persisted permitted results, not domain input or target capabilities.
@@ -35,9 +35,9 @@ type Objective interface {
 	Measure(TrialRecord) (Measurement, error)
 }
 type ObjectiveFuncs struct {
-	Descriptor ObjectiveIdentity
-	Select     func(CaseIdentity) (Eligibility, error)
-	Evaluate   func(TrialRecord) (Measurement, error)
+	Descriptor ObjectiveIdentity                       `json:"Descriptor"`
+	Select     func(CaseIdentity) (Eligibility, error) `json:"Select"`
+	Evaluate   func(TrialRecord) (Measurement, error)  `json:"Evaluate"`
 }
 
 func (o ObjectiveFuncs) Identity() ObjectiveIdentity { return o.Descriptor }
@@ -69,7 +69,7 @@ func ValidateObjectiveIdentity(i ObjectiveIdentity) error {
 		math.IsInf(i.Maximum, 0) ||
 		i.Minimum >= i.Maximum ||
 		math.IsInf(i.Maximum-i.Minimum, 0) ||
-		(i.Direction != "higher" && i.Direction != "lower") {
+		(i.Direction != directionHigher && i.Direction != directionLower) {
 		return ErrInvalid
 	}
 	return nil
@@ -88,7 +88,11 @@ func ValidateMeasurement(i ObjectiveIdentity, m Measurement) error {
 }
 
 // AssertionObjective measures each repeat as pass=1 or fail=0.
-type AssertionObjective struct{ ID, Revision, Policy string }
+type AssertionObjective struct {
+	ID       string `json:"ID"`
+	Revision string `json:"Revision"`
+	Policy   string `json:"Policy"`
+}
 
 func (o AssertionObjective) Identity() ObjectiveIdentity {
 	return ObjectiveIdentity{
@@ -99,37 +103,38 @@ func (o AssertionObjective) Identity() ObjectiveIdentity {
 		ScaleRevision:       "binary-v1",
 		Minimum:             0,
 		Maximum:             1,
-		Direction:           "higher",
+		Direction:           directionHigher,
 		EligibilityRevision: "all-declared-v1",
 		MissingnessRevision: "all-repeats-required-v1",
-		AggregationRevision: "repeat-mean-case-mean-v1",
+		AggregationRevision: "repeat-mean-case-mean-v1", SourceGrader: "", SourceMetric: "",
 	}
 }
 func (o AssertionObjective) Validate() error {
-	if o.Policy != "all" && o.Policy != "any" {
+	if o.Policy != assertionAll && o.Policy != assertionAny {
 		return ErrInvalid
 	}
 	return ValidateObjectiveIdentity(o.Identity())
 }
 func (o AssertionObjective) Eligible(CaseIdentity) (Eligibility, error) {
-	return Eligibility{Eligible: true}, nil
+	return Eligibility{Eligible: true, Reason: ""}, nil
 }
 func (o AssertionObjective) Measure(t TrialRecord) (Measurement, error) {
 	pass, scored := AssertionOutcome(t.Grades, o.Policy)
 	if !scored {
-		return Measurement{Reason: "assertions_unavailable"}, nil
+		return Measurement{Reason: "assertions_unavailable", Present: false, Value: 0}, nil
 	}
 	v := 0.0
 	if pass {
 		v = 1
 	}
-	return Measurement{Present: true, Value: v}, nil
+	return Measurement{Present: true, Value: v, Reason: ""}, nil
 }
 
 // NumericObjective selects one metric without normalization or cross-unit averaging.
 type NumericObjective struct {
-	Descriptor           ObjectiveIdentity
-	GraderID, MetricName string
+	Descriptor ObjectiveIdentity `json:"Descriptor"`
+	GraderID   string            `json:"GraderID"`
+	MetricName string            `json:"MetricName"`
 }
 
 func (o NumericObjective) Identity() ObjectiveIdentity {
@@ -145,7 +150,7 @@ func (o NumericObjective) Validate() error {
 	return ValidateObjectiveIdentity(o.Descriptor)
 }
 func (o NumericObjective) Eligible(CaseIdentity) (Eligibility, error) {
-	return Eligibility{Eligible: true}, nil
+	return Eligibility{Eligible: true, Reason: ""}, nil
 }
 func (o NumericObjective) Measure(t TrialRecord) (Measurement, error) {
 	for _, g := range t.Grades {
@@ -153,7 +158,7 @@ func (o NumericObjective) Measure(t TrialRecord) (Measurement, error) {
 			continue
 		}
 		if g.Status != Scored {
-			return Measurement{Reason: "metric_grader_unavailable"}, nil
+			return Measurement{Reason: "metric_grader_unavailable", Present: false, Value: 0}, nil
 		}
 		for _, m := range g.Metrics {
 			if m.Name != o.MetricName {
@@ -165,10 +170,10 @@ func (o NumericObjective) Measure(t TrialRecord) (Measurement, error) {
 				m.Direction != i.Direction {
 				return Measurement{}, ErrConflict
 			}
-			v := Measurement{Present: true, Value: m.Value}
+			v := Measurement{Present: true, Value: m.Value, Reason: ""}
 			return v, ValidateMeasurement(i, v)
 		}
-		return Measurement{Reason: "metric_missing"}, nil
+		return Measurement{Reason: "metric_missing", Present: false, Value: 0}, nil
 	}
-	return Measurement{Reason: "metric_grader_missing"}, nil
+	return Measurement{Reason: "metric_grader_missing", Present: false, Value: 0}, nil
 }

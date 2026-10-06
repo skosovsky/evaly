@@ -46,15 +46,34 @@ func Evidence(t *testing.T, open func() (*evaly.Capture, error)) {
 		t.Fatal(e)
 	}
 	ctx := context.Background()
-	if e = c.Record(ctx, evaly.Event{Version: 1, Sequence: 1, Kind: "tool"}); e != nil {
+	if e = c.Record(
+		ctx,
+		evaly.Event{Version: 1, Sequence: 1, Kind: "tool", CorrelationID: "", Payload: nil, References: nil},
+	); e != nil {
 		t.Fatal(e)
 	}
-	_ = c.Record(ctx, evaly.Event{Version: 1, Sequence: 3, Kind: "tool"})
+	_ = c.Record(
+		ctx,
+		evaly.Event{
+			Version:       1,
+			Sequence:      protocolSteps,
+			Kind:          "tool",
+			CorrelationID: "",
+			Payload:       nil,
+			References:    nil,
+		},
+	)
 	r := c.Seal()
 	if evaly.ValidateEvidence(r) != nil || evaly.CompleteFor(r, "tool") {
 		t.Fatal("gap claimed complete", r)
 	}
-	if e = c.Record(ctx, evaly.Event{}); !errors.Is(e, evaly.ErrClosed) {
+	if e = c.Record(
+		ctx,
+		evaly.Event{Version: 0, Sequence: 0, Kind: "", CorrelationID: "", Payload: nil, References: nil},
+	); !errors.Is(
+		e,
+		evaly.ErrClosed,
+	) {
 		t.Fatal("write after seal", e)
 	}
 	r.Events = nil
@@ -100,14 +119,14 @@ func Scenario[S, O any](
 		context.Background(),
 		driver,
 		initial,
-		evaly.ScenarioPlan{Mode: "replay", MaxSteps: 3, Timeout: time.Second},
+		evaly.ScenarioPlan{Mode: "replay", MaxSteps: protocolSteps, Timeout: time.Second, Seed: 0, Generation: nil},
 		sc,
 		oc,
 	)
 	if e != nil {
 		t.Fatal(e)
 	}
-	if r.Version != 2 || r.StateStep != r.Steps || r.Steps > 3 || r.Driver != driver.Revision() {
+	if r.Version != 2 || r.StateStep != r.Steps || r.Steps > protocolSteps || r.Driver != driver.Revision() {
 		t.Fatal("unbounded/unversioned scenario", r)
 	}
 	restored, e := evaly.RestoreScenario(r, sc, oc)
@@ -168,7 +187,6 @@ func Proposal[T, I, R any](t *testing.T, p optimizer.Proposer[T, I, R], request 
 	if _, err := p.Propose(ctx, request); !errors.Is(err, context.Canceled) {
 		t.Fatal("proposal ignores cancellation", err)
 	}
-
 }
 func HoldoutLedger(t *testing.T, l optimizer.HoldoutLedger) {
 	t.Helper()
@@ -236,6 +254,7 @@ func Constraints[T any](t *testing.T, p optimizer.Constraints[T], value T, summa
 	}
 }
 func FeedbackProjection(t *testing.T, p optimizer.FeedbackProjector, e optimizer.Evaluation) {
+	var zeroUsage evaly.Usage
 	t.Helper()
 	if err := evaly.ValidatePort(p); err != nil {
 		t.Fatal(err)
@@ -246,9 +265,21 @@ func FeedbackProjection(t *testing.T, p optimizer.FeedbackProjector, e optimizer
 	}
 	if err := evaly.ValidateGrade(
 		evaly.Grade{
-			Revision:     evaly.GraderRevision{ID: "reference-check", Implementation: "1", Rubric: "1"},
+			Revision: evaly.GraderRevision{
+				ID:             "reference-check",
+				Implementation: "1",
+				Rubric:         "1",
+				Model:          "",
+				Prompt:         "",
+				Configuration:  "",
+			},
 			Status:       evaly.NotApplicable,
 			EvidenceRefs: refs,
+			Dispatched:   false,
+			Metrics:      nil,
+			Assertions:   nil,
+			Reasons:      nil,
+			Usage:        zeroUsage,
 		},
 	); err != nil {
 		t.Fatal("unsafe projected reference", err)

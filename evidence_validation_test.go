@@ -80,7 +80,7 @@ func TestCaptureDiagnosticsAreBounded(t *testing.T) {
 type deadlineStep struct{}
 
 func (deadlineStep) Revision() string { return "deadline-step-v1" }
-func (deadlineStep) Step(ctx context.Context, s int, execution ScenarioContext) (int, int, bool, error) {
+func (deadlineStep) Step(ctx context.Context, s int, _ ScenarioContext) (int, int, bool, error) {
 	<-ctx.Done()
 	return s + 1, 1, true, nil
 }

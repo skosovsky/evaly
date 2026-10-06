@@ -2,6 +2,7 @@ package optimizer_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/skosovsky/evaly"
@@ -22,7 +23,7 @@ func TestSearchRoundTripKeepsTypedCandidates(t *testing.T) {
 		t.Fatalf("restore: %v", err)
 	}
 	result.Version = 3
-	if _, err = optimizer.RestoreResult(result, config.Codec); err != evaly.ErrUnsupported {
+	if _, err = optimizer.RestoreResult(result, config.Codec); !errors.Is(err, evaly.ErrUnsupported) {
 		t.Fatalf("old version: %v", err)
 	}
 }

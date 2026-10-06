@@ -37,7 +37,20 @@ func RunScenario[S, O any](
 	sc Codec[S],
 	oc Codec[O],
 ) (ScenarioRecord, error) {
-	r := ScenarioRecord{Version: 2, Plan: p, Outputs: []json.RawMessage{}}
+	var zeroCodecIdentity CodecIdentity
+	r := ScenarioRecord{
+		Version:     2,
+		Plan:        p,
+		Outputs:     []json.RawMessage{},
+		Revision:    "",
+		Driver:      "",
+		StateCodec:  zeroCodecIdentity,
+		OutputCodec: zeroCodecIdentity,
+		State:       nil,
+		Steps:       0,
+		StateStep:   0,
+		Stop:        "",
+	}
 	for _, port := range []any{driver, sc, oc} {
 		if err := ValidatePort(port); err != nil {
 			return r, err
@@ -45,7 +58,7 @@ func RunScenario[S, O any](
 	}
 	if driver == nil || driver.Revision() == "" || sc == nil || oc == nil || p.MaxSteps <= 0 || p.MaxSteps > 10000 ||
 		p.Timeout <= 0 ||
-		(p.Mode != "search" && p.Mode != "replay") {
+		(p.Mode != searchMode && p.Mode != replayMode) {
 		return r, ErrInvalid
 	}
 	if p.Generation != nil && (p.Generation.Mode != p.Mode || p.Generation.Generator == "") {
@@ -67,55 +80,17 @@ func RunScenario[S, O any](
 	}
 	ctx, cancel := context.WithTimeout(ctx, p.Timeout)
 	defer cancel()
-	r.Stop = "step_limit"
+	r.Stop = scenarioStepLimit
 	var executionErr error
 	for step := range p.MaxSteps {
 		if e := ctx.Err(); e != nil {
-			r.Stop = "deadline"
+			r.Stop = scenarioDeadline
 			executionErr = e
 			break
 		}
-		next, o, done, e := driver.Step(ctx, state, ScenarioContext{Seed: p.Seed, Mode: p.Mode, Step: step})
-		state = next
-		r.Steps++
-		stateBytes, stateErr := sc.Encode(state)
-		if stateErr == nil {
-			stateBytes, stateErr = CanonicalJSON(stateBytes)
-		}
-		if stateErr == nil {
-			r.State = stateBytes
-			r.StateStep = r.Steps
-		}
-		b, encodeErr := oc.Encode(o)
-		if encodeErr != nil {
-			r.Stop = "codec_error"
-			executionErr = encodeErr
-			break
-		}
-		b, encodeErr = CanonicalJSON(b)
-		if encodeErr != nil {
-			r.Stop = "codec_error"
-			executionErr = encodeErr
-			break
-		}
-		r.Outputs = append(r.Outputs, append(json.RawMessage(nil), b...))
-		if stateErr != nil {
-			r.Stop = "codec_error"
-			executionErr = stateErr
-			break
-		}
-		if ctx.Err() != nil {
-			r.Stop = "deadline"
-			executionErr = ctx.Err()
-			break
-		}
-		if e != nil {
-			r.Stop = "error"
-			executionErr = e
-			break
-		}
+		done, stepErr := executeScenarioStep(ctx, driver, &state, p, sc, oc, step, &r)
 		if done {
-			r.Stop = "completed"
+			executionErr = stepErr
 			break
 		}
 	}
@@ -168,19 +143,21 @@ func DraftFromScenario[I, R any](c Case[I, R], p Generation, trajectory Scenario
 	if err := validateScenario(trajectory); err != nil {
 		return DatasetDraft[I, R]{}, err
 	}
-	if trajectory.Plan.Mode != "search" || p.Generator == "" {
+	if trajectory.Plan.Mode != searchMode || p.Generator == "" {
 		return DatasetDraft[I, R]{}, ErrInvalid
 	}
 	p.LabelValidated = false
-	p.Mode = "search"
+	p.Mode = searchMode
 	p.DriverRevision = trajectory.Driver
 	p.TrajectoryRevision = trajectory.Revision
 	c.Generation = &p
 	c.Revision = ""
-	return DatasetDraft[I, R]{Cases: []Case[I, R]{c}, Selection: "all"}, nil
+	return DatasetDraft[I, R]{Cases: []Case[I, R]{c}, Selection: assertionAll, ParentRevision:
+
+	// Integrity hashes are not substitutes for trajectory semantics.
+	""}, nil
 }
 
-// Integrity hashes are not substitutes for trajectory semantics.
 func validateScenario(r ScenarioRecord) error {
 	if r.Version != 2 {
 		return ErrUnsupported
@@ -192,38 +169,17 @@ func validateScenario(r ScenarioRecord) error {
 		r.StateCodec.Version == "" ||
 		r.OutputCodec.ID == "" ||
 		r.OutputCodec.Version == "" ||
-		(r.Plan.Mode != "search" && r.Plan.Mode != "replay") {
+		(r.Plan.Mode != searchMode && r.Plan.Mode != replayMode) {
 		return ErrInvalid
 	}
 	if r.Plan.Generation != nil && (r.Plan.Generation.Mode != r.Plan.Mode || r.Plan.Generation.Generator == "") {
 		return ErrInvalid
 	}
-	if r.Stop != "codec_error" && r.StateStep != r.Steps {
+	if r.Stop != scenarioCodecError && r.StateStep != r.Steps {
 		return ErrInvalid
 	}
-	switch r.Stop {
-	case "completed", "error":
-		if r.Steps == 0 || len(r.Outputs) != r.Steps {
-			return ErrInvalid
-		}
-	case "step_limit":
-		if r.Steps != r.Plan.MaxSteps || len(r.Outputs) != r.Steps {
-			return ErrInvalid
-		}
-	case "deadline":
-		if len(r.Outputs) != r.Steps {
-			return ErrInvalid
-		}
-	case "codec_error":
-		if len(r.Outputs) == r.Steps && r.StateStep == r.Steps {
-			return ErrInvalid
-		}
-		if r.Steps == 0 || (len(r.Outputs) != r.Steps-1 && len(r.Outputs) != r.Steps) ||
-			(r.StateStep != r.Steps && r.StateStep != r.Steps-1) {
-			return ErrInvalid
-		}
-	default:
-		return ErrUnsupported
+	if err := validateScenarioStop(r); err != nil {
+		return err
 	}
 	if _, err := CanonicalJSON(r.State); err != nil {
 		return err
@@ -238,6 +194,91 @@ func validateScenario(r ScenarioRecord) error {
 	b, err := canonical(r)
 	if err != nil || digest(b) != rev {
 		return ErrCorrupt
+	}
+	return nil
+}
+
+func executeScenarioStep[S, O any](
+	ctx context.Context,
+	driver ScenarioStep[S, O],
+	state *S,
+	p ScenarioPlan,
+	sc Codec[S],
+	oc Codec[O],
+	step int,
+	r *ScenarioRecord,
+) (bool, error) {
+	var executionErr error
+	next, o, done, e := driver.Step(ctx, *state, ScenarioContext{Seed: p.Seed, Mode: p.Mode, Step: step})
+	*state = next
+	r.Steps++
+	stateBytes, stateErr := sc.Encode(*state)
+	if stateErr == nil {
+		stateBytes, stateErr = CanonicalJSON(stateBytes)
+	}
+	if stateErr == nil {
+		r.State = stateBytes
+		r.StateStep = r.Steps
+	}
+	b, encodeErr := oc.Encode(o)
+	if encodeErr != nil {
+		r.Stop = scenarioCodecError
+		executionErr = encodeErr
+		return true, executionErr
+	}
+	b, encodeErr = CanonicalJSON(b)
+	if encodeErr != nil {
+		r.Stop = scenarioCodecError
+		executionErr = encodeErr
+		return true, executionErr
+	}
+	r.Outputs = append(r.Outputs, append(json.RawMessage(nil), b...))
+	if stateErr != nil {
+		r.Stop = scenarioCodecError
+		executionErr = stateErr
+		return true, executionErr
+	}
+	if ctx.Err() != nil {
+		r.Stop = scenarioDeadline
+		executionErr = ctx.Err()
+		return true, executionErr
+	}
+	if e != nil {
+		r.Stop = scenarioError
+		executionErr = e
+		return true, executionErr
+	}
+	if done {
+		r.Stop = completedState
+		return true, executionErr
+	}
+	return false, nil
+}
+
+func validateScenarioStop(r ScenarioRecord) error {
+	switch r.Stop {
+	case completedState, scenarioError:
+		if r.Steps == 0 || len(r.Outputs) != r.Steps {
+			return ErrInvalid
+		}
+	case scenarioStepLimit:
+		if r.Steps != r.Plan.MaxSteps || len(r.Outputs) != r.Steps {
+			return ErrInvalid
+		}
+	case scenarioDeadline:
+		if len(r.Outputs) != r.Steps {
+			return ErrInvalid
+		}
+	case scenarioCodecError:
+		if len(r.Outputs) == r.Steps && r.StateStep == r.Steps {
+			return ErrInvalid
+		}
+		if r.Steps == 0 || (len(r.Outputs) != r.Steps-1 && len(r.Outputs) != r.Steps) ||
+			(r.StateStep != r.Steps && r.StateStep != r.Steps-1) {
+			return ErrInvalid
+		}
+	default:
+		return ErrUnsupported
 	}
 	return nil
 }

@@ -20,6 +20,10 @@ func ValidatePort(port any) error {
 		if value.IsNil() {
 			return ErrInvalid
 		}
+	case reflect.Invalid, reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.
+
+		// ValidateCodecIdentity validates an identity without executing a codec.
+		Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr, reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128, reflect.Array, reflect.String, reflect.Struct, reflect.UnsafePointer:
 	}
 	if validator, ok := port.(StructuralValidator); ok {
 		return validator.Validate()
@@ -27,7 +31,6 @@ func ValidatePort(port any) error {
 	return nil
 }
 
-// ValidateCodecIdentity validates an identity without executing a codec.
 func ValidateCodecIdentity(identity CodecIdentity) error {
 	if identity.ID == "" || identity.Version == "" {
 		return ErrInvalid
@@ -74,7 +77,7 @@ func ValidateRunConfig[I, O, R, E any](c RunConfig[I, O, R, E]) error {
 			return err
 		}
 	}
-	if c.Dataset.record.State != "sealed" {
+	if c.Dataset.record.State != sealedState {
 		return ErrUnsealed
 	}
 	if c.Dataset.input == nil || c.Dataset.reference == nil ||
@@ -92,6 +95,10 @@ func ValidateRunConfig[I, O, R, E any](c RunConfig[I, O, R, E]) error {
 	if life.Fixture == "" || life.Reset == "" || (life.Isolation != Isolated && life.Isolation != SerialShared) {
 		return ErrInvalid
 	}
+	return validateRunGrading(c)
+}
+
+func validateRunGrading[I, O, R, E any](c RunConfig[I, O, R, E]) error {
 	revisions := make([]GraderRevision, 0, len(c.Graders))
 	for _, g := range c.Graders {
 		if err := ValidatePort(g); err != nil {

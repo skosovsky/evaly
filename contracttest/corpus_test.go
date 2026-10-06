@@ -118,55 +118,10 @@ func schemaMutations(doc any, schema map[string]any, path []any) []mutation {
 			}
 		}
 	}
-	if enum, ok := schema["enum"].([]any); ok && len(enum) > 0 {
-		out = append(out, mutation{"enum", path, "unsupported-corpus-value", false})
-	}
-	if _, ok := schema["const"]; ok {
-		out = append(out, mutation{"version", path, json.Number("999"), false})
-	}
-	if length, ok := schema["maxLength"].(json.Number); ok {
-		n, _ := length.Int64()
-		if n >= 0 && n < 10000 {
-			out = append(out, mutation{"max_length", path, strings.Repeat("x", int(n)+1), false})
-		}
-	}
-	for _, bound := range []string{"minimum", "maximum"} {
-		if n, ok := schema[bound].(json.Number); ok {
-			f, _ := n.Float64()
-			if bound == "minimum" {
-				f--
-			} else {
-				f++
-			}
-			out = append(out, mutation{bound, path, f, false})
-		}
-	}
+	out = append(out, schemaBoundMutations(schema, path)...)
 	switch v := doc.(type) {
 	case map[string]any:
-		props, owned := schema["properties"].(map[string]any)
-		if !owned {
-			return out
-		} // Domain raw JSON and host extension maps are opaque.
-		out = append(out, mutation{"unknown", appendPath(path, "corpus_unknown"), true, false})
-		if required, ok := schema["required"].([]any); ok {
-			for _, key := range required {
-				out = append(out, mutation{"missing", appendPath(path, key.(string)), nil, true})
-			}
-		}
-		keys := make([]string, 0, len(v))
-		for key := range v {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
-		for _, key := range keys {
-			field, ok := props[key].(map[string]any)
-			if !ok {
-				continue
-			}
-			p := appendPath(path, key)
-			out = append(out, mutation{"null", p, nil, false})
-			out = append(out, schemaMutations(v[key], field, p)...)
-		}
+		out = append(out, objectMutations(v, schema, path)...)
 	case []any:
 		item, ok := schema["items"].(map[string]any)
 		if ok && len(v) > 0 {
@@ -227,28 +182,8 @@ func applyMutation(doc any, m mutation) any {
 // without a public restore API are covered by typed structural DecodeWire.
 func restorePositive(name string, raw []byte) error {
 	switch name {
-	case "comparison-policy":
-		v, e := evaly.DecodeWire[evaly.ComparisonPolicy](raw)
-		if e != nil {
-			return e
-		}
-		_, e = v.Resolve()
-		return e
-
-	case "search":
-		v, e := evaly.DecodeWire[optimizer.Result](raw)
-		if e != nil {
-			return e
-		}
-		_, e = optimizer.RestoreResult(v, evaly.JSONCodec[int]{ID: "integer", Version: "1"})
-		return e
-	case "candidate":
-		v, e := evaly.DecodeWire[optimizer.CandidateRecord](raw)
-		if e != nil {
-			return e
-		}
-		_, e = optimizer.RestoreCandidate(v, evaly.JSONCodec[int]{ID: "integer", Version: "1"})
-		return e
+	case "comparison-policy", "search", "candidate":
+		return restoreSearchPositive(name, raw)
 	case "calibration":
 		v, e := evaly.DecodeWire[evaly.CalibrationReport](raw)
 		if e != nil {
@@ -315,65 +250,7 @@ func TestSharedStructuralCorpus(t *testing.T) {
 	}
 	for name, value := range values {
 		t.Run(name, func(t *testing.T) {
-			raw, e := json.Marshal(value)
-			if e != nil {
-				t.Fatal(e)
-			}
-			engine := compile(t, name)
-			schemaBytes, e := os.ReadFile(wireSchemaPath(name))
-			if e != nil {
-				t.Fatal(e)
-			}
-			schema := decodeDocument(t, schemaBytes).(map[string]any)
-			mutations := schemaMutations(decodeDocument(t, raw), schema, nil)
-			coverage := map[string]int{}
-			check := func(label string, b []byte) {
-				t.Helper()
-				doc := decodeDocument(t, b)
-				schemaErr := engine.Validate(doc)
-				runtimeErr := runtimeDecode(name, b)
-				if (schemaErr == nil) != (runtimeErr == nil) {
-					t.Fatalf("%s parity mismatch\nschema: %v\nruntime: %v\n%s", label, schemaErr, runtimeErr, b)
-				}
-			}
-			// Act / Assert: positives and targeted absent/null/zero/unknown/enum/version/limit negatives agree.
-			check("positive", raw)
-			if e := restorePositive(name, raw); e != nil {
-				t.Fatalf("semantic restore positive: %v", e)
-			}
-			for i, m := range mutations {
-				coverage[m.label]++
-				doc := applyMutation(decodeDocument(t, raw), m)
-				b, e := json.Marshal(doc)
-				if e != nil {
-					t.Fatal(e)
-				}
-				check(fmt.Sprintf("%d/%s/%v", i, m.label, m.path), b)
-			}
-			for _, label := range []string{"missing", "null", "zero", "unknown"} {
-				if coverage[label] == 0 {
-					t.Fatalf("missing %s corpus coverage", label)
-				}
-			}
-			// JSON Schema validates parsed instances: duplicate-key ambiguity is a byte-level
-			// decoder invariant. The independent engine cannot recover discarded duplicates.
-			doc := decodeDocument(t, raw).(map[string]any)
-			keys := make([]string, 0, len(doc))
-			for k := range doc {
-				keys = append(keys, k)
-			}
-			sort.Strings(keys)
-			key, _ := json.Marshal(keys[0])
-			val, _ := json.Marshal(doc[keys[0]])
-			duplicate := append([]byte{'{'}, key...)
-			duplicate = append(duplicate, ':')
-			duplicate = append(duplicate, val...)
-			duplicate = append(duplicate, ',')
-			duplicate = append(duplicate, raw[1:]...)
-			if e := runtimeDecode(name, duplicate); e == nil {
-				t.Fatal("runtime accepted duplicate root key")
-			}
-			t.Logf("%d structural mutations; coverage %v", len(mutations), coverage)
+			checkStructuralCorpus(t, name, value)
 		})
 	}
 }
@@ -452,4 +329,160 @@ func TestSemanticChecksumRemainsSeparateFromStructuralContract(t *testing.T) {
 			}
 		})
 	}
+}
+
+func schemaBoundMutations(schema map[string]any, path []any) []mutation {
+	var out []mutation
+	if enum, ok := schema["enum"].([]any); ok && len(enum) > 0 {
+		out = append(out, mutation{"enum", path, "unsupported-corpus-value", false})
+	}
+	if _, ok := schema["const"]; ok {
+		out = append(out, mutation{"version", path, json.Number("999"), false})
+	}
+	if length, ok := schema["maxLength"].(json.Number); ok {
+		n, _ := length.Int64()
+		if n >= 0 && n < 10000 {
+			out = append(out, mutation{"max_length", path, strings.Repeat("x", int(n)+1), false})
+		}
+	}
+	for _, bound := range []string{"minimum", "maximum"} {
+		if n, ok := schema[bound].(json.Number); ok {
+			f, _ := n.Float64()
+			if bound == "minimum" {
+				f--
+			} else {
+				f++
+			}
+			out = append(out, mutation{bound, path, f, false})
+		}
+	}
+	return out
+}
+
+func objectMutations(v map[string]any, schema map[string]any, path []any) []mutation {
+	var out []mutation
+
+	props, owned := schema["properties"].(map[string]any)
+	if !owned {
+		return out
+	} // Domain raw JSON and host extension maps are opaque.
+	out = append(out, mutation{"unknown", appendPath(path, "corpus_unknown"), true, false})
+	if required, ok := schema["required"].([]any); ok {
+		for _, key := range required {
+			out = append(out, mutation{"missing", appendPath(path, key.(string)), nil, true})
+		}
+	}
+	keys := make([]string, 0, len(v))
+	for key := range v {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		field, ok := props[key].(map[string]any)
+		if !ok {
+			continue
+		}
+		p := appendPath(path, key)
+		out = append(out, mutation{"null", p, nil, false})
+		out = append(out, schemaMutations(v[key], field, p)...)
+	}
+	return out
+}
+
+func restoreSearchPositive(name string, raw []byte) error {
+	switch name {
+	case "comparison-policy":
+		v, e := evaly.DecodeWire[evaly.ComparisonPolicy](raw)
+		if e != nil {
+			return e
+		}
+		_, e = v.Resolve()
+		return e
+
+	case "search":
+		v, e := evaly.DecodeWire[optimizer.Result](raw)
+		if e != nil {
+			return e
+		}
+		_, e = optimizer.RestoreResult(v, evaly.JSONCodec[int]{ID: "integer", Version: "1"})
+		return e
+	case "candidate":
+		v, e := evaly.DecodeWire[optimizer.CandidateRecord](raw)
+		if e != nil {
+			return e
+		}
+		_, e = optimizer.RestoreCandidate(v, evaly.JSONCodec[int]{ID: "integer", Version: "1"})
+		return e
+	default:
+		return nil
+	}
+}
+
+func checkStructuralCorpus(t *testing.T, name string, value any) {
+	t.Helper()
+	raw, e := json.Marshal(value)
+	if e != nil {
+		t.Fatal(e)
+	}
+	engine := compile(t, name)
+	schemaBytes, e := os.ReadFile(wireSchemaPath(name))
+	if e != nil {
+		t.Fatal(e)
+	}
+	schema := decodeDocument(t, schemaBytes).(map[string]any)
+	mutations := schemaMutations(decodeDocument(t, raw), schema, nil)
+	coverage := map[string]int{}
+	check := func(label string, b []byte) {
+		t.Helper()
+		doc := decodeDocument(t, b)
+		schemaErr := engine.Validate(doc)
+		runtimeErr := runtimeDecode(name, b)
+		if (schemaErr == nil) != (runtimeErr == nil) {
+			t.Fatalf("%s parity mismatch\nschema: %v\nruntime: %v\n%s", label, schemaErr, runtimeErr, b)
+		}
+	}
+	// Act / Assert: positives and targeted absent/null/zero/unknown/enum/version/limit negatives agree.
+	check("positive", raw)
+	if e := restorePositive(name, raw); e != nil {
+		t.Fatalf("semantic restore positive: %v", e)
+	}
+	for i, m := range mutations {
+		coverage[m.label]++
+		doc := applyMutation(decodeDocument(t, raw), m)
+		b, e := json.Marshal(doc)
+		if e != nil {
+			t.Fatal(e)
+		}
+		check(fmt.Sprintf("%d/%s/%v", i, m.label, m.path), b)
+	}
+	for _, label := range []string{"missing", "null", "zero", "unknown"} {
+		if coverage[label] == 0 {
+			t.Fatalf("missing %s corpus coverage", label)
+		}
+	}
+	// JSON Schema validates parsed instances: duplicate-key ambiguity is a byte-level
+	// decoder invariant. The independent engine cannot recover discarded duplicates.
+	duplicate := duplicateRootKey(t, raw)
+	if e := runtimeDecode(name, duplicate); e == nil {
+		t.Fatal("runtime accepted duplicate root key")
+	}
+	t.Logf("%d structural mutations; coverage %v", len(mutations), coverage)
+}
+
+func duplicateRootKey(t *testing.T, raw []byte) []byte {
+	t.Helper()
+	doc := decodeDocument(t, raw).(map[string]any)
+	keys := make([]string, 0, len(doc))
+	for k := range doc {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	key, _ := json.Marshal(keys[0])
+	val, _ := json.Marshal(doc[keys[0]])
+	duplicate := append([]byte{'{'}, key...)
+	duplicate = append(duplicate, ':')
+	duplicate = append(duplicate, val...)
+	duplicate = append(duplicate, ',')
+	duplicate = append(duplicate, raw[1:]...)
+	return duplicate
 }

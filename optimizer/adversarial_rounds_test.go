@@ -11,6 +11,7 @@ import (
 
 type cancellingClaim struct {
 	evaly.Budget
+
 	cancel context.CancelFunc
 }
 

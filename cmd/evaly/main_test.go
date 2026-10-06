@@ -41,19 +41,7 @@ func TestCLIExitCodesAndSealedBaseline(t *testing.T) {
 		if args[0] == "compare" {
 			args = append(args, "--policy", policyFile)
 		}
-		cmd := exec.Command(bin, args...)
-		b, e := cmd.CombinedOutput()
-		code := 0
-		exit := &exec.ExitError{}
-		if errors.As(e, &exit) {
-			code = exit.ExitCode()
-		} else if e != nil {
-			t.Fatal(e)
-		}
-		if code != want {
-			t.Fatalf("exit %d want %d: %s", code, want, b)
-		}
-		return b
+		return runCLICommand(t, bin, want, args)
 	}
 	// Act / Assert.
 	for _, behavior := range []string{"good", "bad", "partial", "judge-error"} {
@@ -205,4 +193,21 @@ func TestCLINumericPolicyForHostTarget(t *testing.T) {
 		!bytes.Contains(output, []byte("evaly pass")) {
 		t.Fatalf("incorrect host report: %s", output)
 	}
+}
+
+func runCLICommand(t *testing.T, bin string, want int, args []string) []byte {
+	t.Helper()
+	cmd := exec.Command(bin, args...)
+	b, e := cmd.CombinedOutput()
+	code := 0
+	exit := &exec.ExitError{}
+	if errors.As(e, &exit) {
+		code = exit.ExitCode()
+	} else if e != nil {
+		t.Fatal(e)
+	}
+	if code != want {
+		t.Fatalf("exit %d want %d: %s", code, want, b)
+	}
+	return b
 }

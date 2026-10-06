@@ -197,7 +197,13 @@ over high observed quality. Quality thresholds, delta, regression and uncertaint
 use the same matched case set. Product thresholds are not significance tests.
 
 Uncertainty method: seeded paired case bootstrap, percentile interval for mean case
-difference (default 95%). Assumes independent representative cases; repeated trials
+difference (default 95%). `Interval.Method` identifies
+`paired_case_bootstrap_percentile_pcg_v2`: local `math/rand/v2` PCG, with
+`uint64(seed)` preserving the signed seed's two's-complement bits as the first
+word and zero as the second. Percentile indices use floor(0.025 × (samples−1))
+and ceil(0.975 × (samples−1)). Bootstrap samples differ from the legacy generator;
+paired schedules retain the unchanged `case-repeat-v1` SplitMix64 mapping.
+Assumes independent representative cases; repeated trials
 are averaged within case. No matched pairs -> no interval; one pair -> degenerate
 interval explicitly labeled insufficient independent cases. Multiple comparisons
 are exploratory without a correction; optimizer does not claim significance or

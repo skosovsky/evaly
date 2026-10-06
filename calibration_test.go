@@ -132,13 +132,13 @@ func TestCalibrationRejectsMalformedUnlabeledAndDuplicates(t *testing.T) {
 		mutate func(*[]evaly.CalibrationLabel, *[]evaly.CalibrationRecord)
 		want   error
 	}{
-		{"duplicate_label", func(l *[]evaly.CalibrationLabel, r *[]evaly.CalibrationRecord) { *l = append(*l, (*l)[0]) }, evaly.ErrConflict},
-		{"duplicate_record", func(l *[]evaly.CalibrationLabel, r *[]evaly.CalibrationRecord) { *r = append(*r, (*r)[0]) }, evaly.ErrConflict},
-		{"empty_case", func(l *[]evaly.CalibrationLabel, r *[]evaly.CalibrationRecord) { (*l)[0].CaseRevision = "" }, evaly.ErrInvalid},
-		{"duplicate_group", func(l *[]evaly.CalibrationLabel, r *[]evaly.CalibrationRecord) { (*l)[0].Groups = []string{"a", "a"} }, evaly.ErrConflict},
-		{"empty_group", func(l *[]evaly.CalibrationLabel, r *[]evaly.CalibrationRecord) { (*l)[0].Groups = []string{""} }, evaly.ErrInvalid},
-		{"invalid_unlabeled", func(l *[]evaly.CalibrationLabel, r *[]evaly.CalibrationRecord) { (*r)[4].Grade.Usage.Units = -1 }, evaly.ErrInvalid},
-		{"wrong_revision", func(l *[]evaly.CalibrationLabel, r *[]evaly.CalibrationRecord) {
+		{"duplicate_label", func(l *[]evaly.CalibrationLabel, _ *[]evaly.CalibrationRecord) { *l = append(*l, (*l)[0]) }, evaly.ErrConflict},
+		{"duplicate_record", func(_ *[]evaly.CalibrationLabel, r *[]evaly.CalibrationRecord) { *r = append(*r, (*r)[0]) }, evaly.ErrConflict},
+		{"empty_case", func(l *[]evaly.CalibrationLabel, _ *[]evaly.CalibrationRecord) { (*l)[0].CaseRevision = "" }, evaly.ErrInvalid},
+		{"duplicate_group", func(l *[]evaly.CalibrationLabel, _ *[]evaly.CalibrationRecord) { (*l)[0].Groups = []string{"a", "a"} }, evaly.ErrConflict},
+		{"empty_group", func(l *[]evaly.CalibrationLabel, _ *[]evaly.CalibrationRecord) { (*l)[0].Groups = []string{""} }, evaly.ErrInvalid},
+		{"invalid_unlabeled", func(_ *[]evaly.CalibrationLabel, r *[]evaly.CalibrationRecord) { (*r)[4].Grade.Usage.Units = -1 }, evaly.ErrInvalid},
+		{"wrong_revision", func(_ *[]evaly.CalibrationLabel, r *[]evaly.CalibrationRecord) {
 			(*r)[0].Grade.Revision.Rubric = "different"
 		}, evaly.ErrConflict},
 	} {

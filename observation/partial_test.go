@@ -50,84 +50,17 @@ func (b failedReconcile) Reconcile(context.Context, evaly.Reservation, evaly.Usa
 func TestPartialAssessmentRetainsPaidResults(t *testing.T) {
 	for _, mode := range []string{"budget", "reconcile", "deadline"} {
 		t.Run(mode, func(t *testing.T) {
-			// Arrange.
-			calls := 0
-			clock := &fakeClock{now: time.Unix(1, 0)}
-			memory, _ := evaly.NewMemoryBudget(1)
-			var budget evaly.Budget = memory
-			if mode == "reconcile" {
-				budget = failedReconcile{memory}
-			}
-			makeGrader := func(id string) evaly.Grader[int, string, int] {
-				return evaly.GraderFunc[int, string, int]{
-					Identity: evaly.GraderRevision{ID: id, Implementation: "1", Rubric: "1"},
-					Evaluate: func(context.Context, evaly.View[int, string, int]) (evaly.Grade, error) {
-						calls++
-						if mode == "deadline" {
-							clock.advance(2 * time.Minute)
-						}
-						return evaly.Grade{
-							Status:     evaly.Scored,
-							Assertions: []evaly.Assertion{{Name: "ok", Pass: true}},
-							Usage:      evaly.Usage{Known: true, Units: 1},
-						}, nil
-					},
-				}
-			}
-			graders := []evaly.Grader[int, string, int]{makeGrader("a"), makeGrader("b")}
-			if mode == "reconcile" {
-				graders = graders[:1]
-			}
-			w, e := observation.Start(
-				context.Background(),
-				observation.Config[int, string, int]{
-					Capacity:    1,
-					Concurrency: 1,
-					Deadline:    time.Minute,
-					Clock:       clock,
-					Graders:     graders,
-					Budget:      budget,
-					GraderUnits: 1,
-				},
-			)
-			if e != nil {
-				t.Fatal(e)
-			}
-			defer w.Cancel(context.Background())
-			obs, _ := observation.New(
-				"partial",
-				"parent",
-				observation.Sampling{Rule: "all", Population: "test", Window: "1"},
-				saved(t, true),
-			)
-			// Act.
-			future, status := w.Enqueue(obs)
-			if status != "accepted" {
-				t.Fatal(status)
-			}
-			r := <-future.Result
-			// Assert.
-			if calls != 1 || len(r.Assessment.Grades) != 1 || r.Assessment.State != "partial" ||
-				r.Assessment.StopReason == "" ||
-				r.Assessment.Grades[0].Usage.Units != 1 ||
-				evaly.ValidateAssessment(r.Assessment) != nil ||
-				r.Version != 3 {
-				t.Fatal(calls, r)
-			}
-			if mode == "reconcile" && len(r.Assessment.Skipped) != 0 {
-				t.Fatal(r)
-			}
-			if mode != "reconcile" && len(r.Assessment.Skipped) != 1 {
-				t.Fatal(r)
-			}
-		})
+			checkPartialAssessmentRetainsPaidResults(t, &mode)
+		},
+		)
 	}
 }
 
 type cancelDecode struct {
+	evaly.JSONCodec[int]
+
 	enabled *atomic.Bool
 	cancel  context.CancelFunc
-	evaly.JSONCodec[int]
 }
 
 func (c cancelDecode) Decode(b []byte) (int, error) {
@@ -141,7 +74,7 @@ func TestCancelledDuringRescorePreflightRetainsCanonicalAssessment(t *testing.T)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	enabled := &atomic.Bool{}
-	codec := cancelDecode{enabled: enabled, cancel: cancel, JSONCodec: evaly.JSONCodec[int]{ID: "input", Version: "1"}}
+	codec := cancelDecode{enabled: enabled, cancel: cancel, ID: "input", Version: "1"}
 	base := saved(t, true)
 	view, e := base.View()
 	if e != nil {
@@ -247,5 +180,80 @@ func TestStartRejectsInvalidBuiltInGradingPorts(t *testing.T) {
 				t.Fatal(w, e, calls)
 			}
 		})
+	}
+}
+func checkPartialAssessmentRetainsPaidResults(t *testing.T, mode *string) {
+	t.Helper()
+	// Arrange.
+	calls := 0
+	clock := &fakeClock{now: time.Unix(1, 0)}
+	memory, _ := evaly.NewMemoryBudget(1)
+	var budget evaly.Budget = memory
+	if (*mode) == "reconcile" {
+		budget = failedReconcile{memory}
+	}
+	makeGrader := func(id string) evaly.Grader[int, string, int] {
+		return evaly.GraderFunc[int, string, int]{
+			Identity: evaly.GraderRevision{ID: id, Implementation: "1", Rubric: "1"},
+			Evaluate: func(context.Context, evaly.View[int, string, int]) (evaly.Grade, error) {
+				calls++
+				if (*mode) == "deadline" {
+					clock.advance(2 * time.Minute)
+				}
+				return evaly.Grade{
+					Status:     evaly.Scored,
+					Assertions: []evaly.Assertion{{Name: "ok", Pass: true}},
+					Usage:      evaly.Usage{Known: true, Units: 1},
+				}, nil
+			},
+		}
+	}
+	graders := []evaly.Grader[int, string, int]{makeGrader("a"), makeGrader("b")}
+	if (*mode) == "reconcile" {
+		graders = graders[:1]
+	}
+	w, e := observation.Start(
+		context.Background(),
+		observation.Config[int, string, int]{
+			Capacity:    1,
+			Concurrency: 1,
+			Deadline:    time.Minute,
+			Clock:       clock,
+			Graders:     graders,
+			Budget:      budget,
+			GraderUnits: 1,
+		},
+	)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer w.Cancel(context.Background())
+	obs, _ := observation.New(
+		"partial",
+		"parent",
+		observation.Sampling{Rule: "all", Population: "test", Window: "1"},
+		saved(t, true),
+	)
+
+	// Act.
+	future, status := w.Enqueue(obs)
+	// Assert.
+	if status != "accepted" {
+		t.Fatal(status)
+	}
+	r := <-future.Result
+
+	if calls != 1 || len(r.Assessment.Grades) != 1 || r.Assessment.State != "partial" ||
+		r.Assessment.StopReason == "" ||
+		r.Assessment.Grades[0].Usage.Units != 1 ||
+		evaly.ValidateAssessment(r.Assessment) != nil ||
+		r.Version != 3 {
+		t.Fatal(calls, r)
+	}
+	if (*mode) == "reconcile" && len(r.Assessment.Skipped) != 0 {
+		t.Fatal(r)
+	}
+	if (*mode) != "reconcile" && len(r.Assessment.Skipped) != 1 {
+		t.Fatal(r)
 	}
 }

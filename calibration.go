@@ -4,13 +4,13 @@ import "sort"
 
 // CalibrationLabel contains one host supplied human label and optional opaque slices.
 type CalibrationLabel struct {
-	CaseRevision string
-	Pass         bool
-	Groups       []string
+	CaseRevision string   `json:"CaseRevision"`
+	Pass         bool     `json:"Pass"`
+	Groups       []string `json:"Groups"`
 }
 type CalibrationRecord struct {
-	CaseRevision string
-	Grade        Grade
+	CaseRevision string `json:"CaseRevision"`
+	Grade        Grade  `json:"Grade"`
 }
 type CalibrationCounts struct {
 	Eligible       int `json:"eligible"`
@@ -59,31 +59,15 @@ type CalibrationReport struct {
 
 // Calibrate reports binary assertion predictions; missing labels never become predictions.
 func Calibrate(rev GraderRevision, labels []CalibrationLabel, records []CalibrationRecord) (CalibrationReport, error) {
+	var zeroCalibrationCounts CalibrationCounts
+	var zeroCalibrationRates CalibrationRates
 	var zero CalibrationReport
 	if err := ValidateGraderRevisions([]GraderRevision{rev}); err != nil {
 		return zero, err
 	}
-	expected := make(map[string]CalibrationLabel, len(labels))
-	groups := map[string][]CalibrationLabel{}
-	for _, l := range labels {
-		if l.CaseRevision == "" {
-			return zero, ErrInvalid
-		}
-		if _, ok := expected[l.CaseRevision]; ok {
-			return zero, ErrConflict
-		}
-		seen := map[string]bool{}
-		for _, group := range l.Groups {
-			if group == "" {
-				return zero, ErrInvalid
-			}
-			if seen[group] {
-				return zero, ErrConflict
-			}
-			seen[group] = true
-			groups[group] = append(groups[group], l)
-		}
-		expected[l.CaseRevision] = l
+	expected, groups, err := calibrationLabels(labels)
+	if err != nil {
+		return zero, err
 	}
 	observed := make(map[string]Grade, len(records))
 	for _, record := range records {
@@ -96,12 +80,19 @@ func Calibrate(rev GraderRevision, labels []CalibrationLabel, records []Calibrat
 		if _, ok := observed[record.CaseRevision]; ok {
 			return zero, ErrConflict
 		}
-		if err := ValidateGrade(record.Grade); err != nil {
-			return zero, err
+		if gradeErr := ValidateGrade(record.Grade); gradeErr != nil {
+			return zero, gradeErr
 		}
 		observed[record.CaseRevision] = record.Grade
 	}
-	r := CalibrationReport{Version: 1, Grader: rev, Groups: make([]CalibrationGroupReport, 0, len(groups))}
+	r := CalibrationReport{
+		Version:  1,
+		Grader:   rev,
+		Groups:   make([]CalibrationGroupReport, 0, len(groups)),
+		Revision: "",
+		Counts:   zeroCalibrationCounts,
+		Rates:    zeroCalibrationRates,
+	}
 	r.Counts = calibrationCounts(expected, observed)
 	r.Rates = calibrationRates(r.Counts)
 	for name, members := range groups {
@@ -126,7 +117,20 @@ func Calibrate(rev GraderRevision, labels []CalibrationLabel, records []Calibrat
 }
 
 func calibrationCounts(labels map[string]CalibrationLabel, records map[string]Grade) CalibrationCounts {
-	c := CalibrationCounts{Eligible: len(labels), Labeled: len(labels)}
+	c := CalibrationCounts{
+		Eligible:       len(labels),
+		Labeled:        len(labels),
+		Reviewed:       0,
+		TP:             0,
+		TN:             0,
+		FP:             0,
+		FN:             0,
+		Unreviewed:     0,
+		MissingLabels:  0,
+		MissingRecords: 0,
+		Errors:         0,
+		Abstentions:    0,
+	}
 	for key := range labels {
 		if _, ok := records[key]; !ok {
 			c.MissingRecords++
@@ -138,7 +142,7 @@ func calibrationCounts(labels map[string]CalibrationLabel, records map[string]Gr
 			c.Eligible++
 			c.MissingLabels++
 		}
-		prediction, binary := AssertionOutcome([]Grade{g}, "all")
+		prediction, binary := AssertionOutcome([]Grade{g}, assertionAll)
 		if g.Status == GraderError {
 			c.Errors++
 		} else if !binary {
@@ -163,7 +167,7 @@ func calibrationCounts(labels map[string]CalibrationLabel, records map[string]Gr
 	return c
 }
 func calibrationRate(n, d int) CalibrationRate {
-	r := CalibrationRate{Numerator: n, Denominator: d}
+	r := CalibrationRate{Numerator: n, Denominator: d, Value: nil}
 	if d > 0 {
 		value := float64(n) / float64(d)
 		r.Value = &value
@@ -300,4 +304,30 @@ func calibrationSum(total int, values ...int) bool {
 		total -= value
 	}
 	return total == 0
+}
+
+func calibrationLabels(labels []CalibrationLabel) (map[string]CalibrationLabel, map[string][]CalibrationLabel, error) {
+	expected := make(map[string]CalibrationLabel, len(labels))
+	groups := map[string][]CalibrationLabel{}
+	for _, l := range labels {
+		if l.CaseRevision == "" {
+			return nil, nil, ErrInvalid
+		}
+		if _, ok := expected[l.CaseRevision]; ok {
+			return nil, nil, ErrConflict
+		}
+		seen := map[string]bool{}
+		for _, group := range l.Groups {
+			if group == "" {
+				return nil, nil, ErrInvalid
+			}
+			if seen[group] {
+				return nil, nil, ErrConflict
+			}
+			seen[group] = true
+			groups[group] = append(groups[group], l)
+		}
+		expected[l.CaseRevision] = l
+	}
+	return expected, groups, nil
 }

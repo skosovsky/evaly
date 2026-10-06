@@ -135,6 +135,7 @@ func TestPairedBoundedConcurrencyAndWithinSlotOrder(t *testing.T) {
 		func(ctx context.Context, i input, tc evaly.TrialContext[*int]) (evaly.TargetResult[int], error) {
 			n := active.Add(1)
 			for prior := maximum.Load(); n > prior && !maximum.CompareAndSwap(prior, n); prior = maximum.Load() {
+				continue
 			}
 			defer active.Add(-1)
 			parts := strings.Split(tc.ID, "/")
@@ -162,65 +163,72 @@ func TestPairedBoundedConcurrencyAndWithinSlotOrder(t *testing.T) {
 func TestPairedCancellationAndSharedBudgetRetainEverySlot(t *testing.T) {
 	for _, stop := range []string{"cancel", "budget", "infrastructure"} {
 		t.Run(stop, func(t *testing.T) {
-			// Arrange.
-			b, c := config(t, 3), config(t, 3)
-			b.ID, c.ID = "baseline", "candidate"
-			b.Plan.Concurrency, c.Plan.Concurrency = 1, 1
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			var calls int
-			old := b.Target
-			target := evaly.TargetFunc[input, int, *int](
-				func(ctx context.Context, i input, tc evaly.TrialContext[*int]) (evaly.TargetResult[int], error) {
-					calls++
-					if stop == "cancel" && calls == 3 {
-						cancel()
-					}
-					return old.Run(ctx, i, tc)
-				},
-			)
-			b.Target, c.Target = target, target
-			if stop == "budget" {
-				budget, err := evaly.NewMemoryBudget(2)
-				if err != nil {
-					t.Fatal(err)
-				}
-				b.Budget, c.Budget = budget, budget
+			checkPairedCancellationAndSharedBudgetRetainEverySlot(t, &stop)
+		},
+		)
+	}
+}
+func checkPairedCancellationAndSharedBudgetRetainEverySlot(t *testing.T, stop *string) {
+	t.Helper()
+	// Arrange.
+	b, c := config(t, 3), config(t, 3)
+	b.ID, c.ID = "baseline", "candidate"
+	b.Plan.Concurrency, c.Plan.Concurrency = 1, 1
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var calls int
+	old := b.Target
+	target := evaly.TargetFunc[input, int, *int](
+		func(ctx context.Context, i input, tc evaly.TrialContext[*int]) (evaly.TargetResult[int], error) {
+			calls++
+			if (*stop) == "cancel" && calls == 3 {
+				cancel()
 			}
-			if stop == "infrastructure" {
-				b.Plan.StopOnInfrastructure, c.Plan.StopOnInfrastructure = true, true
-				life := b.Lifecycle.(evaly.LifecycleFuncs[*int])
-				life.CleanupFunc = func(context.Context, *int) error { return errors.New("cleanup unavailable") }
-				b.Lifecycle, c.Lifecycle = life, life
+			return old.Run(ctx, i, tc)
+		},
+	)
+	b.Target, c.Target = target, target
+	if (*stop) == "budget" {
+		budget, err := evaly.NewMemoryBudget(2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b.Budget, c.Budget = budget, budget
+	}
+	if (*stop) == "infrastructure" {
+		b.Plan.StopOnInfrastructure, c.Plan.StopOnInfrastructure = true, true
+		life := b.Lifecycle.(evaly.LifecycleFuncs[*int])
+		life.CleanupFunc = func(context.Context, *int) error { return errors.New("cleanup unavailable") }
+		b.Lifecycle, c.Lifecycle = life, life
+	}
+
+	// Act.
+	be, ce, err := evaly.RunPaired(ctx, b, c, "pair")
+
+	// Assert.
+	if err != nil {
+		t.Fatal(err)
+	}
+	br, cr := be.Record(), ce.Record()
+	if len(br.Trials) != 3 || len(cr.Trials) != 3 || len(br.Manifest.PairSchedule.Slots) != 3 {
+		t.Fatal("lost scheduled slots", br, cr)
+	}
+	wantCalls := map[string]int{"cancel": 3, "budget": 2, "infrastructure": 1}[(*stop)]
+	if calls != wantCalls {
+		t.Fatal((*stop), calls)
+	}
+	known := 0
+	for _, record := range []evaly.ExperimentRecord{br, cr} {
+		if _, restoreErr := evaly.RestoreExperiment(record); restoreErr != nil {
+			t.Fatal(restoreErr)
+		}
+		for _, trial := range record.Trials {
+			if trial.TargetUsage.Known {
+				known++
 			}
-			// Act.
-			be, ce, err := evaly.RunPaired(ctx, b, c, "pair")
-			// Assert.
-			if err != nil {
-				t.Fatal(err)
-			}
-			br, cr := be.Record(), ce.Record()
-			if len(br.Trials) != 3 || len(cr.Trials) != 3 || len(br.Manifest.PairSchedule.Slots) != 3 {
-				t.Fatal("lost scheduled slots", br, cr)
-			}
-			wantCalls := map[string]int{"cancel": 3, "budget": 2, "infrastructure": 1}[stop]
-			if calls != wantCalls {
-				t.Fatal(stop, calls)
-			}
-			known := 0
-			for _, record := range []evaly.ExperimentRecord{br, cr} {
-				if _, restoreErr := evaly.RestoreExperiment(record); restoreErr != nil {
-					t.Fatal(restoreErr)
-				}
-				for _, trial := range record.Trials {
-					if trial.TargetUsage.Known {
-						known++
-					}
-				}
-			}
-			if known != wantCalls {
-				t.Fatal("lost known paid usage", known, wantCalls)
-			}
-		})
+		}
+	}
+	if known != wantCalls {
+		t.Fatal("lost known paid usage", known, wantCalls)
 	}
 }

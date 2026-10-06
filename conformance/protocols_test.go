@@ -16,20 +16,20 @@ type draftGenerator struct{}
 func (draftGenerator) Provenance() evaly.Generation {
 	return evaly.Generation{ParentCase: "parent", Generator: "scripted", Model: "scripted", Mode: "search"}
 }
-func (draftGenerator) Generate(ctx context.Context, p []evaly.Case[int, int]) ([]evaly.Case[int, int], error) {
+func (draftGenerator) Generate(ctx context.Context, _ []evaly.Case[int, int]) ([]evaly.Case[int, int], error) {
 	return []evaly.Case[int, int]{{ID: "child", Input: 2}}, ctx.Err()
 }
 
 type stepper struct{}
 
 func (stepper) Revision() string { return "step-v1" }
-func (stepper) Step(ctx context.Context, s int, execution evaly.ScenarioContext) (int, int, bool, error) {
+func (stepper) Step(ctx context.Context, s int, _ evaly.ScenarioContext) (int, int, bool, error) {
 	return s + 1, s + 1, false, ctx.Err()
 }
 
 type pairJudge struct{}
 
-func (pairJudge) JudgePair(ctx context.Context, r evaly.PairRequest[string]) (evaly.PairJudgment, error) {
+func (pairJudge) JudgePair(ctx context.Context, _ evaly.PairRequest[string]) (evaly.PairJudgment, error) {
 	return evaly.PairJudgment{Preferred: "abstain"}, ctx.Err()
 }
 func TestProtocolReferenceConformance(t *testing.T) {
@@ -63,7 +63,7 @@ func TestProtocolReferenceConformance(t *testing.T) {
 	t.Run("scenario", func(t *testing.T) { conformance.Scenario(t, stepper{}, 0, codec, codec) })
 	t.Run("judge", func(t *testing.T) {
 		j := evaly.ScriptedJudge[int, string, int]{
-			Evaluate: func(ctx context.Context, r evaly.JudgeRequest[int, string, int]) (evaly.Grade, error) {
+			Evaluate: func(ctx context.Context, _ evaly.JudgeRequest[int, string, int]) (evaly.Grade, error) {
 				return evaly.Grade{
 					Status:     evaly.Scored,
 					Assertions: []evaly.Assertion{{Name: "approved", Pass: true}},
@@ -95,7 +95,7 @@ func TestProtocolReferenceConformance(t *testing.T) {
 		}
 		p := optimizer.ProposalFunc[int, int, int]{
 			Identity: "scripted",
-			Generate: func(ctx context.Context, r optimizer.ProposalRequest[int, int]) (optimizer.ProposalResult[int], error) {
+			Generate: func(ctx context.Context, _ optimizer.ProposalRequest[int, int]) (optimizer.ProposalResult[int], error) {
 				return optimizer.ProposalResult[int]{
 					Candidates: []optimizer.Proposal[int]{{ID: "candidate", Value: 1}},
 					Usage:      evaly.Usage{Known: true},

@@ -55,100 +55,21 @@ func workflowHTTP(t *testing.T, c *workflowConfig, s *fixtures.WorkflowStore, mo
 func TestWorkflowTransportSemantics(t *testing.T) {
 	for _, mode := range []string{"refund", "alternative", "text-only", "tool-error", "effect-error"} {
 		t.Run(mode, func(t *testing.T) {
-			// Arrange: both paths execute the same host tool implementation.
-			var records []evaly.TrialRecord
-			for _, transport := range []string{"inprocess", "http"} {
-				c, s, err := fixtures.WorkflowConfig(mode+"-"+transport, mode)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if transport == "http" {
-					workflowHTTP(t, &c, s, mode, false)
-				}
-				// Act.
-				e, err := evaly.Run(context.Background(), c)
-				if err != nil {
-					t.Fatal(err)
-				}
-				records = append(records, e.Record().Trials[0])
-				// Assert: actual state, rather than confident text, is observed.
-				audit, active, calls, prepared, cleaned := s.Snapshot()
-				if active != 0 || calls != 1 || prepared != 1 || cleaned != 1 {
-					t.Fatal(audit, active, calls, prepared, cleaned)
-				}
-				expected := mode == "refund" || mode == "alternative" || mode == "effect-error"
-				if (len(audit) == 1) != expected {
-					t.Fatal(audit, mode)
-				}
-				grades := records[len(records)-1].Grades
-				if mode == "tool-error" || mode == "effect-error" {
-					projection := savedWorkflow(t, c, e)
-					grades = evaly.Assess(context.Background(), c.Graders, projection.View)
-				}
-				if len(grades) != 2 || grades[0].Status != evaly.Scored || len(grades[0].Assertions) != 1 ||
-					grades[0].Assertions[0].Pass != expected {
-					t.Fatal(grades, mode)
-				}
-			}
-			a, b := records[0], records[1]
-			if a.Status != b.Status || a.TargetUsage != b.TargetUsage || !reflect.DeepEqual(a.Grades, b.Grades) ||
-				!reflect.DeepEqual(a.Evidence.Events, b.Evidence.Events) {
-				t.Fatal("transport changed domain semantics", a, b)
-			}
-			if mode == "effect-error" &&
-				(a.Status != evaly.TargetError || a.TargetUsage.Units != 2 || len(a.Evidence.Events) != 3) {
-				t.Fatal(a)
-			}
-		})
+			checkWorkflowTransportSemantics(
+				// Arrange: both paths execute the same host tool implementation.
+				t, &mode)
+		},
+
+		// Act.
+
+		// Assert: actual state, rather than confident text, is observed.
+
+		)
 	}
 }
 func TestWorkflowTargetFailureConformance(t *testing.T) {
 	for _, transport := range []string{"inprocess", "http"} {
-		t.Run(transport, func(t *testing.T) {
-			conformance.TargetFailures(
-				t,
-				func(fault conformance.TargetFailure) (conformance.TargetFault[fixtures.WorkflowInput, fixtures.WorkflowOutput, int, *fixtures.WorkflowEnvironment], error) {
-					c, s, err := fixtures.WorkflowConfig("failure-"+transport+"-"+string(fault), "effect-error")
-					if err != nil {
-						return conformance.TargetFault[fixtures.WorkflowInput, fixtures.WorkflowOutput, int, *fixtures.WorkflowEnvironment]{}, err
-					}
-					if transport == "http" {
-						workflowHTTP(t, &c, s, "effect-error", fault == conformance.IncompleteDelivery)
-					} else if fault == conformance.IncompleteDelivery {
-						underlying := c.Target
-						c.Target = evaly.TargetFunc[fixtures.WorkflowInput, fixtures.WorkflowOutput, *fixtures.WorkflowEnvironment](
-							func(ctx context.Context, i fixtures.WorkflowInput, tc evaly.TrialContext[*fixtures.WorkflowEnvironment]) (evaly.TargetResult[fixtures.WorkflowOutput], error) {
-								r, e := underlying.Run(ctx, i, tc)
-								tc.Evidence.MarkIncomplete("connection_interrupted")
-								return r, e
-							},
-						)
-					}
-					return conformance.TargetFault[fixtures.WorkflowInput, fixtures.WorkflowOutput, int, *fixtures.WorkflowEnvironment]{
-						Config:        c,
-						ExpectedUsage: evaly.Usage{Known: true, Units: 2},
-						Kind:          "tool",
-						Verify: func(t *testing.T, e evaly.Experiment, err error) {
-							audit, active, calls, prepared, cleaned := s.Snapshot()
-							if len(audit) != 1 || active != 0 || calls != 1 || prepared != 1 || cleaned != 1 {
-								t.Fatal(audit, active, calls, prepared, cleaned)
-							}
-							for _, state := range audit {
-								if state.Refunded != 100 {
-									t.Fatal(state)
-								}
-							}
-							projection := savedWorkflow(t, c, e)
-							grades := evaly.Assess(context.Background(), c.Graders, projection.View)
-							if fault == conformance.IncompleteDelivery &&
-								(len(grades) != 2 || grades[1].Status != evaly.InsufficientEvidence) {
-								t.Fatal("forbidden-action absence must remain unproved", e.Record())
-							}
-						},
-					}, nil
-				},
-			)
-		})
+		t.Run(transport, func(t *testing.T) { checkWorkflowTargetFailureConformance(t, &transport) })
 	}
 }
 func TestWorkflowTransportDisconnectCannotProveAbsence(t *testing.T) {
@@ -195,44 +116,9 @@ func TestWorkflowBudgetCancellationAndIsolation(t *testing.T) {
 	for _, transport := range []string{"inprocess", "http"} {
 		for _, stop := range []string{"budget", "cancel", "isolation"} {
 			t.Run(transport+"-"+stop, func(t *testing.T) {
-				// Arrange.
-				c, s, _ := fixtures.WorkflowConfig("bounded-"+transport+"-"+stop, "refund")
-				if transport == "http" {
-					workflowHTTP(t, &c, s, "refund", false)
-				}
-				ctx, cancel := context.WithCancel(context.Background())
-				defer cancel()
-				if stop == "budget" {
-					c.Budget, _ = evaly.NewMemoryBudget(0)
-					c.Plan.DispatchUnits = 2
-				}
-				if stop == "cancel" {
-					cancel()
-				}
-				if stop == "isolation" {
-					c.Plan.Repeats = 2
-					c.Plan.Concurrency = 2
-				}
-				// Act.
-				e, err := evaly.Run(ctx, c)
-				// Assert.
-				audit, active, calls, prepared, cleaned := s.Snapshot()
-				if active != 0 || prepared != cleaned {
-					t.Fatal(active, prepared, cleaned)
-				}
-				if stop == "isolation" {
-					if err != nil || calls != 2 || len(audit) != 2 {
-						t.Fatal(err, calls, audit)
-					}
-					for _, state := range audit {
-						if state.Refunded != 100 {
-							t.Fatal("namespace leaked prior action", state)
-						}
-					}
-				} else if calls != 0 || len(audit) != 0 {
-					t.Fatal("paid target dispatched after stop", calls, audit, e.Record(), err)
-				}
-			})
+				checkWorkflowBudgetCancellationAndIsolation(t, &transport, &stop)
+			},
+			)
 		}
 	}
 }
@@ -425,5 +311,160 @@ func TestWorkflowOnlinePartialAssessment(t *testing.T) {
 		prepared != 1 ||
 		cleaned != 1 {
 		t.Fatal(a, calls, prepared, cleaned)
+	}
+}
+func checkWorkflowTransportSemantics(t *testing.T, mode *string) {
+	t.Helper()
+	// Arrange.
+	var records []evaly.TrialRecord
+	for _, transport := range []string{"inprocess", "http"} {
+		c, s, err := fixtures.WorkflowConfig((*mode)+"-"+transport, (*mode))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if transport == "http" {
+			workflowHTTP(t, &c, s, (*mode), false)
+		}
+
+		// Act.
+		e, err := evaly.Run(context.Background(), c)
+		// Assert.
+		if err != nil {
+			t.Fatal(err)
+		}
+		records = append(records, e.Record().Trials[0])
+
+		expected := checkWorkflowStore(t, *mode, s)
+		grades := records[len(records)-1].Grades
+		if (*mode) == "tool-error" || (*mode) == "effect-error" {
+			projection := savedWorkflow(t, c, e)
+			grades = evaly.Assess(context.Background(), c.Graders, projection.View)
+		}
+		if len(grades) != 2 || grades[0].Status != evaly.Scored || len(grades[0].Assertions) != 1 ||
+			grades[0].Assertions[0].Pass != expected {
+			t.Fatal(grades, (*mode))
+		}
+	}
+	a, b := records[0], records[1]
+	if a.Status != b.Status || a.TargetUsage != b.TargetUsage || !reflect.DeepEqual(a.Grades, b.Grades) ||
+		!reflect.DeepEqual(a.Evidence.Events, b.Evidence.Events) {
+		t.Fatal("transport changed domain semantics", a, b)
+	}
+	if (*mode) == "effect-error" &&
+		(a.Status != evaly.TargetError || a.TargetUsage.Units != 2 || len(a.Evidence.Events) != 3) {
+		t.Fatal(a)
+	}
+}
+
+func checkWorkflowTargetFailureConformance(t *testing.T, transport *string) {
+	t.Helper()
+	// Arrange.
+	conformance.TargetFailures(
+		t,
+		func(fault conformance.TargetFailure) (conformance.TargetFault[fixtures.WorkflowInput, fixtures.WorkflowOutput, int, *fixtures.WorkflowEnvironment], error) {
+			c, s, err := fixtures.WorkflowConfig("failure-"+(*transport)+"-"+string(fault), "effect-error")
+			if err != nil {
+				return conformance.TargetFault[fixtures.WorkflowInput, fixtures.WorkflowOutput, int, *fixtures.WorkflowEnvironment]{}, err
+			}
+			if (*transport) == "http" {
+				workflowHTTP(t, &c, s, "effect-error", fault == conformance.IncompleteDelivery)
+			} else if fault == conformance.IncompleteDelivery {
+				underlying := c.Target
+				c.Target = evaly.TargetFunc[fixtures.WorkflowInput, fixtures.WorkflowOutput, *fixtures.WorkflowEnvironment](
+					func(ctx context.Context, i fixtures.WorkflowInput, tc evaly.TrialContext[*fixtures.WorkflowEnvironment]) (evaly.TargetResult[fixtures.WorkflowOutput], error) {
+						r, e := underlying.Run(ctx, i, tc)
+						tc.Evidence.MarkIncomplete("connection_interrupted")
+						return r, e
+					},
+				)
+			}
+			return conformance.TargetFault[fixtures.WorkflowInput, fixtures.WorkflowOutput, int, *fixtures.WorkflowEnvironment]{
+				Config:        c,
+				ExpectedUsage: evaly.Usage{Known: true, Units: 2},
+				Kind:          "tool",
+				Verify: func(t *testing.T, e evaly.Experiment, _ error) {
+					checkWorkflowFailureEffects(t, c, s, e, fault)
+				},
+			}, nil
+		},
+	)
+}
+
+func checkWorkflowBudgetCancellationAndIsolation(t *testing.T, transport *string, stop *string) {
+	t.Helper()
+	// Arrange.
+	c, s, _ := fixtures.WorkflowConfig("bounded-"+(*transport)+"-"+(*stop), "refund")
+	if (*transport) == "http" {
+		workflowHTTP(t, &c, s, "refund", false)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if (*stop) == "budget" {
+		c.Budget, _ = evaly.NewMemoryBudget(0)
+		c.Plan.DispatchUnits = 2
+	}
+	if (*stop) == "cancel" {
+		cancel()
+	}
+	if (*stop) == "isolation" {
+		c.Plan.Repeats = 2
+		c.Plan.Concurrency = 2
+	}
+
+	e, err := evaly.Run(ctx, c)
+
+	audit, active, calls, prepared, cleaned := s.Snapshot()
+	if active != 0 || prepared != cleaned {
+		t.Fatal(active, prepared, cleaned)
+	}
+	if (*stop) == "isolation" {
+		if err != nil || calls != 2 || len(audit) != 2 {
+			t.Fatal(err, calls, audit)
+		}
+		for _, state := range audit {
+			if state.Refunded != 100 {
+				t.Fatal("namespace leaked prior action", state)
+			}
+		}
+	} else if calls != 0 || len(audit) != 0 {
+		t.Fatal("paid target dispatched after stop", calls, audit, e.Record(), err)
+	}
+}
+
+func checkWorkflowStore(t *testing.T, mode string, s *fixtures.WorkflowStore) bool {
+	t.Helper()
+	audit, active, calls, prepared, cleaned := s.Snapshot()
+	if active != 0 || calls != 1 || prepared != 1 || cleaned != 1 {
+		t.Fatal(audit, active, calls, prepared, cleaned)
+	}
+	expected := mode == "refund" || mode == "alternative" || mode == "effect-error"
+	if (len(audit) == 1) != expected {
+		t.Fatal(audit, mode)
+	}
+	return expected
+}
+
+func checkWorkflowFailureEffects(
+	t *testing.T,
+	c evaly.RunConfig[fixtures.WorkflowInput, fixtures.WorkflowOutput, int, *fixtures.WorkflowEnvironment],
+	s *fixtures.WorkflowStore,
+	e evaly.Experiment,
+	fault conformance.TargetFailure,
+) {
+	t.Helper()
+	audit, active, calls, prepared, cleaned := s.Snapshot()
+	if len(audit) != 1 || active != 0 || calls != 1 || prepared != 1 || cleaned != 1 {
+		t.Fatal(audit, active, calls, prepared, cleaned)
+	}
+	for _, state := range audit {
+		if state.Refunded != 100 {
+			t.Fatal(state)
+		}
+	}
+	projection := savedWorkflow(t, c, e)
+	grades := evaly.Assess(context.Background(), c.Graders, projection.View)
+	if fault == conformance.IncompleteDelivery &&
+		(len(grades) != 2 || grades[1].Status != evaly.InsufficientEvidence) {
+		t.Fatal("forbidden-action absence must remain unproved", e.Record())
 	}
 }

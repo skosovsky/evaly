@@ -12,25 +12,39 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
+	var zeroCalculationOutput fixtures.CalculationOutput
+	var zeroUsage evaly.Usage
 	c, e := fixtures.CalculationConfig("http-example", "good", "")
 	if e != nil {
-		log.Fatal(e)
+		return e
 	}
 	server := httptest.NewServer(
 		httpjson.Handler(
 			fixtures.InputCodec(),
 			fixtures.OutputCodec(),
-			4096,
+			maxHTTPBytes,
 			func(ctx context.Context, i fixtures.Calculation, t httpjson.Trial) (httpjson.Invocation[fixtures.CalculationOutput], error) {
 				if t.Fixture != "calculation-v1" || t.Reset != "empty-v1" {
 					return httpjson.Invocation[fixtures.CalculationOutput]{
-						Evidence: httpjson.EvidenceDelivery{Complete: true},
+						Evidence: httpjson.EvidenceDelivery{
+							Complete: true,
+							Reason:   "",
+						},
+						Output: zeroCalculationOutput,
+						Usage:  zeroUsage,
+						Events: nil,
 					}, evaly.ErrUnsupported
 				}
 				return httpjson.Invocation[fixtures.CalculationOutput]{
 					Output:   fixtures.CalculationOutput{Sum: i.Left + i.Right},
 					Usage:    evaly.Usage{Known: true, Units: 1},
-					Evidence: httpjson.EvidenceDelivery{Complete: true},
+					Evidence: httpjson.EvidenceDelivery{Complete: true, Reason: ""}, Events: nil,
 				}, ctx.Err()
 			},
 		),
@@ -41,13 +55,14 @@ func main() {
 		Client:   server.Client(),
 		Input:    fixtures.InputCodec(),
 		Output:   fixtures.OutputCodec(),
-		MaxBytes: 4096,
+		MaxBytes: maxHTTPBytes,
 		Fixture:  "calculation-v1",
 		Reset:    "empty-v1",
 	}
 	result, e := evaly.Run(context.Background(), c)
 	if e != nil {
-		log.Fatal(e)
+		return e
 	}
 	fmt.Printf("HTTP trials: %d\n", len(result.Record().Trials))
+	return nil
 }

@@ -42,9 +42,9 @@ type CapturePolicy interface {
 // FieldPolicy keeps only explicitly allowed top-level JSON fields. Nested values
 // in allowed fields are host-classified. References default to being removed.
 type FieldPolicy struct {
-	ID             string
-	Allowed        map[string][]string
-	KeepReferences bool
+	ID             string              `json:"ID"`
+	Allowed        map[string][]string `json:"Allowed"`
+	KeepReferences bool                `json:"KeepReferences"`
 }
 
 func (p FieldPolicy) Revision() string { return p.ID }
@@ -127,19 +127,21 @@ type EvidenceSink interface {
 	MarkIncomplete(string)
 }
 type CaptureConfig struct {
-	Policy              CapturePolicy
-	RequiredKinds       []string
-	KnownKinds          []string
-	MaxEvents, MaxBytes int
+	Policy        CapturePolicy `json:"Policy"`
+	RequiredKinds []string      `json:"RequiredKinds"`
+	KnownKinds    []string      `json:"KnownKinds"`
+	MaxEvents     int           `json:"MaxEvents"`
+	MaxBytes      int           `json:"MaxBytes"`
 }
 
 // Capture bounds retained data and seals irreversibly. Record is thread-safe.
 type Capture struct {
-	mu          sync.Mutex
-	config      CaptureConfig
-	record      EvidenceRecord
-	last, bytes int
-	closed      bool
+	mu     sync.Mutex
+	config CaptureConfig
+	record EvidenceRecord
+	last   int
+	bytes  int
+	closed bool
 }
 
 func NewCapture(c CaptureConfig) (*Capture, error) {
@@ -157,7 +159,7 @@ func NewCapture(c CaptureConfig) (*Capture, error) {
 		Policy:          c.Policy.Revision(),
 		Coverage:        map[string]bool{},
 		Events:          []Event{},
-		ReplayAvailable: true,
+		ReplayAvailable: true, Revision: "", Redactions: 0, Truncated: false, Gaps: nil, Errors: nil,
 	}
 	for _, k := range c.KnownKinds {
 		if k == "" {
@@ -170,7 +172,7 @@ func NewCapture(c CaptureConfig) (*Capture, error) {
 			return nil, ErrUnsupported
 		}
 	}
-	return &Capture{config: c, record: r}, nil
+	return &Capture{config: c, record: r, mu: sync.Mutex{}, last: 0, bytes: 0, closed: false}, nil
 }
 func (c *Capture) Record(ctx context.Context, e Event) error {
 	c.mu.Lock()
@@ -178,30 +180,21 @@ func (c *Capture) Record(ctx context.Context, e Event) error {
 	if c.closed {
 		return ErrClosed
 	}
-	fail := func(err error) error {
-		if len(c.record.Errors) < 32 {
-			c.record.Errors = append(c.record.Errors, "capture_error")
-		}
-		for k := range c.record.Coverage {
-			c.record.Coverage[k] = false
-		}
-		return err
-	}
 	if err := ctx.Err(); err != nil {
-		return fail(err)
+		return c.failLocked(err)
 	}
 	if len(e.Payload) > c.config.MaxBytes {
 		c.record.Truncated = true
-		return fail(ErrIncomplete)
+		return c.failLocked(ErrIncomplete)
 	}
 	if e.Version != 1 {
-		return fail(ErrUnsupported)
+		return c.failLocked(ErrUnsupported)
 	}
 	if _, ok := c.record.Coverage[e.Kind]; !ok {
-		return fail(ErrUnsupported)
+		return c.failLocked(ErrUnsupported)
 	}
 	if e.Sequence != c.last+1 {
-		if len(c.record.Gaps) < 32 {
+		if len(c.record.Gaps) < maxEvidenceDiagnostics {
 			c.record.Gaps = append(c.record.Gaps, c.last+1)
 		}
 		for k := range c.record.Coverage {
@@ -209,40 +202,29 @@ func (c *Capture) Record(ctx context.Context, e Event) error {
 		}
 	}
 	if e.Sequence <= c.last {
-		return fail(ErrConflict)
+		return c.failLocked(ErrConflict)
 	}
 	c.last = e.Sequence
 	// A defensive copy prevents a policy mutating caller-owned raw data.
 	raw, err := cloneJSON(e)
 	if err != nil {
-		return fail(ErrInvalid)
+		return c.failLocked(ErrInvalid)
 	}
 	out, err := c.config.Policy.Project(ctx, raw)
 	if err != nil {
-		return fail(err)
+		return c.failLocked(err)
 	}
-	if out.Version != e.Version || out.Sequence != e.Sequence || out.Kind != e.Kind ||
-		out.CorrelationID != e.CorrelationID {
-		return fail(ErrInvalid)
-	}
-	for _, ref := range out.References {
-		if !safeReference(ref) {
-			return fail(ErrInvalid)
-		}
-	}
-	if len(out.Payload) > 0 {
-		out.Payload, err = CanonicalJSON(out.Payload)
-		if err != nil {
-			return fail(err)
-		}
+	out, err = validateProjectedEvent(e, out)
+	if err != nil {
+		return c.failLocked(err)
 	}
 	b, err := canonical(out)
 	if err != nil {
-		return fail(err)
+		return c.failLocked(err)
 	}
 	if len(c.record.Events) >= c.config.MaxEvents || c.bytes+len(b) > c.config.MaxBytes {
 		c.record.Truncated = true
-		return fail(ErrIncomplete)
+		return c.failLocked(ErrIncomplete)
 	}
 	if string(out.Payload) != string(e.Payload) || len(out.References) != len(e.References) {
 		c.record.Redactions++
@@ -250,18 +232,18 @@ func (c *Capture) Record(ctx context.Context, e Event) error {
 	c.bytes += len(b)
 	out, err = cloneJSON(out)
 	if err != nil {
-		return fail(err)
+		return c.failLocked(err)
 	}
 	c.record.Events = append(c.record.Events, out)
 	return nil
 }
-func (c *Capture) MarkIncomplete(reason string) {
+func (c *Capture) MarkIncomplete(_ string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.closed {
 		return
 	}
-	if len(c.record.Errors) < 32 {
+	if len(c.record.Errors) < maxEvidenceDiagnostics {
 		c.record.Errors = append(c.record.Errors, "host_incomplete")
 	}
 	for k := range c.record.Coverage {
@@ -273,9 +255,9 @@ func (c *Capture) Seal() EvidenceRecord {
 	defer c.mu.Unlock()
 	if !c.closed {
 		c.closed = true
-		c.record.State = "sealed"
+		c.record.State = sealedState
 		if len(c.record.Errors) > 0 || len(c.record.Gaps) > 0 || c.record.Truncated {
-			c.record.State = "incomplete"
+			c.record.State = incompleteState
 		}
 		b, err := canonical(c.record)
 		if err != nil {
@@ -290,41 +272,19 @@ func ValidateEvidence(r EvidenceRecord) error {
 	if r.Version != 1 {
 		return ErrUnsupported
 	}
-	if r.State != "sealed" && r.State != "incomplete" {
+	if r.State != sealedState && r.State != incompleteState {
 		return ErrUnsealed
 	}
-	if r.Policy == "" || r.Coverage == nil || r.Redactions < 0 || len(r.Errors) > 32 || len(r.Gaps) > 32 {
+	if r.Policy == "" || r.Coverage == nil || r.Redactions < 0 || len(r.Errors) > maxEvidenceDiagnostics ||
+		len(r.Gaps) > maxEvidenceDiagnostics {
 		return ErrInvalid
 	}
-	if r.State == "sealed" && (len(r.Errors) > 0 || len(r.Gaps) > 0 || r.Truncated || !r.ReplayAvailable) {
+	if r.State == sealedState && (len(r.Errors) > 0 || len(r.Gaps) > 0 || r.Truncated || !r.ReplayAvailable) {
 		return ErrInvalid
 	}
-	last := 0
-	hasGap := false
-	for _, event := range r.Events {
-		if event.Version != 1 {
-			return ErrUnsupported
-		}
-		if _, ok := r.Coverage[event.Kind]; !ok {
-			return ErrUnsupported
-		}
-		if event.Sequence <= last {
-			return ErrConflict
-		}
-		if event.Sequence != last+1 {
-			hasGap = true
-		}
-		last = event.Sequence
-		if len(event.Payload) > 0 {
-			if _, err := CanonicalJSON(event.Payload); err != nil {
-				return err
-			}
-		}
-		for _, ref := range event.References {
-			if !safeReference(ref) {
-				return ErrInvalid
-			}
-		}
+	hasGap, err := validateEvidenceEvents(r)
+	if err != nil {
+		return err
 	}
 	if hasGap && len(r.Gaps) == 0 {
 		return ErrInvalid
@@ -349,4 +309,65 @@ func ValidateEvidence(r EvidenceRecord) error {
 }
 func CompleteFor(e EvidenceRecord, kind string) bool {
 	return ValidateEvidence(e) == nil && e.Coverage[kind] && !e.Truncated
+}
+
+func validateEvidenceEvents(r EvidenceRecord) (bool, error) {
+	last := 0
+	hasGap := false
+	for _, event := range r.Events {
+		if event.Version != 1 {
+			return false, ErrUnsupported
+		}
+		if _, ok := r.Coverage[event.Kind]; !ok {
+			return false, ErrUnsupported
+		}
+		if event.Sequence <= last {
+			return false, ErrConflict
+		}
+		if event.Sequence != last+1 {
+			hasGap = true
+		}
+		last = event.Sequence
+		if len(event.Payload) > 0 {
+			if _, err := CanonicalJSON(event.Payload); err != nil {
+				return false, err
+			}
+		}
+		for _, ref := range event.References {
+			if !safeReference(ref) {
+				return false, ErrInvalid
+			}
+		}
+	}
+	return hasGap, nil
+}
+
+func (c *Capture) failLocked(err error) error {
+	if len(c.record.Errors) < maxEvidenceDiagnostics {
+		c.record.Errors = append(c.record.Errors, "capture_error")
+	}
+	for k := range c.record.Coverage {
+		c.record.Coverage[k] = false
+	}
+	return err
+}
+
+func validateProjectedEvent(e, out Event) (Event, error) {
+	var err error
+	if out.Version != e.Version || out.Sequence != e.Sequence || out.Kind != e.Kind ||
+		out.CorrelationID != e.CorrelationID {
+		return Event{}, ErrInvalid
+	}
+	for _, ref := range out.References {
+		if !safeReference(ref) {
+			return Event{}, ErrInvalid
+		}
+	}
+	if len(out.Payload) > 0 {
+		out.Payload, err = CanonicalJSON(out.Payload)
+		if err != nil {
+			return Event{}, err
+		}
+	}
+	return out, nil
 }

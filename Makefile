@@ -1,22 +1,20 @@
 GO ?= go
-GOLANGCI_LINT ?= golangci-lint
-MODULES := . contracttest
+GOCACHE ?= /tmp/evaly-go-build
+GOPATH ?= /tmp/evaly-gopath
+export GOCACHE GOPATH
+GOLANGCI_LINT_CACHE ?= /tmp/evaly-golangci-cache
+GOLANGCI_LINT_VERSION := v2.14.0
+GOLANGCI_LINT ?= $(GO) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+GOLANGCI_LINT_RUN := env GOLANGCI_LINT_CACHE=$(GOLANGCI_LINT_CACHE) $(GOLANGCI_LINT) run --allow-serial-runners --max-issues-per-linter=0 --max-same-issues=0 --uniq-by-line=false
+MODULES := $(shell find . -type d \( -name ".*" -not -name "." -o -name "vendor" \) -prune -o -type f -name "go.mod" -exec dirname {} \;)
+RELEASE_MODULES := .
 FUZZTIME ?= 30s
-RELEASE_VERSION ?= v0.1.0
+FUZZPARALLEL ?= 2
 
-.PHONY: lint fix fmt fmt-check vet test race validate bench fuzz cover fixtures schemas release
+.PHONY: config-check fmt fmt-check format vet lint fix test validate examples bench fuzz cover schemas fixtures release release-patch release-break
 
-lint:
-	@for dir in $(MODULES); do \
-		echo "golangci-lint - $$dir"; \
-		(cd "$$dir" && $(GOLANGCI_LINT) run --allow-serial-runners ./...) || exit 1; \
-	done
-
-fix:
-	@for dir in $(MODULES); do \
-		echo "fix & tidy - $$dir"; \
-		(cd "$$dir" && $(GO) fix ./... && $(GO) mod tidy && $(GOLANGCI_LINT) fmt && $(GOLANGCI_LINT) run --fix --allow-serial-runners ./...) || exit 1; \
-	done
+config-check:
+	@$(GOLANGCI_LINT) config verify
 
 fmt:
 	@for dir in $(MODULES); do \
@@ -25,13 +23,28 @@ fmt:
 
 fmt-check:
 	@for dir in $(MODULES); do \
-		(cd "$$dir" && diff=$$($(GOLANGCI_LINT) fmt --diff) && \
-			if [ -n "$$diff" ]; then printf '%s\n' "$$diff"; exit 1; fi) || exit 1; \
+		(cd "$$dir" && $(GOLANGCI_LINT) fmt --diff) || exit 1; \
 	done
+
+format: fmt-check
 
 vet:
 	@for dir in $(MODULES); do \
 		(cd "$$dir" && $(GO) vet ./...) || exit 1; \
+	done
+
+lint:
+	@for dir in $(MODULES); do \
+		echo "golangci-lint - $$dir"; \
+		(cd "$$dir" && $(GOLANGCI_LINT_RUN) ./...) || exit 1; \
+	done
+
+fix:
+	@if [ -f "go.work" ]; then $(GO) work sync; fi
+	@for dir in $(MODULES); do \
+		echo "fix & tidy - $$dir"; \
+		(cd "$$dir" && $(GO) fix ./... && $(GO) mod tidy) || exit 1; \
+		(cd "$$dir" && $(GOLANGCI_LINT_RUN) --fix ./...) || exit 1; \
 	done
 
 test:
@@ -40,26 +53,36 @@ test:
 		(cd "$$dir" && $(GO) test -v -race ./...) || exit 1; \
 	done
 
-race: test
+validate: config-check format vet lint test examples
 
-validate: fmt-check vet test
+examples:
+	$(GO) run ./examples/calculation
+	$(GO) run ./examples/crm
+	$(GO) run ./examples/protocols
+	$(GO) run ./examples/http
+	$(GO) run ./examples/observation
+	$(GO) run ./examples/optimizer
+	$(GO) run ./examples/integration
 
 bench:
 	@for dir in $(MODULES); do \
 		echo "bench - $$dir"; \
-		(cd "$$dir" && $(GO) test -bench=. -run='^$$' ./...) || exit 1; \
+		(cd "$$dir" && $(GO) test -bench=. -benchmem -run=^$$ ./...) || exit 1; \
 	done
 
 fuzz:
 	@for dir in $(MODULES); do \
-		echo "fuzz - $$dir"; \
 		(cd "$$dir" && \
-			for pkg in $$($(GO) list -tags=fuzz ./...); do \
-				for target in $$($(GO) test -tags=fuzz -list '^Fuzz' "$$pkg" | sed -n '/^Fuzz/p'); do \
-					$(GO) test -tags=fuzz -fuzz="^$$target$$" -fuzztime=$(FUZZTIME) "$$pkg" || exit 1; \
+			packages=$$($(GO) list -tags=fuzz ./...) && \
+			for pkg in $$packages; do \
+				targets=$$($(GO) test -tags=fuzz -list '^Fuzz' "$$pkg") || exit 1; \
+				for target in $$targets; do \
+					case "$$target" in Fuzz*) \
+						$(GO) test -tags=fuzz -run='^$$' -fuzz="^$$target$$" \
+							-fuzztime=$(FUZZTIME) -parallel=$(FUZZPARALLEL) "$$pkg" || exit 1 ;; \
+					esac; \
 				done; \
-			done \
-		) || exit 1; \
+			done) || exit 1; \
 	done
 
 cover:
@@ -68,11 +91,16 @@ cover:
 		(cd "$$dir" && $(GO) test -coverprofile=coverage.out ./... && $(GO) tool cover -func=coverage.out) || exit 1; \
 	done
 
-fixtures:
-	$(GO) run ./cmd/evaly fixture --store /tmp/evaly-fixtures --id baseline
+release: release-break
+
+release-patch: validate
+	@bash ./scripts/release.sh patch "$(RELEASE_MODULES)"
+
+release-break: validate
+	@bash ./scripts/release.sh break "$(RELEASE_MODULES)"
 
 schemas:
 	$(GO) run ./internal/schemagen
 
-release: validate
-	bash scripts/release.sh "$(RELEASE_VERSION)"
+fixtures:
+	$(GO) run ./cmd/evaly fixture --store /tmp/evaly-fixtures --id baseline

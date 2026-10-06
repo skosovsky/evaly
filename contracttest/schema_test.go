@@ -52,7 +52,7 @@ func instance(t *testing.T, v any) any {
 type steps struct{}
 
 func (steps) Revision() string { return "steps-v1" }
-func (steps) Step(ctx context.Context, s int, execution evaly.ScenarioContext) (int, int, bool, error) {
+func (steps) Step(ctx context.Context, s int, _ evaly.ScenarioContext) (int, int, bool, error) {
 	return s + 1, s + 1, false, ctx.Err()
 }
 func generatedWireValues(t *testing.T) map[string]any {
@@ -281,11 +281,11 @@ func TestGeneratedArtifactsAgainstWireSchemas(t *testing.T) {
 		t.Fatal(e)
 	}
 	var declared struct {
-		Version   int
+		Version   int `json:"Version"`
 		Scenarios []struct {
-			ID       string
-			Expected string
-		}
+			ID       string `json:"ID"`
+			Expected string `json:"Expected"`
+		} `json:"Scenarios"`
 	}
 	if e = json.Unmarshal(fixture, &declared); e != nil || declared.Version != 1 || len(declared.Scenarios) != 10 {
 		t.Fatal("synthetic fixture catalog", e)
@@ -303,19 +303,19 @@ func searchResult(t *testing.T) optimizer.Result {
 	datasets := []evaly.Dataset[fixtures.Calculation, int]{}
 	for _, id := range []string{"train", "calibration", "holdout"} {
 		reference := 3
-		d, e := (evaly.DatasetDraft[fixtures.Calculation, int]{Selection: "all", Cases: []evaly.Case[fixtures.Calculation, int]{{ID: id, Input: fixtures.Calculation{Left: 1, Right: 2}, Reference: &reference}}}).Seal(
+		d, eLocal := (evaly.DatasetDraft[fixtures.Calculation, int]{Selection: "all", Cases: []evaly.Case[fixtures.Calculation, int]{{ID: id, Input: fixtures.Calculation{Left: 1, Right: 2}, Reference: &reference}}}).Seal(
 			fixtures.InputCodec(),
 			fixtures.ReferenceCodec(),
 		)
-		if e != nil {
-			t.Fatal(e)
+		if eLocal != nil {
+			t.Fatal(eLocal)
 		}
 		datasets = append(datasets, d)
 	}
 	evaluate := func(ctx context.Context, req optimizer.EvaluationRequest[int, fixtures.Calculation, int]) (evaly.Experiment, error) {
-		c, e := fixtures.CalculationConfig(req.ExperimentID, "good", "")
-		if e != nil {
-			return evaly.Experiment{}, e
+		c, eLocal := fixtures.CalculationConfig(req.ExperimentID, "good", "")
+		if eLocal != nil {
+			return evaly.Experiment{}, eLocal
 		}
 		c.Dataset = req.Dataset
 		c.Budget = req.Budget

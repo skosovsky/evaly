@@ -9,22 +9,23 @@ import (
 const TieRevision = "candidate-revision-lexical-v1"
 
 type Feasibility struct {
-	Feasible bool
-	Reason   string
+	Feasible bool   `json:"Feasible"`
+	Reason   string `json:"Reason"`
 }
 type EvaluationSummary struct {
-	Verdict       evaly.GateVerdict
-	State, Reason string
-	Quality       *float64
-	Measurement   evaly.Aggregate
+	Verdict     evaly.GateVerdict `json:"Verdict"`
+	State       string            `json:"State"`
+	Reason      string            `json:"Reason"`
+	Quality     *float64          `json:"Quality"`
+	Measurement evaly.Aggregate   `json:"Measurement"`
 }
 type Constraints[T any] interface {
 	Revision() string
 	Check(context.Context, T, EvaluationSummary) (Feasibility, error)
 }
 type ConstraintsFunc[T any] struct {
-	Identity string
-	Assess   func(context.Context, T, EvaluationSummary) (Feasibility, error)
+	Identity string                                                           `json:"Identity"`
+	Assess   func(context.Context, T, EvaluationSummary) (Feasibility, error) `json:"Assess"`
 }
 
 func (c ConstraintsFunc[T]) Revision() string { return c.Identity }
@@ -45,24 +46,28 @@ func (c ConstraintsFunc[T]) Check(ctx context.Context, v T, e EvaluationSummary)
 }
 
 type CandidateLineage struct {
-	ID, Revision, Parent, Algorithm string
-	Codec                           evaly.CodecIdentity
+	ID        string              `json:"ID"`
+	Revision  string              `json:"Revision"`
+	Parent    string              `json:"Parent"`
+	Algorithm string              `json:"Algorithm"`
+	Codec     evaly.CodecIdentity `json:"Codec"`
 }
 type Feedback struct {
-	Candidate     CandidateLineage
-	Round         int
-	State, Reason string
-	Quality       *float64
-	Measurement   evaly.Aggregate
-	References    []string
+	Candidate   CandidateLineage `json:"Candidate"`
+	Round       int              `json:"Round"`
+	State       string           `json:"State"`
+	Reason      string           `json:"Reason"`
+	Quality     *float64         `json:"Quality"`
+	Measurement evaly.Aggregate  `json:"Measurement"`
+	References  []string         `json:"References"`
 }
 type FeedbackProjector interface {
 	Revision() string
 	Project(context.Context, Evaluation) ([]string, error)
 }
 type FeedbackProjectionFunc struct {
-	Identity        string
-	ProjectFeedback func(context.Context, Evaluation) ([]string, error)
+	Identity        string                                              `json:"Identity"`
+	ProjectFeedback func(context.Context, Evaluation) ([]string, error) `json:"ProjectFeedback"`
 }
 
 func (p FeedbackProjectionFunc) Revision() string { return p.Identity }
@@ -102,9 +107,13 @@ func (p StaticProposer[T, I, R]) Propose(ctx context.Context, r ProposalRequest[
 		return ProposalResult[T]{}, err
 	}
 	if r.Round != 0 {
-		return ProposalResult[T]{Candidates: []Proposal[T]{}, Usage: evaly.Usage{Known: true}}, nil
+		return ProposalResult[T]{
+			Candidates: []Proposal[T]{},
+			Usage:      evaly.Usage{Known: true, Units: 0},
+			Exhausted:  false,
+		}, nil
 	}
-	out := ProposalResult[T]{Exhausted: true, Candidates: []Proposal[T]{}, Usage: evaly.Usage{Known: true}}
+	out := ProposalResult[T]{Exhausted: true, Candidates: []Proposal[T]{}, Usage: evaly.Usage{Known: true, Units: 0}}
 	for _, candidate := range p.candidates {
 		value, err := candidate.Value()
 		if err != nil {
@@ -117,11 +126,12 @@ func (p StaticProposer[T, I, R]) Propose(ctx context.Context, r ProposalRequest[
 }
 
 type Round struct {
-	Index            int
-	DispatchID       string
-	ProposalRevision string
-	State, Reason    string
-	Usage            evaly.Usage
-	Candidates       []string
-	Received         []CandidateLineage
+	Index            int                `json:"Index"`
+	DispatchID       string             `json:"DispatchID"`
+	ProposalRevision string             `json:"ProposalRevision"`
+	State            string             `json:"State"`
+	Reason           string             `json:"Reason"`
+	Usage            evaly.Usage        `json:"Usage"`
+	Candidates       []string           `json:"Candidates"`
+	Received         []CandidateLineage `json:"Received"`
 }

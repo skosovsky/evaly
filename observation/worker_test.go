@@ -82,7 +82,7 @@ func TestBoundedOverloadFakeDeadlineAndFlush(t *testing.T) {
 	started := make(chan struct{})
 	grader := evaly.GraderFunc[int, string, int]{
 		Identity: evaly.GraderRevision{ID: "judge", Implementation: "scripted", Rubric: "1"},
-		Evaluate: func(ctx context.Context, v evaly.View[int, string, int]) (evaly.Grade, error) {
+		Evaluate: func(ctx context.Context, _ evaly.View[int, string, int]) (evaly.Grade, error) {
 			close(started)
 			<-ctx.Done()
 			return evaly.Grade{}, ctx.Err()

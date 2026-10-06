@@ -227,7 +227,7 @@ linters:
       forbid-mutex: true
 
     gomoddirectives:
-      # The independent contracttest module resolves the local evaly module through replace.
+      # The independent contracttest module uses a local replace for evaly.
       # Default: false
       replace-local: true
 
@@ -247,7 +247,7 @@ linters:
     exhaustruct_v5:
       # List of regular expressions to match type names that should be excluded from processing.
       # Anonymous structs can be matched by '<anonymous>' alias.
-      # Has precedence over enforce-patterns.
+      # Has precedence over `enforce-patterns`.
       # Each regular expression must match the full type name, including package path.
       # For example, to match type `net/http.Cookie` regular expression should be `.*/http\.Cookie`,
       # but not `http\.Cookie`.

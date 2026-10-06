@@ -27,10 +27,11 @@ type PairSchedule struct {
 
 func pairFirst(seed int64, ordinal int, baseline, candidate string) (string, string) {
 	// Fixed SplitMix64, independent of Go's random package or process state.
-	x := uint64(seed) + uint64(ordinal+1)*0x9e3779b97f4a7c15
-	x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9
-	x = (x ^ (x >> 27)) * 0x94d049bb133111eb
-	x ^= x >> 31
+	// #nosec G115 -- SplitMix64 intentionally uses modular two's-complement seed and ordinal arithmetic.
+	x := uint64(seed) + uint64(ordinal+1)*splitMixIncrement
+	x = (x ^ (x >> splitMixFirstShift)) * splitMixFirstMultiplier
+	x = (x ^ (x >> splitMixSecondShift)) * splitMixSecondMultiplier
+	x ^= x >> splitMixFinalShift
 	if x&1 != 0 {
 		return candidate, baseline
 	}
@@ -100,6 +101,7 @@ func pairedConfigurationCompatible(a, b ExperimentManifest) bool {
 }
 
 func executeSlot[I, O, R, E any](ctx context.Context, c RunConfig[I, O, R, E], caseIndex, repeat int) []TrialRecord {
+	var zeroI I
 	var results []TrialRecord
 	for attempt := range c.Plan.MaxAttempts {
 		cs, err := c.Dataset.CaseAt(caseIndex)
@@ -107,13 +109,26 @@ func executeSlot[I, O, R, E any](ctx context.Context, c RunConfig[I, O, R, E], c
 			original := c.Dataset.record.Cases[caseIndex]
 			results = append(
 				results,
-				codecFailure(c, Case[I, R]{ID: original.ID, Revision: original.Revision}, repeat, attempt),
+				codecFailure(
+					c,
+					Case[I, R]{
+						ID:               original.ID,
+						Revision:         original.Revision,
+						Input:            zeroI,
+						Reference:        nil,
+						Metadata:         nil,
+						RequiredEvidence: nil,
+						Generation:       nil,
+					},
+					repeat,
+					attempt,
+				),
 			)
 			break
 		}
 		r := runTrial(ctx, c, cs, caseIndex, repeat, attempt)
 		results = append(results, r)
-		if r.Status != SetupError || r.Cleanup.State == "failed" || ctx.Err() != nil {
+		if r.Status != SetupError || r.Cleanup.State == failedState || ctx.Err() != nil {
 			break
 		}
 	}
@@ -121,13 +136,13 @@ func executeSlot[I, O, R, E any](ctx context.Context, c RunConfig[I, O, R, E], c
 }
 
 func pairedRecord(m ExperimentManifest, results [][]TrialRecord) ExperimentRecord {
-	r := ExperimentRecord{Manifest: m}
-	r.Manifest.State = "sealed"
+	r := ExperimentRecord{Manifest: m, Trials: nil}
+	r.Manifest.State = sealedState
 	for _, group := range results {
 		r.Trials = append(r.Trials, group...)
 		for _, trial := range group {
 			if trial.Status == Cancelled || trial.Status == BudgetExhausted || trial.Status == InfrastructureStop {
-				r.Manifest.State = "incomplete"
+				r.Manifest.State = incompleteState
 			}
 		}
 	}
@@ -169,22 +184,7 @@ func RunPaired[I, O, R, E any](
 	for range workers {
 		wg.Go(func() {
 			for ordinal := range jobs {
-				slot := schedule.Slots[ordinal]
-				configs := []RunConfig[I, O, R, E]{baseline, candidate}
-				if slot.First == candidate.ID {
-					configs[0], configs[1] = candidate, baseline
-				}
-				for _, config := range configs {
-					trials := executeSlot(runctx, config, ordinal/config.Plan.Repeats, slot.Repeat)
-					if config.ID == baseline.ID {
-						br[ordinal] = trials
-					} else {
-						cr[ordinal] = trials
-					}
-					if config.Plan.StopOnInfrastructure && trialInfrastructureFailure(trials[len(trials)-1]) {
-						cancel(errInfrastructureStopped)
-					}
-				}
+				executePairSlot(runctx, ordinal, schedule, baseline, candidate, br, cr, cancel)
 			}
 		})
 	}
@@ -199,4 +199,30 @@ func RunPaired[I, O, R, E any](
 	}
 	c, err := freezeExperiment(pairedRecord(cm, cr))
 	return b, c, err
+}
+
+func executePairSlot[I, O, R, E any](
+	runctx context.Context,
+	ordinal int,
+	schedule PairSchedule,
+	baseline, candidate RunConfig[I, O, R, E],
+	br, cr [][]TrialRecord,
+	cancel context.CancelCauseFunc,
+) {
+	slot := schedule.Slots[ordinal]
+	configs := []RunConfig[I, O, R, E]{baseline, candidate}
+	if slot.First == candidate.ID {
+		configs[0], configs[1] = candidate, baseline
+	}
+	for _, config := range configs {
+		trials := executeSlot(runctx, config, ordinal/config.Plan.Repeats, slot.Repeat)
+		if config.ID == baseline.ID {
+			br[ordinal] = trials
+		} else {
+			cr[ordinal] = trials
+		}
+		if config.Plan.StopOnInfrastructure && trialInfrastructureFailure(trials[len(trials)-1]) {
+			cancel(errInfrastructureStopped)
+		}
+	}
 }

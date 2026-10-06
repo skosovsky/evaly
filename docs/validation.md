@@ -1,5 +1,53 @@
 # Validation record
 
+## 6 October 2026 — strict lint and shared release template
+
+Authority: the approved lint, validation and release implementation plan.
+Toolchain: Go 1.27.1 darwin/arm64; golangci-lint v2.14.0, pinned in Makefile.
+Earlier entries describe their historical source snapshots and validation targets.
+
+- `GOPATH=/tmp/evaly-toolpath GOMODCACHE=/tmp/evaly-toolmod-cache make validate`
+  — exit 0. Config verification, formatting check, vet, uncapped lint, race tests
+  in both modules and all seven examples passed. Lint reports **0 issues** in
+  the root module and **0 issues** in contracttest. Full output:
+  `/private/tmp/evaly-reviewed-validate.log`.
+- `make lint GOLANGCI_LINT=golangci-lint` — exit 0, both modules report 0 issues;
+  the final validate run above additionally uses the default pinned command.
+  Output: `/private/tmp/evaly-readable-lint.log`. Issue count limits are disabled;
+  complexity limits and enabled lint rules were not relaxed.
+- `GOCACHE=/tmp/evaly-go-build go run ./internal/schemagen /private/tmp/evaly-final-schemas`
+  followed by `diff -r schemas /private/tmp/evaly-final-schemas` — exit 0.
+  All 16 checked-in schema files retain their exact bytes.
+- In contracttest,
+  `GOCACHE=/tmp/evaly-go-build go test -run=TestExplicitFieldNamesPreserveSerialization -v ./...`
+  — PASS for all 16 wire kinds. Reflection removes only the newly explicit tags
+  equal to the original exported field names, then compares exact JSON bytes.
+  Existing optional tags, capitalization, nil/presence, field order and revisions
+  remain intact. Output: `/private/tmp/evaly-tags-regression2.log`.
+- Bootstrap regressions cover repeatability, interleaved seeds, zero, -1 and both
+  signed seed extremes, opposite finite numeric extremes, subnormal and singleton
+  samples. The intentional statistical algorithm change is recorded as
+  `paired_case_bootstrap_percentile_pcg_v2`: PCG receives the seed's full
+  two's-complement uint64 representation and a zero second seed word.
+  Paired scheduling retains its SplitMix64 revision and reference vectors for
+  zero, -1, minimum and maximum signed seeds. Focused tests passed; output:
+  `/private/tmp/evaly-seeds-tests.log`. Both regressions also passed under race.
+- Existing race tests retain coverage of preflight, factory isolation,
+  cancellation, budget accounting, partial results, evidence completeness,
+  optimizer ranking and holdout boundaries. No public ports or schema revisions
+  changed. Example quality failures remain expected demonstration results.
+- `make -n release-patch`, `make -n release-break` and `make -n release` verified
+  the patch/break arguments and root-only release module list `"."`.
+  The supplied, unmodified release script was exercised for patch and break in
+  a disposable checkout with a local bare Git remote. It created root tags
+  `v0.1.1` and `v0.2.0`, no contracttest tags, and restored `main` with unchanged
+  HEAD `6ba22e477cd33557b0acac1d3804c8e7c2ed9b67`. Full smoke output:
+  `/private/tmp/evaly-release-smoke-qitzo3yi/log.txt`. No GitHub Release command,
+  external publication or changes to this repository's tags occurred. Commit
+  signing was not disabled.
+- `git diff --check` — exit 0. Existing user changes were preserved. This entry
+  records implementation checks, not a new independent subagent acceptance.
+
 ## 5 October 2026 — final integration acceptance
 
 Current authority: tasks 01–05 and common task README. Source fingerprint:

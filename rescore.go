@@ -73,11 +73,11 @@ func SaveView[I, O, R any](
 			Input:            i,
 			Metadata:         view.Case.Metadata,
 			RequiredEvidence: view.Case.RequiredEvidence,
-			Generation:       view.Case.Generation,
+			Generation:       view.Case.Generation, Reference: nil,
 		},
 		Output:     o,
 		Evidence:   view.Evidence,
-		Projection: projection,
+		Projection: projection, Revision: "",
 	}
 	if view.Case.Reference != nil {
 		r.Case.Reference, e = rc.Encode(*view.Case.Reference)
@@ -102,6 +102,7 @@ func SaveView[I, O, R any](
 }
 func (s SavedView[I, O, R]) Revision() string { return s.record.Revision }
 func (s SavedView[I, O, R]) View() (View[I, O, R], error) {
+	var zeroI I
 	var out View[I, O, R]
 	if s.record.Revision == "" || ValidatePort(s.input) != nil || ValidatePort(s.output) != nil ||
 		ValidatePort(s.reference) != nil {
@@ -116,7 +117,7 @@ func (s SavedView[I, O, R]) View() (View[I, O, R], error) {
 		Revision:         r.Case.Revision,
 		Metadata:         r.Case.Metadata,
 		RequiredEvidence: r.Case.RequiredEvidence,
-		Generation:       r.Case.Generation,
+		Generation:       r.Case.Generation, Input: zeroI, Reference: nil,
 	}
 	out.Case.Input, e = s.input.Decode(r.Case.Input)
 	if e != nil {
@@ -156,44 +157,24 @@ type SkippedGrader struct {
 }
 
 func validateAssessmentContent(a Assessment) error {
-	if a.Version != 3 {
+	if a.Version != assessmentWireRevision {
 		return ErrUnsupported
 	}
-	if a.Source == "" || a.View == "" || (a.Mode != "rescore" && a.Mode != "observation") || len(a.Planned) == 0 {
+	if a.Source == "" || a.View == "" || (a.Mode != "rescore" && a.Mode != observationMode) || len(a.Planned) == 0 {
 		return ErrInvalid
 	}
 	if e := ValidateGraderRevisions(a.Planned); e != nil {
 		return e
 	}
-	planned := map[string]GraderRevision{}
-	seen := map[string]bool{}
-	for _, r := range a.Planned {
-		planned[r.ID] = r
-	}
-	for _, g := range a.Grades {
-		if !g.Dispatched || planned[g.Revision.ID] != g.Revision || seen[g.Revision.ID] {
-			return ErrInvalid
-		}
-		if e := ValidateGrade(g); e != nil {
-			return e
-		}
-		seen[g.Revision.ID] = true
-	}
-	for _, g := range a.Skipped {
-		if planned[g.Revision.ID] != g.Revision || seen[g.Revision.ID] || g.Reason == "" {
-			return ErrInvalid
-		}
-		seen[g.Revision.ID] = true
-	}
-	if len(seen) != len(planned) {
-		return ErrInvalid
+	if err := validateAssessmentPlan(a); err != nil {
+		return err
 	}
 	switch a.State {
-	case "complete":
+	case gradingComplete:
 		if a.StopReason != "" || len(a.Skipped) > 0 || len(a.Grades) != len(a.Planned) {
 			return ErrInvalid
 		}
-	case "partial":
+	case gradingPartial:
 		if a.StopReason == "" {
 			return ErrInvalid
 		}
@@ -246,8 +227,20 @@ func Rescore[I, O, R any](
 	graders []Grader[I, O, R],
 	source, parent, mode string,
 ) (Assessment, error) {
-	a := Assessment{Version: 3, Source: source, Parent: parent, View: s.Revision(), Mode: mode, State: "complete"}
-	if source == "" || (mode != "rescore" && mode != "observation") || len(graders) == 0 {
+	a := Assessment{
+		Version:    assessmentWireRevision,
+		Source:     source,
+		Parent:     parent,
+		View:       s.Revision(),
+		Mode:       mode,
+		State:      gradingComplete,
+		Revision:   "",
+		Planned:    nil,
+		Grades:     nil,
+		StopReason: "",
+		Skipped:    nil,
+	}
+	if source == "" || (mode != "rescore" && mode != observationMode) || len(graders) == 0 {
 		return Assessment{}, ErrInvalid
 	}
 	for _, g := range graders {
@@ -265,32 +258,26 @@ func Rescore[I, O, R any](
 	}
 	for i, g := range graders {
 		if ctx.Err() != nil {
-			a.State = "partial"
-			a.StopReason = "context_cancelled"
-			for _, rev := range a.Planned[i:] {
-				a.Skipped = append(a.Skipped, SkippedGrader{rev, a.StopReason})
-			}
+			a.State = gradingPartial
+			a.StopReason = contextCancellationReason
+			appendSkippedGraders(&a, a.Planned[i:])
 			break
 		}
 		grade := Assess(ctx, []Grader[I, O, R]{g}, s.View)[0]
 		if !grade.Dispatched {
-			a.State = "partial"
+			a.State = gradingPartial
 			a.StopReason = "grading_projection"
 			if ctx.Err() != nil {
-				a.StopReason = "context_cancelled"
+				a.StopReason = contextCancellationReason
 			}
-			for _, rev := range a.Planned[i:] {
-				a.Skipped = append(a.Skipped, SkippedGrader{rev, a.StopReason})
-			}
+			appendSkippedGraders(&a, a.Planned[i:])
 			break
 		}
 		a.Grades = append(a.Grades, grade)
 		if ctx.Err() != nil {
-			a.State = "partial"
-			a.StopReason = "context_cancelled"
-			for _, rev := range a.Planned[i+1:] {
-				a.Skipped = append(a.Skipped, SkippedGrader{rev, a.StopReason})
-			}
+			a.State = gradingPartial
+			a.StopReason = contextCancellationReason
+			appendSkippedGraders(&a, a.Planned[i+1:])
 			break
 		}
 	}
@@ -380,4 +367,37 @@ func LoadSavedView[I, O, R any](
 		return SavedView[I, O, R]{}, ErrCorrupt
 	}
 	return RestoreSavedView(r, ic, oc, rc)
+}
+
+func validateAssessmentPlan(a Assessment) error {
+	planned := map[string]GraderRevision{}
+	seen := map[string]bool{}
+	for _, r := range a.Planned {
+		planned[r.ID] = r
+	}
+	for _, g := range a.Grades {
+		if !g.Dispatched || planned[g.Revision.ID] != g.Revision || seen[g.Revision.ID] {
+			return ErrInvalid
+		}
+		if e := ValidateGrade(g); e != nil {
+			return e
+		}
+		seen[g.Revision.ID] = true
+	}
+	for _, g := range a.Skipped {
+		if planned[g.Revision.ID] != g.Revision || seen[g.Revision.ID] || g.Reason == "" {
+			return ErrInvalid
+		}
+		seen[g.Revision.ID] = true
+	}
+	if len(seen) != len(planned) {
+		return ErrInvalid
+	}
+	return nil
+}
+
+func appendSkippedGraders(a *Assessment, revisions []GraderRevision) {
+	for _, rev := range revisions {
+		a.Skipped = append(a.Skipped, SkippedGrader{rev, a.StopReason})
+	}
 }

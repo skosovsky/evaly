@@ -38,6 +38,13 @@ type MemoryBudget struct {
 	entries        map[string]budgetEntry
 }
 
+func NewMemoryBudget(capacity float64) (*MemoryBudget, error) {
+	if !finiteNonnegative(capacity) {
+		return nil, ErrInvalid
+	}
+	return &MemoryBudget{capacity: capacity, entries: map[string]budgetEntry{}, mu: sync.Mutex{}, used: 0}, nil
+}
+
 // Validate checks constructor invariants without reserving or dispatching work.
 func (b *MemoryBudget) Validate() error {
 	if b == nil {
@@ -51,14 +58,9 @@ func (b *MemoryBudget) Validate() error {
 	return nil
 }
 
-func NewMemoryBudget(capacity float64) (*MemoryBudget, error) {
-	if !finiteNonnegative(capacity) {
-		return nil, ErrInvalid
-	}
-	return &MemoryBudget{capacity: capacity, entries: map[string]budgetEntry{}}, nil
-}
 func finiteNonnegative(v float64) bool { return !math.IsNaN(v) && !math.IsInf(v, 0) && v >= 0 }
 func (b *MemoryBudget) Reserve(ctx context.Context, id string, units float64) (Reservation, error) {
+	var zeroUsage Usage
 	if e := ctx.Err(); e != nil {
 		return Reservation{}, e
 	}
@@ -80,7 +82,7 @@ func (b *MemoryBudget) Reserve(ctx context.Context, id string, units float64) (R
 		return Reservation{}, ErrBudget
 	}
 	r := Reservation{id, units}
-	b.entries[id] = budgetEntry{reservation: r}
+	b.entries[id] = budgetEntry{reservation: r, settled: false, claimed: false, actual: zeroUsage, released: false}
 	b.used += units
 	return r, nil
 }

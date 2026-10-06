@@ -46,7 +46,7 @@ func config(t *testing.T, n int) evaly.RunConfig[input, int, int, *int] {
 		OutputCodec: evaly.JSONCodec[int]{ID: "integer-output", Version: "1"},
 		Dataset:     dataset(t, n),
 		Target: evaly.TargetFunc[input, int, *int](
-			func(ctx context.Context, i input, tc evaly.TrialContext[*int]) (evaly.TargetResult[int], error) {
+			func(_ context.Context, i input, _ evaly.TrialContext[*int]) (evaly.TargetResult[int], error) {
 				sum := 0
 				for _, v := range i.Numbers {
 					sum += v
@@ -81,13 +81,13 @@ func config(t *testing.T, n int) evaly.RunConfig[input, int, int, *int] {
 			MaxBytes:   4096,
 		},
 		ProjectionRevision: "safe-v1",
-		Project: func(ctx context.Context, c evaly.Case[input, int], o int, e evaly.EvidenceRecord) (evaly.View[input, int, int], error) {
+		Project: func(_ context.Context, c evaly.Case[input, int], o int, e evaly.EvidenceRecord) (evaly.View[input, int, int], error) {
 			return evaly.View[input, int, int]{Case: c, Output: o, Evidence: e}, nil
 		},
 		Graders: []evaly.Grader[input, int, int]{
 			evaly.GraderFunc[input, int, int]{
 				Identity: evaly.GraderRevision{ID: "exact", Implementation: "go-v1", Rubric: "equal-v1"},
-				Evaluate: func(ctx context.Context, v evaly.View[input, int, int]) (evaly.Grade, error) {
+				Evaluate: func(_ context.Context, v evaly.View[input, int, int]) (evaly.Grade, error) {
 					return evaly.Grade{
 						Status: evaly.Scored,
 						Assertions: []evaly.Assertion{
@@ -172,7 +172,7 @@ func TestRunResetFailureAndCleanup(t *testing.T) {
 			}
 			return nil
 		},
-		CleanupFunc: func(ctx context.Context, e *int) error { clean.Add(1); return nil },
+		CleanupFunc: func(_ context.Context, _ *int) error { clean.Add(1); return nil },
 	}
 	original := c.Target
 	c.Target = evaly.TargetFunc[input, int, *int](
@@ -243,7 +243,7 @@ func TestEvidencePrivacyGapAndJudgeError(t *testing.T) {
 	)
 	timeout := evaly.GraderFunc[input, int, int]{
 		Identity: rev,
-		Evaluate: func(ctx context.Context, v evaly.View[input, int, int]) (evaly.Grade, error) {
+		Evaluate: func(_ context.Context, _ evaly.View[input, int, int]) (evaly.Grade, error) {
 			return evaly.Grade{}, context.DeadlineExceeded
 		},
 	}
@@ -293,14 +293,14 @@ func TestBudgetUnknownUsageAndCancellation(t *testing.T) {
 	cancelctx, cancel := context.WithCancel(ctx)
 	c.Plan.Concurrency = 1
 	c.Target = evaly.TargetFunc[input, int, *int](
-		func(ctx context.Context, i input, tc evaly.TrialContext[*int]) (evaly.TargetResult[int], error) {
+		func(_ context.Context, _ input, _ evaly.TrialContext[*int]) (evaly.TargetResult[int], error) {
 			calls.Add(1)
 			cancel()
 			return evaly.TargetResult[int]{Output: 1}, nil
 		},
 	)
 	life := c.Lifecycle.(evaly.LifecycleFuncs[*int])
-	life.CleanupFunc = func(ctx context.Context, e *int) error {
+	life.CleanupFunc = func(ctx context.Context, _ *int) error {
 		if ctx.Err() != nil {
 			t.Error("cleanup inherits cancellation")
 		}
@@ -323,7 +323,7 @@ func TestComparisonCoverageAndCaseDenominator(t *testing.T) {
 	c := config(t, 4)
 	c.ID = "candidate"
 	life := c.Lifecycle.(evaly.LifecycleFuncs[*int])
-	life.PrepareFunc = func(ctx context.Context, id string) (*int, error) {
+	life.PrepareFunc = func(_ context.Context, id string) (*int, error) {
 		v := 0
 		if strings.Contains(id, "/c/") || strings.Contains(id, "/d/") {
 			return &v, errors.New("offline")
@@ -367,11 +367,11 @@ func TestComparisonCoverageAndCaseDenominator(t *testing.T) {
 	orig := c.Target
 	c.Target = evaly.TargetFunc[input, int, *int](
 		func(ctx context.Context, i input, tc evaly.TrialContext[*int]) (evaly.TargetResult[int], error) {
-			o, e := orig.Run(ctx, i, tc)
+			o, eLocal := orig.Run(ctx, i, tc)
 			if i.Numbers[0] == 3 {
 				o.Output = 99
 			}
-			return o, e
+			return o, eLocal
 		},
 	)
 	complete, e := evaly.Run(context.Background(), c)

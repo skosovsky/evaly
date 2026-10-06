@@ -143,7 +143,7 @@ func TestProposalIsolationInvalidCandidatesAndContamination(t *testing.T) {
 	c := searchConfig(t, 20)
 	c.Proposal = optimizer.ProposalFunc[recipe, fixtures.Calculation, int]{
 		Identity: "scripted-proposal-v1",
-		Generate: func(ctx context.Context, r optimizer.ProposalRequest[fixtures.Calculation, int]) (optimizer.ProposalResult[recipe], error) {
+		Generate: func(_ context.Context, r optimizer.ProposalRequest[fixtures.Calculation, int]) (optimizer.ProposalResult[recipe], error) {
 			training, e := r.Training.Cases()
 			if e != nil {
 				t.Fatal(e)

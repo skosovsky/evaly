@@ -27,8 +27,8 @@ func SealSnapshot[T any](value T, codec Codec[T]) (Snapshot[T], error) {
 		return s, ErrConflict
 	}
 	encoded, e := canonical(struct {
-		Codec CodecIdentity
-		Data  []byte
+		Codec CodecIdentity `json:"Codec"`
+		Data  []byte        `json:"Data"`
 	}{identity, b})
 	if e != nil {
 		return s, e
@@ -49,8 +49,8 @@ func (s Snapshot[T]) Validate() error {
 		return ErrInvalid
 	}
 	b, e := canonical(struct {
-		Codec CodecIdentity
-		Data  []byte
+		Codec CodecIdentity `json:"Codec"`
+		Data  []byte        `json:"Data"`
 	}{s.identity, s.data})
 	if e != nil || digest(b) != s.revision {
 		return ErrCorrupt

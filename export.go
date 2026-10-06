@@ -11,9 +11,9 @@ type DeliveryRecord struct {
 	Artifact      Envelope `json:"artifact"`
 }
 type ExportCapabilities struct {
-	Deduplication   bool
-	EnvelopeVersion int
-	BooleanOnly     bool
+	Deduplication   bool `json:"Deduplication"`
+	EnvelopeVersion int  `json:"EnvelopeVersion"`
+	BooleanOnly     bool `json:"BooleanOnly"`
 }
 type ExportSink interface {
 	Capabilities() ExportCapabilities
@@ -28,13 +28,18 @@ type Delivery struct {
 
 // Export never mutates the source artifact's verdict. Retry keeps observation ID.
 func Export(ctx context.Context, s ExportSink, r DeliveryRecord) Delivery {
-	out := Delivery{ID: r.ObservationID, State: "failed", Semantics: "at_least_once_with_possible_duplicates"}
+	out := Delivery{
+		ID:        r.ObservationID,
+		State:     failedState,
+		Semantics: "at_least_once_with_possible_duplicates",
+		Reason:    "",
+	}
 	if ValidatePort(s) != nil || r.ObservationID == "" {
-		out.Reason = "invalid"
+		out.Reason = invalidState
 		return out
 	}
 	if ctx.Err() != nil {
-		out.Reason = "cancelled"
+		out.Reason = cancelledState
 		return out
 	}
 	caps := s.Capabilities()
@@ -49,16 +54,16 @@ func Export(ctx context.Context, s ExportSink, r DeliveryRecord) Delivery {
 		out.Reason = deliveryReason(e)
 		return out
 	}
-	copy, err := cloneJSON(r)
+	cloned, err := cloneJSON(r)
 	if err != nil {
-		out.Reason = "invalid"
+		out.Reason = invalidState
 		return out
 	}
 	if ctx.Err() != nil {
-		out.Reason = "cancelled"
+		out.Reason = cancelledState
 		return out
 	}
-	if e := s.Deliver(ctx, copy); e != nil {
+	if e := s.Deliver(ctx, cloned); e != nil {
 		out.Reason = deliveryReason(e)
 		return out
 	}
@@ -69,13 +74,13 @@ func Export(ctx context.Context, s ExportSink, r DeliveryRecord) Delivery {
 func deliveryReason(err error) string {
 	switch {
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		return "cancelled"
+		return cancelledState
 	case errors.Is(err, ErrConflict):
 		return "conflict"
 	case errors.Is(err, ErrUnsupported):
 		return "unsupported"
 	case errors.Is(err, ErrInvalid), errors.Is(err, ErrCorrupt), errors.Is(err, ErrUnsealed):
-		return "invalid"
+		return invalidState
 	default:
 		return "delivery_failure"
 	}
@@ -84,13 +89,13 @@ func deliveryReason(err error) string {
 // MemoryExport is a local reference sink with explicit optional deduplication.
 type MemoryExport struct {
 	mu      sync.Mutex
-	Dedup   bool
-	Fail    bool
+	Dedup   bool `json:"Dedup"`
+	Fail    bool `json:"Fail"`
 	records []DeliveryRecord
 }
 
 func (s *MemoryExport) Capabilities() ExportCapabilities {
-	return ExportCapabilities{Deduplication: s.Dedup, EnvelopeVersion: 1}
+	return ExportCapabilities{Deduplication: s.Dedup, EnvelopeVersion: 1, BooleanOnly: false}
 }
 func (s *MemoryExport) Deliver(ctx context.Context, r DeliveryRecord) error {
 	if e := ctx.Err(); e != nil {
@@ -126,8 +131,12 @@ func (s *MemoryExport) Records() []DeliveryRecord {
 }
 
 type InteropCapabilities struct {
-	Version                                                    int
-	Outcome, ResetIdentity, Evidence, RichStatus, MetricScales bool
+	Version       int  `json:"Version"`
+	Outcome       bool `json:"Outcome"`
+	ResetIdentity bool `json:"ResetIdentity"`
+	Evidence      bool `json:"Evidence"`
+	RichStatus    bool `json:"RichStatus"`
+	MetricScales  bool `json:"MetricScales"`
 }
 type LossReport struct {
 	Supported bool     `json:"supported"`

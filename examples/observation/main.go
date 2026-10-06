@@ -13,22 +13,28 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
 	c, e := fixtures.CalculationConfig("observation-fixture", "good", "")
 	if e != nil {
-		log.Fatal(e)
+		return e
 	}
 	cases, e := c.Dataset.Cases()
 	if e != nil {
-		log.Fatal(e)
+		return e
 	}
 	capture, e := evaly.NewCapture(c.Capture)
 	if e != nil {
-		log.Fatal(e)
+		return e
 	}
 	saved, e := evaly.SaveView(
 		evaly.View[fixtures.Calculation, fixtures.CalculationOutput, int]{
 			Case:     cases[0],
-			Output:   fixtures.CalculationOutput{Sum: 3},
+			Output:   fixtures.CalculationOutput{Sum: expectedSum},
 			Evidence: capture.Seal(),
 		},
 		c.ProjectionRevision,
@@ -37,23 +43,27 @@ func main() {
 		fixtures.ReferenceCodec(),
 	)
 	if e != nil {
-		log.Fatal(e)
+		return e
 	}
 	directory, e := os.MkdirTemp("", "evaly-rescore-")
 	if e != nil {
-		log.Fatal(e)
+		return e
 	}
-	defer os.RemoveAll(directory)
+	defer func() {
+		if cleanupErr := os.RemoveAll(directory); cleanupErr != nil {
+			log.Print(cleanupErr)
+		}
+	}()
 	store, e := evaly.OpenFileStore(directory)
 	if e != nil {
-		log.Fatal(e)
+		return e
 	}
 	if e = evaly.SaveSavedView(context.Background(), store, "saved", saved); e != nil {
-		log.Fatal(e)
+		return e
 	}
 	reopened, e := evaly.OpenFileStore(directory)
 	if e != nil {
-		log.Fatal(e)
+		return e
 	}
 	saved, e = evaly.LoadSavedView(
 		context.Background(),
@@ -64,16 +74,23 @@ func main() {
 		fixtures.ReferenceCodec(),
 	)
 	if e != nil {
-		log.Fatal(e)
+		return e
 	}
 	o, e := observation.New(
 		"already-performed",
 		"",
-		observation.Sampling{Rule: "all", Reason: "fixture", Population: "staging", Window: "staging-window"},
+		observation.Sampling{
+			Rule:         "all",
+			Reason:       "fixture",
+			Population:   "staging",
+			Window:       "staging-window",
+			Probability:  nil,
+			OutcomeDelay: 0,
+		},
 		saved,
 	)
 	if e != nil {
-		log.Fatal(e)
+		return e
 	}
 	worker, e := observation.Start(
 		context.Background(),
@@ -82,16 +99,16 @@ func main() {
 			Concurrency: 1,
 			Deadline:    time.Second,
 			Clock:       observation.RealClock{},
-			Graders:     c.Graders,
+			Graders:     c.Graders, Budget: nil, GraderUnits: 0,
 		},
 	)
 	if e != nil {
-		log.Fatal(e)
+		return e
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	defer func() {
-		if err := worker.Cancel(ctx); err != nil {
+		if err := worker.Cancel(context.WithoutCancel(ctx)); err != nil {
 			log.Print(err)
 		}
 	}()
@@ -101,4 +118,5 @@ func main() {
 		result := <-future.Result
 		fmt.Println("observation:", result.State, result.Assessment.Grades[0].Status)
 	}
+	return nil
 }

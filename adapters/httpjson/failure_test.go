@@ -58,50 +58,9 @@ func toolEvent() evaly.Event {
 func TestTargetFailurePreservesUsageAndPolicyControlledEffects(t *testing.T) {
 	for _, complete := range []bool{true, false} {
 		t.Run(map[bool]string{true: "complete", false: "incomplete"}[complete], func(t *testing.T) {
-			// Arrange.
-			delivery := httpjson.EvidenceDelivery{Complete: complete}
-			if !complete {
-				delivery.Reason = "upstream_gap"
-			}
-			server := httptest.NewServer(
-				httpjson.Handler(
-					fixtures.InputCodec(),
-					fixtures.OutputCodec(),
-					4096,
-					func(context.Context, fixtures.Calculation, httpjson.Trial) (httpjson.Invocation[fixtures.CalculationOutput], error) {
-						return httpjson.Invocation[fixtures.CalculationOutput]{
-							Usage:    evaly.Usage{Known: true, Units: 7},
-							Events:   []evaly.Event{toolEvent()},
-							Evidence: delivery,
-						}, errors.New(
-							"domain failed after write",
-						)
-					},
-				),
-			)
-			defer server.Close()
-			capture := newCapture(t)
-			// Act.
-			result, err := target(
-				server,
-			).Run(context.Background(), fixtures.Calculation{Left: 1, Right: 2}, trial(capture))
-			evidence := capture.Seal()
-			// Assert.
-			if !errors.Is(err, evaly.ErrTarget) || errors.Is(err, evaly.ErrUnsupported) ||
-				result.Usage != (evaly.Usage{Known: true, Units: 7}) {
-				t.Fatalf("lost target failure/usage: %+v %v", result, err)
-			}
-			if len(evidence.Events) != 1 || string(evidence.Events[0].Payload) != `{"name":"write"}` {
-				t.Fatalf("lost or unfiltered effect: %+v", evidence)
-			}
-			wantState := "sealed"
-			if !complete {
-				wantState = "incomplete"
-			}
-			if evidence.State != wantState || evidence.Coverage["tool"] != complete {
-				t.Fatalf("execution failure changed delivery: %+v", evidence)
-			}
-		})
+			checkTargetFailurePreservesUsageAndPolicyControlledEffects(t, &complete)
+		},
+		)
 	}
 }
 
@@ -361,5 +320,55 @@ func TestEventRetentionFailurePreservesDeliveredPrefixAndUsage(t *testing.T) {
 	if err == nil || evidence.State != "incomplete" || len(evidence.Events) != 1 || result.Usage.Units != 4 ||
 		evidence.Coverage["tool"] {
 		t.Fatalf("lost delivered prefix or completeness: %+v %+v %v", result, evidence, err)
+	}
+}
+
+func checkTargetFailurePreservesUsageAndPolicyControlledEffects(
+	t *testing.T,
+	complete *bool,
+) {
+	t.Helper()
+	// Arrange.
+	delivery := httpjson.EvidenceDelivery{Complete: (*complete)}
+	if !(*complete) {
+		delivery.Reason = "upstream_gap"
+	}
+	server := httptest.NewServer(
+		httpjson.Handler(
+			fixtures.InputCodec(),
+			fixtures.OutputCodec(),
+			4096,
+			func(context.Context, fixtures.Calculation, httpjson.Trial) (httpjson.Invocation[fixtures.CalculationOutput], error) {
+				return httpjson.Invocation[fixtures.CalculationOutput]{
+					Usage:    evaly.Usage{Known: true, Units: 7},
+					Events:   []evaly.Event{toolEvent()},
+					Evidence: delivery,
+				}, errors.New(
+					"domain failed after write",
+				)
+			},
+		),
+	)
+	defer server.Close()
+	capture := newCapture(t)
+
+	result, err := target(
+		server,
+	).Run(context.Background(), fixtures.Calculation{Left: 1, Right: 2}, trial(capture))
+	evidence := capture.Seal()
+
+	if !errors.Is(err, evaly.ErrTarget) || errors.Is(err, evaly.ErrUnsupported) ||
+		result.Usage != (evaly.Usage{Known: true, Units: 7}) {
+		t.Fatalf("lost target failure/usage: %+v %v", result, err)
+	}
+	if len(evidence.Events) != 1 || string(evidence.Events[0].Payload) != `{"name":"write"}` {
+		t.Fatalf("lost or unfiltered effect: %+v", evidence)
+	}
+	wantState := "sealed"
+	if !(*complete) {
+		wantState = "incomplete"
+	}
+	if evidence.State != wantState || evidence.Coverage["tool"] != (*complete) {
+		t.Fatalf("execution failure changed delivery: %+v", evidence)
 	}
 }

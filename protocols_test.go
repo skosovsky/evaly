@@ -21,7 +21,7 @@ func (generator) Provenance() evaly.Generation {
 		LabelValidated: true,
 	}
 }
-func (generator) Generate(ctx context.Context, p []evaly.Case[input, int]) ([]evaly.Case[input, int], error) {
+func (generator) Generate(ctx context.Context, _ []evaly.Case[input, int]) ([]evaly.Case[input, int], error) {
 	ref := 4
 	return []evaly.Case[input, int]{{ID: "generated", Input: input{Numbers: []int{2, 2}}, Reference: &ref}}, ctx.Err()
 }
@@ -29,7 +29,7 @@ func (generator) Generate(ctx context.Context, p []evaly.Case[input, int]) ([]ev
 type scenario struct{ wait bool }
 
 func (scenario) Revision() string { return "scripted-v1" }
-func (s scenario) Step(ctx context.Context, state int, execution evaly.ScenarioContext) (int, int, bool, error) {
+func (s scenario) Step(ctx context.Context, state int, _ evaly.ScenarioContext) (int, int, bool, error) {
 	if s.wait {
 		<-ctx.Done()
 		return state, 0, false, ctx.Err()

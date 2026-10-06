@@ -29,7 +29,7 @@ func NewEnvelope(kind, id string, data any) (Envelope, error) {
 	if e != nil {
 		return Envelope{}, e
 	}
-	env := Envelope{Version: 1, Kind: kind, ID: id, Data: b}
+	env := Envelope{Version: 1, Kind: kind, ID: id, Data: b, Checksum: "", Extensions: nil}
 	env.Checksum = checksumEnvelope(env)
 	return env, ValidateEnvelope(env)
 }
@@ -49,13 +49,9 @@ func ValidateEnvelope(e Envelope) error {
 	case "dataset",
 		"experiment",
 		"comparison",
-		"evidence",
-		"observation",
-		"search",
-		"view",
+		"evidence", observationMode, searchMode, "view",
 		"scenario",
-		"assessment",
-		"candidate":
+		"assessment", candidateArtifactKind:
 	default:
 		return ErrUnsupported
 	}
@@ -78,13 +74,15 @@ type ArtifactStore interface {
 	Get(context.Context, string) (Envelope, error)
 }
 type StoreCapabilities struct {
-	AtomicPublication, Deduplication, Checksums bool
-	MultiHost                                   bool
+	AtomicPublication bool `json:"AtomicPublication"`
+	Deduplication     bool `json:"Deduplication"`
+	Checksums         bool `json:"Checksums"`
+	MultiHost         bool `json:"MultiHost"`
 }
 type FileStore struct {
 	directory string
-	MaxBytes  int
-	Fault     func(string) error
+	MaxBytes  int                `json:"MaxBytes"`
+	Fault     func(string) error `json:"Fault"`
 }
 
 func OpenFileStore(directory string) (*FileStore, error) {
@@ -102,7 +100,7 @@ func OpenFileStore(directory string) (*FileStore, error) {
 	if e != nil || !info.IsDir() {
 		return nil, ErrInvalid
 	}
-	return &FileStore{directory: abs, MaxBytes: 32 << 20}, nil
+	return &FileStore{directory: abs, MaxBytes: defaultArtifactMaxBytes, Fault: nil}, nil
 }
 func (s *FileStore) Capabilities() StoreCapabilities {
 	return StoreCapabilities{true, true, true, false}
@@ -128,14 +126,14 @@ func (s *FileStore) Put(ctx context.Context, e Envelope) error {
 		return ErrInvalid
 	}
 	dest := filepath.Join(s.directory, e.ID+".json")
-	if previous, err := s.Get(ctx, e.ID); err == nil {
+	if previous, errLocal := s.Get(ctx, e.ID); errLocal == nil {
 		old, _ := canonical(previous)
 		if string(old) == string(b) {
 			return nil
 		}
 		return ErrConflict
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
+	} else if !errors.Is(errLocal, os.ErrNotExist) {
+		return errLocal
 	}
 	f, err := os.CreateTemp(s.directory, ".staged-*")
 	if err != nil {
@@ -144,47 +142,15 @@ func (s *FileStore) Put(ctx context.Context, e Envelope) error {
 	name := f.Name()
 	defer os.Remove(name)
 	defer f.Close()
-	if err = s.fault("staged"); err != nil {
-		return err
-	}
-	if _, err = f.Write(b); err != nil {
-		return err
-	}
-	if err = f.Sync(); err != nil {
-		return err
-	}
-	if err = f.Close(); err != nil {
-		return err
-	}
-	read, err := os.ReadFile(name)
+	validated, err := s.validateStaged(f, name, b)
 	if err != nil {
-		return err
-	}
-	validated, err := DecodeWire[Envelope](read)
-	if err != nil {
-		return err
-	}
-	if err = ValidateEnvelope(validated); err != nil {
-		return err
-	}
-	if err = s.fault("validated"); err != nil {
 		return err
 	}
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	if err = os.Link(name, dest); err != nil {
-		if errors.Is(err, os.ErrExist) {
-			previous, e := s.Get(ctx, validated.ID)
-			if e != nil {
-				return e
-			}
-			old, _ := canonical(previous)
-			if string(old) == string(b) {
-				return nil
-			}
-			return ErrConflict
-		}
+	linked, err := s.linkStaged(ctx, name, dest, validated, b)
+	if err != nil || !linked {
 		return err
 	}
 	if err = s.fault("committed"); err != nil {
@@ -275,8 +241,58 @@ func LoadExperiment(ctx context.Context, s ArtifactStore, id string) (Experiment
 	if e.ID() != id {
 		return Experiment{}, ErrCorrupt
 	}
-	if r.Manifest.State != "sealed" {
+	if r.Manifest.State != sealedState {
 		return Experiment{}, ErrUnsealed
 	}
 	return e, nil
+}
+
+func (s *FileStore) validateStaged(f *os.File, name string, b []byte) (Envelope, error) {
+	var err error
+	if err = s.fault("staged"); err != nil {
+		return Envelope{}, err
+	}
+	if _, err = f.Write(b); err != nil {
+		return Envelope{}, err
+	}
+	if err = f.Sync(); err != nil {
+		return Envelope{}, err
+	}
+	if err = f.Close(); err != nil {
+		return Envelope{}, err
+	}
+	read, err := os.ReadFile(name)
+	if err != nil {
+		return Envelope{}, err
+	}
+	validated, err := DecodeWire[Envelope](read)
+	if err != nil {
+		return Envelope{}, err
+	}
+	if err = ValidateEnvelope(validated); err != nil {
+		return Envelope{}, err
+	}
+	if err = s.fault("validated"); err != nil {
+		return Envelope{}, err
+	}
+	return validated, nil
+}
+
+func (s *FileStore) linkStaged(ctx context.Context, name, dest string, validated Envelope, b []byte) (bool, error) {
+	var err error
+	if err = os.Link(name, dest); err == nil {
+		return true, nil
+	}
+	if !errors.Is(err, os.ErrExist) {
+		return false, err
+	}
+	previous, e := s.Get(ctx, validated.ID)
+	if e != nil {
+		return false, e
+	}
+	old, _ := canonical(previous)
+	if string(old) == string(b) {
+		return false, nil
+	}
+	return false, ErrConflict
 }

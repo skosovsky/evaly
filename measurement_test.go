@@ -139,7 +139,7 @@ func TestNumericObjectiveNativeScaleAndMissingness(t *testing.T) {
 			{Revision: evaly.GraderRevision{ID: "metric"}, Status: evaly.Scored, Metrics: []evaly.Metric{metric}},
 		}
 		mutate(&bad.Grades[0].Metrics[0])
-		if _, e := o.Measure(bad); e == nil {
+		if _, eLocal := o.Measure(bad); eLocal == nil {
 			t.Fatal("incompatible metric accepted")
 		}
 	}
@@ -151,102 +151,20 @@ func TestNumericObjectiveNativeScaleAndMissingness(t *testing.T) {
 func TestNumericComparisonDirectionAndMatchedMeans(t *testing.T) {
 	for _, direction := range []string{"higher", "lower"} {
 		t.Run(direction, func(t *testing.T) {
-			// Arrange.
-			b, c := config(t, 3), config(t, 3)
-			b.ID = "base"
-			c.ID = "candidate"
-			grader := func(value float64) evaly.Grader[input, int, int] {
-				return evaly.GraderFunc[input, int, int]{
-					Identity: evaly.GraderRevision{ID: "metric", Implementation: "v1", Rubric: "v1"},
-					Evaluate: func(context.Context, evaly.View[input, int, int]) (evaly.Grade, error) {
-						return evaly.Grade{
-							Status: evaly.Scored,
-							Metrics: []evaly.Metric{
-								{
-									Name:          "native",
-									Unit:          "points",
-									ScaleRevision: "v1",
-									Value:         value,
-									Minimum:       0,
-									Maximum:       100,
-									Direction:     direction,
-								},
-							},
-						}, nil
-					},
-				}
-			}
-			b.Graders = []evaly.Grader[input, int, int]{grader(50)}
-			value := 60.0
-			quality := 55.0
-			if direction == "lower" {
-				value = 40
-				quality = 45
-			}
-			c.Graders = []evaly.Grader[input, int, int]{grader(value)}
-			o := evaly.NumericObjective{
-				Descriptor: evaly.ObjectiveIdentity{
-					ID:                  "native",
-					Revision:            "v1",
-					Unit:                "points",
-					ScaleRevision:       "v1",
-					Minimum:             0,
-					Maximum:             100,
-					Direction:           direction,
-					EligibilityRevision: "all",
-					MissingnessRevision: "required",
-					AggregationRevision: "repeat-mean-case-mean-v1",
-				},
-				GraderID:   "metric",
-				MetricName: "native",
-			}
-			p := measurementPolicy()
-			p.MinimumQuality = quality
-			p.MaximumRegression = 5
-			// Act.
-			be, e := evaly.Run(context.Background(), b)
-			if e != nil {
-				t.Fatal(e)
-			}
-			ce, e := evaly.Run(context.Background(), c)
-			if e != nil {
-				t.Fatal(e)
-			}
-			r, e := evaly.Compare(be, ce, o, p)
-			// Assert.
-			if e != nil || r.Verdict != evaly.GatePass || r.MatchedCases != 3 || r.MatchedCandidateMean != value ||
-				r.Delta != value-50 ||
-				r.Uncertainty.Lower != r.Delta ||
-				r.Uncertainty.Upper != r.Delta {
-				t.Fatal(r, e)
-			}
-			p.MinimumQuality = quality - 20
-			if direction == "higher" {
-				p.MinimumQuality = quality + 20
-			}
-			r, e = evaly.Compare(be, ce, o, p)
-			if e != nil || r.Verdict != evaly.GateFail {
-				t.Fatal(r, e)
-			}
-			// Arrange: a worse candidate, with quality permissive so regression is the deciding gate.
-			worse := 40.0
-			p.MinimumQuality = 0
-			if direction == "lower" {
-				worse = 60
-				p.MinimumQuality = 100
-			}
-			c.Graders = []evaly.Grader[input, int, int]{grader(worse)}
-			// Act.
-			worseExperiment, e := evaly.Run(context.Background(), c)
-			if e != nil {
-				t.Fatal(e)
-			}
-			r, e = evaly.Compare(be, worseExperiment, o, p)
-			// Assert.
-			if e != nil || r.Verdict != evaly.GateFail || len(r.Reasons) != 1 || r.Reasons[0] != "regression" {
-				t.Fatal(r, e)
-			}
-		})
+			checkNumericComparisonDirectionAndMatchedMeans(t, &direction)
+		},
+
+		// Act.
+
+		// Assert.
+
+		// Arrange: a worse candidate, with quality permissive so regression is the deciding gate.
+
+		// Act.
+
+		// Assert.
+
+		)
 	}
 }
 
@@ -376,6 +294,104 @@ func TestNumericSubnormalMeansRemainInScale(t *testing.T) {
 		r.Delta != minimum ||
 		r.Uncertainty.Lower != minimum ||
 		r.Uncertainty.Upper != minimum {
+		t.Fatal(r, e)
+	}
+}
+func checkNumericComparisonDirectionAndMatchedMeans(t *testing.T, direction *string) {
+	t.Helper()
+	// Arrange.
+	b, c := config(t, 3), config(t, 3)
+	b.ID = "base"
+	c.ID = "candidate"
+	grader := func(value float64) evaly.Grader[input, int, int] {
+		return evaly.GraderFunc[input, int, int]{
+			Identity: evaly.GraderRevision{ID: "metric", Implementation: "v1", Rubric: "v1"},
+			Evaluate: func(context.Context, evaly.View[input, int, int]) (evaly.Grade, error) {
+				return evaly.Grade{
+					Status: evaly.Scored,
+					Metrics: []evaly.Metric{
+						{
+							Name:          "native",
+							Unit:          "points",
+							ScaleRevision: "v1",
+							Value:         value,
+							Minimum:       0,
+							Maximum:       100,
+							Direction:     (*direction),
+						},
+					},
+				}, nil
+			},
+		}
+	}
+	b.Graders = []evaly.Grader[input, int, int]{grader(50)}
+	value := 60.0
+	quality := 55.0
+	if (*direction) == "lower" {
+		value = 40
+		quality = 45
+	}
+	c.Graders = []evaly.Grader[input, int, int]{grader(value)}
+	o := evaly.NumericObjective{
+		Descriptor: evaly.ObjectiveIdentity{
+			ID:                  "native",
+			Revision:            "v1",
+			Unit:                "points",
+			ScaleRevision:       "v1",
+			Minimum:             0,
+			Maximum:             100,
+			Direction:           (*direction),
+			EligibilityRevision: "all",
+			MissingnessRevision: "required",
+			AggregationRevision: "repeat-mean-case-mean-v1",
+		},
+		GraderID:   "metric",
+		MetricName: "native",
+	}
+	p := measurementPolicy()
+	p.MinimumQuality = quality
+	p.MaximumRegression = 5
+
+	be, e := evaly.Run(context.Background(), b)
+	if e != nil {
+		t.Fatal(e)
+	}
+	ce, e := evaly.Run(context.Background(), c)
+	if e != nil {
+		t.Fatal(e)
+	}
+	r, e := evaly.Compare(be, ce, o, p)
+
+	if e != nil || r.Verdict != evaly.GatePass || r.MatchedCases != 3 || r.MatchedCandidateMean != value ||
+		r.Delta != value-50 ||
+		r.Uncertainty.Lower != r.Delta ||
+		r.Uncertainty.Upper != r.Delta {
+		t.Fatal(r, e)
+	}
+	p.MinimumQuality = quality - 20
+	if (*direction) == "higher" {
+		p.MinimumQuality = quality + 20
+	}
+	r, e = evaly.Compare(be, ce, o, p)
+	if e != nil || r.Verdict != evaly.GateFail {
+		t.Fatal(r, e)
+	}
+
+	worse := 40.0
+	p.MinimumQuality = 0
+	if (*direction) == "lower" {
+		worse = 60
+		p.MinimumQuality = 100
+	}
+	c.Graders = []evaly.Grader[input, int, int]{grader(worse)}
+
+	worseExperiment, e := evaly.Run(context.Background(), c)
+	if e != nil {
+		t.Fatal(e)
+	}
+	r, e = evaly.Compare(be, worseExperiment, o, p)
+
+	if e != nil || r.Verdict != evaly.GateFail || len(r.Reasons) != 1 || r.Reasons[0] != "regression" {
 		t.Fatal(r, e)
 	}
 }

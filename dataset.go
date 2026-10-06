@@ -18,18 +18,18 @@ type Generation struct {
 	LabelValidated     bool   `json:"label_validated"`
 }
 type Case[I, R any] struct {
-	ID               string
-	Revision         string
-	Input            I
-	Reference        *R
-	Metadata         map[string]string
-	RequiredEvidence []string
-	Generation       *Generation
+	ID               string            `json:"ID"`
+	Revision         string            `json:"Revision"`
+	Input            I                 `json:"Input"`
+	Reference        *R                `json:"Reference"`
+	Metadata         map[string]string `json:"Metadata"`
+	RequiredEvidence []string          `json:"RequiredEvidence"`
+	Generation       *Generation       `json:"Generation"`
 }
 type DatasetDraft[I, R any] struct {
-	Cases          []Case[I, R]
-	Selection      string
-	ParentRevision string
+	Cases          []Case[I, R] `json:"Cases"`
+	Selection      string       `json:"Selection"`
+	ParentRevision string       `json:"ParentRevision"`
 }
 type CaseRecord struct {
 	ID               string            `json:"id"`
@@ -64,7 +64,7 @@ func (d Dataset[I, R]) Record() DatasetRecord { r, _ := cloneJSON(d.record); ret
 
 // CaseAt returns a fresh decoded copy of only the requested case.
 func (d Dataset[I, R]) CaseAt(index int) (Case[I, R], error) {
-	if d.record.State != "sealed" {
+	if d.record.State != sealedState {
 		return Case[I, R]{}, ErrUnsealed
 	}
 	if index < 0 || index >= len(d.record.Cases) {
@@ -84,7 +84,7 @@ func (d Dataset[I, R]) CaseAt(index int) (Case[I, R], error) {
 		Input:            i,
 		Metadata:         r.Metadata,
 		RequiredEvidence: r.RequiredEvidence,
-		Generation:       r.Generation,
+		Generation:       r.Generation, Reference: nil,
 	}
 	if len(r.Reference) > 0 {
 		ref, err := d.reference.Decode(r.Reference)
@@ -96,7 +96,7 @@ func (d Dataset[I, R]) CaseAt(index int) (Case[I, R], error) {
 	return c, nil
 }
 func (d Dataset[I, R]) Cases() ([]Case[I, R], error) {
-	if d.record.State != "sealed" {
+	if d.record.State != sealedState {
 		return nil, ErrUnsealed
 	}
 	out := make([]Case[I, R], 0, d.Len())
@@ -123,7 +123,17 @@ func (d DatasetDraft[I, R]) Seal(ic Codec[I], rc Codec[R]) (Dataset[I, R], error
 	return Dataset[I, R]{r, ic, rc}, nil
 }
 func (d DatasetDraft[I, R]) build(ic Codec[I], rc Codec[R]) (DatasetRecord, error) {
-	r := DatasetRecord{Version: 1, State: "sealed", Selection: d.Selection, ParentRevision: d.ParentRevision}
+	var zeroCodecIdentity CodecIdentity
+	r := DatasetRecord{
+		Version:        1,
+		State:          sealedState,
+		Selection:      d.Selection,
+		ParentRevision: d.ParentRevision,
+		Revision:       "",
+		InputCodec:     zeroCodecIdentity,
+		ReferenceCodec: zeroCodecIdentity,
+		Cases:          nil,
+	}
 	if ic == nil || rc == nil || len(d.Cases) == 0 || d.Selection == "" {
 		return r, ErrInvalid
 	}
@@ -148,46 +158,10 @@ func (d DatasetDraft[I, R]) build(ic Codec[I], rc Codec[R]) (DatasetRecord, erro
 			return r, fmt.Errorf("%w: case %s", ErrConflict, c.ID)
 		}
 		seen[c.ID] = true
-		if c.Generation != nil && c.Generation.Mode != "replay" && c.Generation.Mode != "search" {
-			return r, ErrUnsupported
-		}
-		if c.Generation != nil &&
-			(!c.Generation.LabelValidated || c.Generation.Generator == "" || c.Generation.Mode == "") {
-			return r, fmt.Errorf("%w: generated draft %s needs host validation", ErrUnsealed, c.ID)
-		}
-		b, e := ic.Encode(c.Input)
+		rec, e := sealCaseRecord(c, ic, rc, r.InputCodec, r.ReferenceCodec)
 		if e != nil {
 			return r, e
 		}
-		b, e = CanonicalJSON(b)
-		if e != nil {
-			return r, e
-		}
-		rec := CaseRecord{
-			ID:               c.ID,
-			Input:            b,
-			Metadata:         c.Metadata,
-			RequiredEvidence: c.RequiredEvidence,
-			Generation:       c.Generation,
-		}
-		if c.Reference != nil {
-			b, e = rc.Encode(*c.Reference)
-			if e != nil {
-				return r, e
-			}
-			rec.Reference, e = CanonicalJSON(b)
-			if e != nil {
-				return r, e
-			}
-		}
-		bytes, e := canonical(struct {
-			Case             CaseRecord
-			Input, Reference CodecIdentity
-		}{rec, r.InputCodec, r.ReferenceCodec})
-		if e != nil {
-			return r, e
-		}
-		rec.Revision = digest(bytes)
 		r.Cases = append(r.Cases, rec)
 	}
 	b, e := canonical(r)
@@ -201,7 +175,7 @@ func RestoreDataset[I, R any](r DatasetRecord, ic Codec[I], rc Codec[R]) (Datase
 	if r.Version != 1 {
 		return Dataset[I, R]{}, ErrUnsupported
 	}
-	if r.State != "sealed" {
+	if r.State != sealedState {
 		return Dataset[I, R]{}, ErrUnsealed
 	}
 	if ic == nil || rc == nil || r.InputCodec != ic.Identity() || r.ReferenceCodec != rc.Identity() {
@@ -247,7 +221,7 @@ func GenerateDraft[I, R any](
 		return DatasetDraft[I, R]{}, err
 	}
 	p := g.Provenance()
-	if p.Generator == "" || (p.Mode != "search" && p.Mode != "replay") {
+	if p.Generator == "" || (p.Mode != searchMode && p.Mode != replayMode) {
 		return DatasetDraft[I, R]{}, ErrInvalid
 	}
 	if err := ctx.Err(); err != nil {
@@ -263,13 +237,13 @@ func GenerateDraft[I, R any](
 		cs[i].Revision = ""
 		cs[i].Generation = &cp
 	}
-	return DatasetDraft[I, R]{Cases: cs, Selection: selection}, nil
+	return DatasetDraft[I, R]{Cases: cs, Selection: selection, ParentRevision: ""}, nil
 }
 
 type ScenarioContext struct {
-	Seed int64
-	Mode string
-	Step int
+	Seed int64  `json:"Seed"`
+	Mode string `json:"Mode"`
+	Step int    `json:"Step"`
 }
 
 type ScenarioStep[S, O any] interface {
@@ -277,14 +251,14 @@ type ScenarioStep[S, O any] interface {
 	Step(context.Context, S, ScenarioContext) (S, O, bool, error)
 }
 type ScenarioResult[S, O any] struct {
-	DriverRevision string
-	Mode           string
-	Generation     *Generation
-	State          S
-	Outputs        []O
-	Steps          int
-	StateStep      int
-	Stop           string
+	DriverRevision string      `json:"DriverRevision"`
+	Mode           string      `json:"Mode"`
+	Generation     *Generation `json:"Generation"`
+	State          S           `json:"State"`
+	Outputs        []O         `json:"Outputs"`
+	Steps          int         `json:"Steps"`
+	StateStep      int         `json:"StateStep"`
+	Stop           string      `json:"Stop"`
 }
 
 // Drive bounds host-owned multistep scenarios; Step must honor context cancellation.
@@ -295,7 +269,16 @@ func Drive[S, O any](
 	maxSteps int,
 	timeout time.Duration,
 ) (ScenarioResult[S, O], error) {
-	r := ScenarioResult[S, O]{State: state}
+	r := ScenarioResult[S, O]{
+		State:          state,
+		DriverRevision: "",
+		Mode:           "",
+		Generation:     nil,
+		Outputs:        nil,
+		Steps:          0,
+		StateStep:      0,
+		Stop:           "",
+	}
 	if err := ValidatePort(driver); err != nil {
 		return r, err
 	}
@@ -303,32 +286,82 @@ func Drive[S, O any](
 		return r, ErrInvalid
 	}
 	r.DriverRevision = driver.Revision()
-	r.Mode = "replay"
+	r.Mode = replayMode
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	for step := range maxSteps {
 		if e := ctx.Err(); e != nil {
-			r.Stop = "deadline"
+			r.Stop = scenarioDeadline
 			return r, e
 		}
-		s, o, done, e := driver.Step(ctx, r.State, ScenarioContext{Mode: "replay", Step: step})
+		s, o, done, e := driver.Step(ctx, r.State, ScenarioContext{Mode: replayMode, Step: step, Seed: 0})
 		r.State = s
 		r.Outputs = append(r.Outputs, o)
 		r.Steps++
 		r.StateStep = r.Steps
 		if ctx.Err() != nil {
-			r.Stop = "deadline"
+			r.Stop = scenarioDeadline
 			return r, ctx.Err()
 		}
 		if e != nil {
-			r.Stop = "error"
+			r.Stop = scenarioError
 			return r, e
 		}
 		if done {
-			r.Stop = "completed"
+			r.Stop = completedState
 			return r, nil
 		}
 	}
-	r.Stop = "step_limit"
+	r.Stop = scenarioStepLimit
 	return r, nil
+}
+
+func sealCaseRecord[I, R any](
+	c Case[I, R],
+	ic Codec[I],
+	rc Codec[R],
+	inputIdentity, referenceIdentity CodecIdentity,
+) (CaseRecord, error) {
+	if c.Generation != nil && c.Generation.Mode != replayMode && c.Generation.Mode != searchMode {
+		return CaseRecord{}, ErrUnsupported
+	}
+	if c.Generation != nil &&
+		(!c.Generation.LabelValidated || c.Generation.Generator == "" || c.Generation.Mode == "") {
+		return CaseRecord{}, fmt.Errorf("%w: generated draft %s needs host validation", ErrUnsealed, c.ID)
+	}
+	b, e := ic.Encode(c.Input)
+	if e != nil {
+		return CaseRecord{}, e
+	}
+	b, e = CanonicalJSON(b)
+	if e != nil {
+		return CaseRecord{}, e
+	}
+	rec := CaseRecord{
+		ID:               c.ID,
+		Input:            b,
+		Metadata:         c.Metadata,
+		RequiredEvidence: c.RequiredEvidence,
+		Generation:       c.Generation, Revision: "", Reference: nil,
+	}
+	if c.Reference != nil {
+		b, e = rc.Encode(*c.Reference)
+		if e != nil {
+			return CaseRecord{}, e
+		}
+		rec.Reference, e = CanonicalJSON(b)
+		if e != nil {
+			return CaseRecord{}, e
+		}
+	}
+	bytes, e := canonical(struct {
+		Case      CaseRecord    `json:"Case"`
+		Input     CodecIdentity `json:"Input"`
+		Reference CodecIdentity `json:"Reference"`
+	}{rec, inputIdentity, referenceIdentity})
+	if e != nil {
+		return CaseRecord{}, e
+	}
+	rec.Revision = digest(bytes)
+	return rec, nil
 }

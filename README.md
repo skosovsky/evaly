@@ -98,6 +98,13 @@ units, scales and direction. `Compare` requires an explicit `Objective`; asserti
 and numeric reference objectives use the same measurement path. Both side coverage
 and matched case count/coverage must satisfy the host gate. Delta, quality and
 bootstrap use the same matched cases. Missing means are explicitly unavailable.
+The bootstrap method is `paired_case_bootstrap_percentile_pcg_v2`: a local
+`math/rand/v2` PCG receives the signed seed's full two's-complement bit pattern as
+its first seed word, with zero as the second word. The 95% percentile interval
+uses floor(0.025 × (samples−1)) and ceil(0.975 × (samples−1)). This revision changes
+bootstrap samples; the paired scheduling algorithm and its seed mapping remain
+`case-repeat-v1` SplitMix64.
+
 See [measurement](docs/measurement-contract.md), [paired execution](docs/paired-contract.md),
 and [calibration](docs/calibration-contract.md). Case IDs do not prove independence;
 the host owns content, group and time splits.
@@ -133,9 +140,12 @@ Development and CI use Go 1.27.1 and golangci-lint v2.14.0. Both modules
 declare Go 1.27.1.
 
 ```sh
-make validate # formatting, vet and race tests in both modules
+make validate # config verification, formatting, vet, uncapped lint, race tests and seven examples
 make lint     # template-based golangci-lint checks in both modules
-make fix      # go fix, module tidy, format and lint autofixes
+make fmt      # apply configured formatters to both modules
+make bench    # benchmarks and allocations in both modules
+make cover    # coverage in both modules
+make fuzz     # each discovered fuzz function runs separately
 ```
 
 The shared [conformance suite](conformance/conformance.go) can validate host ports.
@@ -153,9 +163,17 @@ reader is supplied. The format inventory is in [acceptance](docs/acceptance.md).
 [Live integration](docs/live-integration.md) is separately opt-in and has not been
 run without host credentials. Scripted checks do not establish LLM accuracy.
 
-Releases are published from a clean, committed `main` branch using
-`make release RELEASE_VERSION=v0.1.0`. This runs the formatter, vet and race-test
-gates, then atomically pushes main and the annotated root tag and creates the
-GitHub release from docs/release-notes.md. Strict lint remains a separate
-`make lint` gate; the current outstanding findings are disclosed in release notes.
-The development-only contracttest module is not independently published.
+Release targets validate both modules before invoking the shared script:
+
+```sh
+make release-patch # increment patch
+make release-break # increment minor before v1, major from v1 onward
+make release       # alias for release-break
+```
+
+The script requires a clean committed checkout, calculates the version from existing
+root tags and asks for confirmation. It prepares release state on detached HEAD,
+pushes Git tags, then returns to the original branch. It does not create a GitHub
+Release or push the working branch. Only the root module (`.`) is passed to the
+script; contracttest is a development module and receives no release tag.
+Commit signing uses the existing Git configuration.

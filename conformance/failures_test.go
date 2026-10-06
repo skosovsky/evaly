@@ -40,45 +40,10 @@ func (s *effectExport) Deliver(ctx context.Context, r evaly.DeliveryRecord) erro
 }
 func TestFailureReferenceAdapters(t *testing.T) {
 	t.Run("grader_partial_paid_error", func(t *testing.T) {
-		conformance.GraderFailures(t, func() conformance.GraderFault[int, int, int] {
-			usage := evaly.Usage{Known: true, Units: 3}
-			return conformance.GraderFault[int, int, int]{
-				Grader: evaly.GraderFunc[int, int, int]{
-					Identity: evaly.GraderRevision{ID: "partial", Implementation: "1", Rubric: "1"},
-					Evaluate: func(context.Context, evaly.View[int, int, int]) (evaly.Grade, error) {
-						return evaly.Grade{
-							Status:     evaly.Scored,
-							Assertions: []evaly.Assertion{{Name: "unconfirmed", Pass: true}},
-							Usage:      usage,
-						}, errors.New(
-							"provider failed",
-						)
-					},
-				},
-				View:          func() (evaly.View[int, int, int], error) { return evaly.View[int, int, int]{}, nil },
-				ExpectedUsage: usage,
-			}
-		})
+		checkPartialPaidGraderError(t)
 	})
 	t.Run("pair_reverse_paid_error", func(t *testing.T) {
-		conformance.PairJudgeFailures(t, func() conformance.PairFault[int] {
-			codec := evaly.JSONCodec[int]{ID: "int", Version: "1"}
-			a, err := evaly.SealSnapshot(1, codec)
-			if err != nil {
-				t.Fatal(err)
-			}
-			b, err := evaly.SealSnapshot(2, codec)
-			if err != nil {
-				t.Fatal(err)
-			}
-			return conformance.PairFault[int]{
-				Judge:           &partialPairJudge{},
-				A:               a,
-				B:               b,
-				ExpectedForward: evaly.Usage{Known: true, Units: 1},
-				ExpectedReverse: evaly.Usage{Known: true, Units: 2},
-			}
-		})
+		checkReversePaidPairError(t)
 	})
 	t.Run("evidence_delivery_loss", func(t *testing.T) {
 		conformance.EvidenceFailures(t, func() (*evaly.Capture, evaly.Event, error) {
@@ -152,5 +117,48 @@ func TestFailureReferenceAdapters(t *testing.T) {
 				},
 			}
 		})
+	})
+}
+
+func checkPartialPaidGraderError(t *testing.T) {
+	conformance.GraderFailures(t, func() conformance.GraderFault[int, int, int] {
+		usage := evaly.Usage{Known: true, Units: 3}
+		return conformance.GraderFault[int, int, int]{
+			Grader: evaly.GraderFunc[int, int, int]{
+				Identity: evaly.GraderRevision{ID: "partial", Implementation: "1", Rubric: "1"},
+				Evaluate: func(context.Context, evaly.View[int, int, int]) (evaly.Grade, error) {
+					return evaly.Grade{
+						Status:     evaly.Scored,
+						Assertions: []evaly.Assertion{{Name: "unconfirmed", Pass: true}},
+						Usage:      usage,
+					}, errors.New(
+						"provider failed",
+					)
+				},
+			},
+			View:          func() (evaly.View[int, int, int], error) { return evaly.View[int, int, int]{}, nil },
+			ExpectedUsage: usage,
+		}
+	})
+}
+
+func checkReversePaidPairError(t *testing.T) {
+	conformance.PairJudgeFailures(t, func() conformance.PairFault[int] {
+		codec := evaly.JSONCodec[int]{ID: "int", Version: "1"}
+		a, err := evaly.SealSnapshot(1, codec)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := evaly.SealSnapshot(2, codec)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return conformance.PairFault[int]{
+			Judge:           &partialPairJudge{},
+			A:               a,
+			B:               b,
+			ExpectedForward: evaly.Usage{Known: true, Units: 1},
+			ExpectedReverse: evaly.Usage{Known: true, Units: 2},
+		}
 	})
 }

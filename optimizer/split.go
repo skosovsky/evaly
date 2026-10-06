@@ -14,8 +14,8 @@ type SplitValidator[I, R any] interface {
 }
 
 type SplitValidatorFunc[I, R any] struct {
-	Identity string
-	Check    func(context.Context, Split[I, R]) error
+	Identity string                                   `json:"Identity"`
+	Check    func(context.Context, Split[I, R]) error `json:"Check"`
 }
 
 func (v SplitValidatorFunc[I, R]) Revision() string { return v.Identity }
@@ -39,9 +39,9 @@ func (v SplitValidatorFunc[I, R]) ValidateSplit(ctx context.Context, s Split[I, 
 // keys. It does not infer semantic similarity. Repeated keys within one split
 // are permitted; the same key across two splits is a conflict.
 type KeySplitValidator[I, R any] struct {
-	Identity   string
-	GroupKey   func(evaly.Case[I, R]) (string, error)
-	ContentKey func(evaly.Case[I, R]) (string, error)
+	Identity   string                                 `json:"Identity"`
+	GroupKey   func(evaly.Case[I, R]) (string, error) `json:"GroupKey"`
+	ContentKey func(evaly.Case[I, R]) (string, error) `json:"ContentKey"`
 }
 
 func (v KeySplitValidator[I, R]) Revision() string { return v.Identity }
@@ -59,28 +59,35 @@ func (v KeySplitValidator[I, R]) ValidateSplit(ctx context.Context, s Split[I, R
 		if key == nil {
 			continue
 		}
-		seen := map[string]int{}
-		for phase, d := range []evaly.Dataset[I, R]{s.Training, s.Calibration, s.Holdout} {
-			for index := 0; index < d.Len(); index++ {
-				if err := ctx.Err(); err != nil {
-					return err
-				}
-				c, err := d.CaseAt(index)
-				if err != nil {
-					return err
-				}
-				k, err := key(c)
-				if err != nil {
-					return err
-				}
-				if k == "" {
-					return evaly.ErrInvalid
-				}
-				if prior, ok := seen[k]; ok && prior != phase {
-					return evaly.ErrConflict
-				}
-				seen[k] = phase
+		if err := validateSplitKey(ctx, s, key); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateSplitKey[I, R any](ctx context.Context, s Split[I, R], key func(evaly.Case[I, R]) (string, error)) error {
+	seen := map[string]int{}
+	for phase, d := range []evaly.Dataset[I, R]{s.Training, s.Calibration, s.Holdout} {
+		for index := range d.Len() {
+			if err := ctx.Err(); err != nil {
+				return err
 			}
+			c, err := d.CaseAt(index)
+			if err != nil {
+				return err
+			}
+			k, err := key(c)
+			if err != nil {
+				return err
+			}
+			if k == "" {
+				return evaly.ErrInvalid
+			}
+			if prior, ok := seen[k]; ok && prior != phase {
+				return evaly.ErrConflict
+			}
+			seen[k] = phase
 		}
 	}
 	return nil

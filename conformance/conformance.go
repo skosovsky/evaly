@@ -37,14 +37,14 @@ func Artifact(t *testing.T, open func() (evaly.ArtifactStore, error)) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	env, e := evaly.NewEnvelope("evidence", "conformance", map[string]string{"state": "sealed"})
+	env, e := evaly.NewEnvelope("evidence", "conformance", map[string]string{valueState: "sealed"})
 	if e != nil {
 		t.Fatal(e)
 	}
 	t.Run("atomic_identity", func(t *testing.T) {
 		var wg sync.WaitGroup
-		errs := make(chan error, 4)
-		for range 4 {
+		errs := make(chan error, concurrentBudgetClaims)
+		for range concurrentBudgetClaims {
 			wg.Go(func() { ; errs <- s.Put(ctx, env) })
 		}
 		wg.Wait()
@@ -54,19 +54,19 @@ func Artifact(t *testing.T, open func() (evaly.ArtifactStore, error)) {
 				t.Fatal(e)
 			}
 		}
-		other, _ := evaly.NewEnvelope("evidence", env.ID, map[string]string{"state": "incomplete"})
+		other, _ := evaly.NewEnvelope("evidence", env.ID, map[string]string{valueState: "incomplete"})
 		if e = s.Put(ctx, other); !errors.Is(e, evaly.ErrConflict) {
 			t.Fatal(e)
 		}
 	})
 	t.Run("reopen", func(t *testing.T) {
-		reopened, e := open()
-		if e != nil {
-			t.Fatal(e)
+		reopened, eLocal := open()
+		if eLocal != nil {
+			t.Fatal(eLocal)
 		}
-		got, e := reopened.Get(ctx, env.ID)
-		if e != nil || got.Checksum != env.Checksum {
-			t.Fatal(e, got)
+		got, eLocal := reopened.Get(ctx, env.ID)
+		if eLocal != nil || got.Checksum != env.Checksum {
+			t.Fatal(eLocal, got)
 		}
 	})
 	t.Run("invalid_checksum", func(t *testing.T) {
@@ -91,14 +91,14 @@ func Budget(t *testing.T, makeBudget func() (evaly.Budget, error)) {
 	var wg sync.WaitGroup
 	for _, id := range []string{"one", "two", "three"} {
 		wg.Go(func() {
-			r, e := b.Reserve(ctx, id, 1)
-			if e == nil {
+			r, eLocal := b.Reserve(ctx, id, 1)
+			if eLocal == nil {
 				accepted.Add(1)
-				if e = b.Reconcile(ctx, r, evaly.Usage{}); e != nil {
-					t.Error(e)
+				if eLocal = b.Reconcile(ctx, r, evaly.Usage{Known: false, Units: 0}); eLocal != nil {
+					t.Error(eLocal)
 				}
-			} else if !errors.Is(e, evaly.ErrBudget) {
-				t.Error(e)
+			} else if !errors.Is(eLocal, evaly.ErrBudget) {
+				t.Error(eLocal)
 			}
 		})
 	}
@@ -202,7 +202,7 @@ func Lifecycle[E any](t *testing.T, l evaly.Lifecycle[E]) {
 }
 func Export(t *testing.T, s evaly.ExportSink, count func() int) {
 	t.Helper()
-	env, e := evaly.NewEnvelope("evidence", "export-conformance", map[string]string{"state": "sealed"})
+	env, e := evaly.NewEnvelope("evidence", "export-conformance", map[string]string{valueState: "sealed"})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -225,12 +225,12 @@ func Export(t *testing.T, s evaly.ExportSink, count func() int) {
 	cancel()
 	// Act / Assert: cancellation is classified separately from transient delivery.
 	delivery := evaly.Export(cancelled, s, r)
-	if delivery.State != "failed" || delivery.Reason != "cancelled" || count() != expected {
+	if delivery.State != failedState || delivery.Reason != "cancelled" || count() != expected {
 		t.Fatal("cancelled delivery dispatched or misclassified", delivery, count())
 	}
 	if s.Capabilities().Deduplication {
 		// Arrange: the same delivery identity now carries different artifact bytes.
-		other, err := evaly.NewEnvelope("evidence", "export-conformance", map[string]string{"state": "incomplete"})
+		other, err := evaly.NewEnvelope("evidence", "export-conformance", map[string]string{valueState: "incomplete"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -240,7 +240,7 @@ func Export(t *testing.T, s evaly.ExportSink, count func() int) {
 			s,
 			evaly.DeliveryRecord{ObservationID: r.ObservationID, Artifact: other},
 		)
-		if conflict.State != "failed" || conflict.Reason != "conflict" || count() != expected {
+		if conflict.State != failedState || conflict.Reason != "conflict" || count() != expected {
 			t.Fatal("immutable delivery identity conflict not preserved", conflict, count())
 		}
 	}

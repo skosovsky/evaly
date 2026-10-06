@@ -54,7 +54,7 @@ func TestHTTPRejectsLossAndUnknownVersion(t *testing.T) {
 	for _, version := range []int{1, 2, 99} {
 		t.Run(string(rune('0'+version)), func(t *testing.T) {
 			// Arrange.
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				_ = json.NewEncoder(w).
 					Encode(httpjson.Response{Version: version, Status: "completed", Output: json.RawMessage(`{"sum":3}`), Evidence: httpjson.EvidenceDelivery{Complete: true}, Capabilities: evaly.InteropCapabilities{Version: 1, Outcome: false, ResetIdentity: true, Evidence: true, RichStatus: true, MetricScales: true}})

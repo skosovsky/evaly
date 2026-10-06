@@ -78,50 +78,16 @@ func TestRepeatedSearchIDCannotRedispatchZeroUnitProposal(t *testing.T) {
 func TestLowerObjectiveSeparatesMeasuredBestFromFeasibleWinner(t *testing.T) {
 	for _, feasible := range []bool{true, false} {
 		t.Run(map[bool]string{true: "feasible_runner_up", false: "all_infeasible"}[feasible], func(t *testing.T) {
-			// Arrange: a cheaper measured candidate violates the host constraint.
-			c := searchConfig(t, 30)
-			id := fixtures.Objective().Identity()
-			id.ID, id.Unit, id.Direction = "host-cost", "cost", "lower"
-			c.Objective = evaly.ObjectiveFuncs{
-				Descriptor: id,
-				Select:     func(evaly.CaseIdentity) (evaly.Eligibility, error) { return evaly.Eligibility{Eligible: true}, nil },
-				Evaluate: func(trial evaly.TrialRecord) (evaly.Measurement, error) {
-					pass, present := evaly.AssertionOutcome(trial.Grades, "all")
-					value := 0.0
-					if pass {
-						value = 1
-					}
-					return evaly.Measurement{Present: present, Value: value}, nil
-				},
-			}
-			c.Gate.MinimumQuality, c.Gate.MaximumRegression = 1, 1
-			c.Constraints = optimizer.ConstraintsFunc[recipe]{
-				Identity: "host-feasibility-v1",
-				Assess: func(_ context.Context, value recipe, _ optimizer.EvaluationSummary) (optimizer.Feasibility, error) {
-					return optimizer.Feasibility{
-						Feasible: feasible && value.Offset == 0,
-						Reason:   "host_constraint",
-					}, nil
-				},
-			}
-			// Act.
-			r, err := optimizer.Search(context.Background(), c)
-			// Assert: ranking includes rejected measurements without promoting them.
-			if err != nil || len(r.History) != 2 || len(r.Ranking) != 2 ||
-				r.BestMeasured != r.History[1].Candidate.Revision ||
-				r.History[1].Feasible ||
-				*r.History[1].Quality != 0 ||
-				optimizer.ValidateResult(r) != nil {
-				t.Fatal(err, r)
-			}
-			if feasible {
-				if r.Winner != r.History[0].Candidate.Revision || r.Winner == r.BestMeasured || r.Holdout == nil {
-					t.Fatal(r)
-				}
-			} else if r.Winner != "" || r.Holdout != nil || r.Reason != "no_selectable_candidate" {
-				t.Fatal(r)
-			}
-		})
+			checkLowerObjectiveSeparatesMeasuredBestFromFeasibleWinner(
+				// Arrange: a cheaper measured candidate violates the host constraint.
+				t, &feasible)
+		},
+
+		// Act.
+
+		// Assert: ranking includes rejected measurements without promoting them.
+
+		)
 	}
 }
 
@@ -133,41 +99,7 @@ func TestFeedbackRoundRepairsFailureWithoutHoldoutLeakageOrReselection(t *testin
 	c.Proposal = optimizer.ProposalFunc[recipe, fixtures.Calculation, int]{
 		Identity: "repair-v1",
 		Generate: func(_ context.Context, request optimizer.ProposalRequest[fixtures.Calculation, int]) (optimizer.ProposalResult[recipe], error) {
-			proposals++
-			for name, dataset := range map[string]evaly.Dataset[fixtures.Calculation, int]{"train": request.Training, "calibration": request.Calibration} {
-				cases, err := dataset.Cases()
-				if err != nil || len(cases) != 1 || cases[0].ID != name || cases[0].Reference == nil ||
-					*cases[0].Reference != cases[0].Input.Left+2 {
-					t.Fatal("wrong visible dataset or label", name, err, cases)
-				}
-			}
-			if request.Round == 0 {
-				if len(request.Feedback) != 0 {
-					t.Fatal(request.Feedback)
-				}
-				return optimizer.ProposalResult[recipe]{
-					Candidates: []optimizer.Proposal[recipe]{{ID: "broken", Value: recipe{Offset: 1}}},
-					Usage:      evaly.Usage{Known: true},
-				}, nil
-			}
-			if request.Round != 1 || len(request.Feedback) != 1 {
-				t.Fatal(request)
-			}
-			f := request.Feedback[0]
-			if f.Candidate.ID != "broken" || f.Candidate.Revision == "" || f.Round != 0 || f.State != "failed" ||
-				f.Reason != "evaluation_failure" ||
-				f.Quality != nil ||
-				f.Candidate.Algorithm != c.Algorithm ||
-				f.Candidate.Codec != c.Codec.Identity() {
-				t.Fatal(f)
-			}
-			return optimizer.ProposalResult[recipe]{
-				Candidates: []optimizer.Proposal[recipe]{
-					{ID: "repaired", Parent: f.Candidate.Revision, Value: recipe{}},
-				},
-				Usage:     evaly.Usage{Known: true},
-				Exhausted: true,
-			}, nil
+			return repairFailureProposal(t, request, c, &proposals)
 		},
 	}
 	evaluate := c.Evaluate
@@ -267,5 +199,101 @@ func TestTwoRoundProposalImprovesMeasuredCandidateFromFeedback(t *testing.T) {
 		r.HoldoutComparison.Verdict != evaly.GatePass ||
 		optimizer.ValidateResult(r) != nil {
 		t.Fatal(err, proposalCalls, r)
+	}
+}
+func checkLowerObjectiveSeparatesMeasuredBestFromFeasibleWinner(t *testing.T, feasible *bool) {
+	t.Helper()
+	// Arrange.
+	c := searchConfig(t, 30)
+	id := fixtures.Objective().Identity()
+	id.ID, id.Unit, id.Direction = "host-cost", "cost", "lower"
+	c.Objective = evaly.ObjectiveFuncs{
+		Descriptor: id,
+		Select:     func(evaly.CaseIdentity) (evaly.Eligibility, error) { return evaly.Eligibility{Eligible: true}, nil },
+		Evaluate: func(trial evaly.TrialRecord) (evaly.Measurement, error) {
+			pass, present := evaly.AssertionOutcome(trial.Grades, "all")
+			value := 0.0
+			if pass {
+				value = 1
+			}
+			return evaly.Measurement{Present: present, Value: value}, nil
+		},
+	}
+	c.Gate.MinimumQuality, c.Gate.MaximumRegression = 1, 1
+	c.Constraints = optimizer.ConstraintsFunc[recipe]{
+		Identity: "host-feasibility-v1",
+		Assess: func(_ context.Context, value recipe, _ optimizer.EvaluationSummary) (optimizer.Feasibility, error) {
+			return optimizer.Feasibility{
+				Feasible: (*feasible) && value.Offset == 0,
+				Reason:   "host_constraint",
+			}, nil
+		},
+	}
+
+	// Act.
+	r, err := optimizer.Search(context.Background(), c)
+
+	// Assert.
+	if err != nil || len(r.History) != 2 || len(r.Ranking) != 2 ||
+		r.BestMeasured != r.History[1].Candidate.Revision ||
+		r.History[1].Feasible ||
+		*r.History[1].Quality != 0 ||
+		optimizer.ValidateResult(r) != nil {
+		t.Fatal(err, r)
+	}
+	if *feasible {
+		if r.Winner != r.History[0].Candidate.Revision || r.Winner == r.BestMeasured || r.Holdout == nil {
+			t.Fatal(r)
+		}
+	} else if r.Winner != "" || r.Holdout != nil || r.Reason != "no_selectable_candidate" {
+		t.Fatal(r)
+	}
+}
+
+func repairFailureProposal(
+	t *testing.T,
+	request optimizer.ProposalRequest[fixtures.Calculation, int],
+	c optimizer.Config[recipe, fixtures.Calculation, int],
+	proposals *int,
+) (optimizer.ProposalResult[recipe], error) {
+	(*proposals)++
+	checkProposalVisibility(t, request)
+	if request.Round == 0 {
+		if len(request.Feedback) != 0 {
+			t.Fatal(request.Feedback)
+		}
+		return optimizer.ProposalResult[recipe]{
+			Candidates: []optimizer.Proposal[recipe]{{ID: "broken", Value: recipe{Offset: 1}}},
+			Usage:      evaly.Usage{Known: true},
+		}, nil
+	}
+	if request.Round != 1 || len(request.Feedback) != 1 {
+		t.Fatal(request)
+	}
+	f := request.Feedback[0]
+	if f.Candidate.ID != "broken" || f.Candidate.Revision == "" || f.Round != 0 || f.State != "failed" ||
+		f.Reason != "evaluation_failure" ||
+		f.Quality != nil ||
+		f.Candidate.Algorithm != c.Algorithm ||
+		f.Candidate.Codec != c.Codec.Identity() {
+		t.Fatal(f)
+	}
+	return optimizer.ProposalResult[recipe]{
+		Candidates: []optimizer.Proposal[recipe]{
+			{ID: "repaired", Parent: f.Candidate.Revision, Value: recipe{}},
+		},
+		Usage:     evaly.Usage{Known: true},
+		Exhausted: true,
+	}, nil
+}
+
+func checkProposalVisibility(t *testing.T, request optimizer.ProposalRequest[fixtures.Calculation, int]) {
+	t.Helper()
+	for name, dataset := range map[string]evaly.Dataset[fixtures.Calculation, int]{"train": request.Training, "calibration": request.Calibration} {
+		cases, err := dataset.Cases()
+		if err != nil || len(cases) != 1 || cases[0].ID != name || cases[0].Reference == nil ||
+			*cases[0].Reference != cases[0].Input.Left+2 {
+			t.Fatal("wrong visible dataset or label", name, err, cases)
+		}
 	}
 }

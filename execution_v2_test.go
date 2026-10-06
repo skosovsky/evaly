@@ -3,8 +3,8 @@ package evaly_test
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math"
+	"strconv"
 	"sync/atomic"
 	"testing"
 
@@ -13,6 +13,7 @@ import (
 
 type countingInputCodec struct {
 	evaly.JSONCodec[input]
+
 	decodes *atomic.Int64
 }
 
@@ -93,14 +94,14 @@ func TestRunPreflightBeforeEffects(t *testing.T) {
 
 func TestRunLinearCaseDecodingAndIsolation(t *testing.T) {
 	for _, n := range []int{1, 8, 32} {
-		t.Run(fmt.Sprint(n), func(t *testing.T) {
+		t.Run(strconv.Itoa(n), func(t *testing.T) {
 			// Arrange.
 			c := config(t, n)
 			c.Plan.Concurrency = 1
 			var count atomic.Int64
 			codec := countingInputCodec{
-				JSONCodec: evaly.JSONCodec[input]{ID: "calculation", Version: "1"},
-				decodes:   &count,
+				ID: "calculation", Version: "1",
+				decodes: &count,
 			}
 			cases, _ := c.Dataset.Cases()
 			c.Dataset, _ = (evaly.DatasetDraft[input, int]{Selection: "all", Cases: cases}).Seal(
@@ -117,7 +118,7 @@ func TestRunLinearCaseDecodingAndIsolation(t *testing.T) {
 			)
 			g := c.Graders[0].(evaly.GraderFunc[input, int, int])
 			g.Identity.ID = "mutating"
-			g.Evaluate = func(ctx context.Context, v evaly.View[input, int, int]) (evaly.Grade, error) {
+			g.Evaluate = func(_ context.Context, v evaly.View[input, int, int]) (evaly.Grade, error) {
 				v.Case.Input.Numbers[0] = 777
 				*v.Case.Reference = 777
 				v.Evidence.Coverage["tool"] = false
@@ -149,89 +150,20 @@ func TestStopOnInfrastructureRetainsSlotsAndAvoidsContaminatedRetry(t *testing.T
 	for _, isolation := range []evaly.Isolation{evaly.SerialShared, evaly.Isolated} {
 		for _, failure := range []string{"setup", "cleanup", "grader", "budget", "usage"} {
 			t.Run(string(isolation)+"/"+failure, func(t *testing.T) {
-				// Arrange.
-				c := config(t, 3)
-				c.Plan.Concurrency = 1
-				c.Plan.MaxAttempts = 2
-				c.Plan.StopOnInfrastructure = true
-				life := c.Lifecycle.(evaly.LifecycleFuncs[*int])
-				life.IdentityValue.Isolation = isolation
-				var targetCalls, prepareCalls atomic.Int32
-				original := c.Target
-				c.Target = evaly.TargetFunc[input, int, *int](
-					func(ctx context.Context, i input, tc evaly.TrialContext[*int]) (evaly.TargetResult[int], error) {
-						targetCalls.Add(1)
-						out, err := original.Run(ctx, i, tc)
-						if failure == "usage" {
-							out.Usage = evaly.Usage{Known: true, Units: math.NaN()}
-						}
-						return out, err
-					},
-				)
-				prepare := life.PrepareFunc
-				life.PrepareFunc = func(ctx context.Context, id string) (*int, error) {
-					prepareCalls.Add(1)
-					env, err := prepare(ctx, id)
-					if failure == "setup" {
-						return env, errors.New("setup")
-					}
-					return env, err
-				}
-				if failure == "cleanup" {
-					life.CleanupFunc = func(context.Context, *int) error { return errors.New("contaminated") }
-				}
-				if failure == "grader" {
-					g := c.Graders[0].(evaly.GraderFunc[input, int, int])
-					g.Evaluate = func(context.Context, evaly.View[input, int, int]) (evaly.Grade, error) {
-						return evaly.Grade{Usage: evaly.Usage{Known: true, Units: 2}}, errors.New("judge")
-					}
-					c.Graders[0] = g
-				}
-				if failure == "budget" {
-					c.Budget, _ = evaly.NewMemoryBudget(0)
-				}
-				c.Lifecycle = life
-				// Act.
-				exp, err := evaly.Run(context.Background(), c)
-				// Assert.
-				if err != nil {
-					t.Fatal(err)
-				}
-				r := exp.Record()
-				expectedAttempts := 1
-				if failure == "setup" {
-					expectedAttempts = 2
-				}
-				if len(r.Trials) != expectedAttempts+2 || prepareCalls.Load() != int32(expectedAttempts) {
-					t.Fatalf("%+v prepares=%d", r.Trials, prepareCalls.Load())
-				}
-				for _, trial := range r.Trials[expectedAttempts:] {
-					if trial.Status != evaly.InfrastructureStop || trial.Reason != "infrastructure_stop" ||
-						len(trial.SkippedGraders) != 1 {
-						t.Fatalf("%+v", trial)
-					}
-				}
-				if failure == "grader" && r.Trials[0].Grades[0].Usage.Units != 2 {
-					t.Fatal("lost judge usage")
-				}
-				if failure == "cleanup" && (targetCalls.Load() != 1 || r.Trials[0].Cleanup.State != "failed") {
-					t.Fatal("contaminated retry")
-				}
-				if failure == "usage" && (targetCalls.Load() != 1 || r.Trials[0].UsageError != "invalid_usage") {
-					t.Fatal("usage failure did not stop future dispatch", r.Trials)
-				}
-			})
+				checkStopOnInfrastructureRetainsSlotsAndAvoidsContaminatedRetry(t, &isolation, &failure)
+			},
+			)
 		}
 	}
 }
 
 func BenchmarkDatasetCaseAt(b *testing.B) {
 	for _, n := range []int{10, 100, 1000} {
-		b.Run(fmt.Sprint(n), func(b *testing.B) {
+		b.Run(strconv.Itoa(n), func(b *testing.B) {
 			// Arrange.
 			cases := make([]evaly.Case[input, int], n)
 			for i := range n {
-				cases[i] = evaly.Case[input, int]{ID: fmt.Sprint(i), Input: input{Numbers: []int{i, 1}}}
+				cases[i] = evaly.Case[input, int]{ID: strconv.Itoa(i), Input: input{Numbers: []int{i, 1}}}
 			}
 			d, err := (evaly.DatasetDraft[input, int]{Selection: "all", Cases: cases}).Seal(
 				evaly.JSONCodec[input]{ID: "input", Version: "1"},
@@ -409,5 +341,87 @@ func TestBuiltInPortsRejectMissingCallbacksBeforeEffects(t *testing.T) {
 				t.Fatalf("calls=%d err=%v result=%+v", calls.Load(), err, result.Record())
 			}
 		})
+	}
+}
+func checkStopOnInfrastructureRetainsSlotsAndAvoidsContaminatedRetry(t *testing.T, isolation *evaly.
+	Isolation, failure *string) {
+	t.Helper()
+	// Arrange.
+	c := config(t, 3)
+	c.Plan.Concurrency = 1
+	c.Plan.MaxAttempts = 2
+	c.Plan.StopOnInfrastructure = true
+	life := c.Lifecycle.(evaly.LifecycleFuncs[*int])
+	life.IdentityValue.Isolation = (*isolation)
+	var targetCalls, prepareCalls atomic.Int32
+	original := c.Target
+	c.Target = evaly.TargetFunc[input, int, *int](
+		func(ctx context.Context, i input, tc evaly.TrialContext[*int]) (evaly.TargetResult[int], error) {
+			targetCalls.Add(1)
+			out, err := original.Run(ctx, i, tc)
+			if (*failure) == "usage" {
+				out.Usage = evaly.Usage{Known: true, Units: math.NaN()}
+			}
+			return out, err
+		},
+	)
+	prepare := life.PrepareFunc
+	life.PrepareFunc = func(ctx context.Context, id string) (*int, error) {
+		prepareCalls.Add(1)
+		env, err := prepare(ctx, id)
+		if (*failure) == "setup" {
+			return env, errors.New("setup")
+		}
+		return env, err
+	}
+	if (*failure) == "cleanup" {
+		life.CleanupFunc = func(context.Context, *int) error { return errors.New("contaminated") }
+	}
+	if (*failure) == "grader" {
+		g := c.Graders[0].(evaly.GraderFunc[input, int, int])
+		g.Evaluate = func(context.Context, evaly.View[input, int, int]) (evaly.Grade, error) {
+			return evaly.Grade{Usage: evaly.Usage{Known: true, Units: 2}}, errors.New("judge")
+		}
+		c.Graders[0] = g
+	}
+	if (*failure) == "budget" {
+		c.Budget, _ = evaly.NewMemoryBudget(0)
+	}
+	c.Lifecycle = life
+
+	// Act.
+	exp, err := evaly.Run(context.Background(), c)
+
+	// Assert.
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := exp.Record()
+	expectedAttempts := 1
+	if (*failure) == "setup" {
+		expectedAttempts = 2
+	}
+	if len(r.Trials) != expectedAttempts+2 || prepareCalls.Load() != int32(expectedAttempts) {
+		t.Fatalf("%+v prepares=%d", r.Trials, prepareCalls.Load())
+	}
+	checkInfrastructureSkippedSlots(t, r, expectedAttempts)
+	if (*failure) == "grader" && r.Trials[0].Grades[0].Usage.Units != 2 {
+		t.Fatal("lost judge usage")
+	}
+	if (*failure) == "cleanup" && (targetCalls.Load() != 1 || r.Trials[0].Cleanup.State != "failed") {
+		t.Fatal("contaminated retry")
+	}
+	if (*failure) == "usage" && (targetCalls.Load() != 1 || r.Trials[0].UsageError != "invalid_usage") {
+		t.Fatal("usage failure did not stop future dispatch", r.Trials)
+	}
+}
+
+func checkInfrastructureSkippedSlots(t *testing.T, r evaly.ExperimentRecord, expectedAttempts int) {
+	t.Helper()
+	for _, trial := range r.Trials[expectedAttempts:] {
+		if trial.Status != evaly.InfrastructureStop || trial.Reason != "infrastructure_stop" ||
+			len(trial.SkippedGraders) != 1 {
+			t.Fatalf("%+v", trial)
+		}
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"sync"
 	"time"
 
@@ -23,17 +24,19 @@ type WorkflowState struct {
 	Credited int  `json:"credited"`
 }
 type WorkflowEnvironment struct {
-	Namespace string
-	Store     *WorkflowStore
+	Namespace string         `json:"Namespace"`
+	Store     *WorkflowStore `json:"Store"`
 }
 
 // WorkflowStore is host-owned external state, not a target response projection.
 // Audit survives cleanup solely for deterministic fixture verification.
 type WorkflowStore struct {
-	mu                       sync.Mutex
-	active                   map[string]WorkflowState
-	audit                    map[string]WorkflowState
-	calls, prepared, cleaned int
+	mu       sync.Mutex
+	active   map[string]WorkflowState
+	audit    map[string]WorkflowState
+	calls    int
+	prepared int
+	cleaned  int
 }
 
 func (s *WorkflowStore) Prepare(ns string) {
@@ -43,13 +46,13 @@ func (s *WorkflowStore) Prepare(ns string) {
 		s.active = map[string]WorkflowState{}
 		s.audit = map[string]WorkflowState{}
 	}
-	s.active[ns] = WorkflowState{Eligible: true}
+	s.active[ns] = WorkflowState{Eligible: true, Refunded: 0, Credited: 0}
 	s.prepared++
 }
 func (s *WorkflowStore) Reset(ns string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.active[ns] = WorkflowState{Eligible: true}
+	s.active[ns] = WorkflowState{Eligible: true, Refunded: 0, Credited: 0}
 }
 func (s *WorkflowStore) Read(ns string) WorkflowState {
 	s.mu.Lock()
@@ -60,7 +63,7 @@ func (s *WorkflowStore) Apply(ns, mode string, amount int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	v := s.active[ns]
-	if mode == "alternative" {
+	if mode == alternativeWorkflow {
 		v.Credited += amount
 	} else {
 		v.Refunded += amount
@@ -78,9 +81,7 @@ func (s *WorkflowStore) Snapshot() (map[string]WorkflowState, int, int, int, int
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := map[string]WorkflowState{}
-	for k, v := range s.audit {
-		out[k] = v
-	}
+	maps.Copy(out, s.audit)
 	return out, len(s.active), s.calls, s.prepared, s.cleaned
 }
 func WorkflowInputCodec() evaly.JSONCodec[WorkflowInput] {
@@ -103,7 +104,7 @@ func WorkflowInvoke(
 ) (evaly.TargetResult[WorkflowOutput], []evaly.Event, error) {
 	result := evaly.TargetResult[WorkflowOutput]{
 		Output: WorkflowOutput{Text: "Refund definitely completed"},
-		Usage:  evaly.Usage{Known: true},
+		Usage:  evaly.Usage{Known: true, Units: 0},
 	}
 	if err := ctx.Err(); err != nil {
 		return result, nil, err
@@ -116,96 +117,49 @@ func WorkflowInvoke(
 		b, _ := json.Marshal(payload)
 		events = append(
 			events,
-			evaly.Event{Version: 1, Sequence: len(events) + 1, Kind: kind, CorrelationID: "account-action", Payload: b},
+			evaly.Event{
+				Version:       1,
+				Sequence:      len(events) + 1,
+				Kind:          kind,
+				CorrelationID: "account-action",
+				Payload:       b,
+				References:    nil,
+			},
 		)
 	}
 	var targetErr error
 	if mode != "text-only" {
-		result.Usage.Units++
-		record("tool", struct {
-			Action  string `json:"action"`
-			Success bool   `json:"success"`
-		}{"lookup", mode != "tool-error"})
-		if mode == "tool-error" {
-			targetErr = errors.New("controlled lookup error")
-		} else if store.Read(ns).Eligible {
-			action := "refund"
-			if mode == "alternative" {
-				action = "credit"
-			}
-			store.Apply(ns, mode, input.Amount)
-			result.Usage.Units++
-			record("tool", struct {
-				Action  string `json:"action"`
-				Success bool   `json:"success"`
-			}{action, true})
-			if mode == "effect-error" {
-				targetErr = errors.New("controlled error after effect")
-			}
-		}
+		targetErr = applyWorkflowEffect(mode, store, ns, input, &result, record)
 	}
-	record("outcome", store.Read(ns))
+	record(outcomeEvidenceKind, store.Read(ns))
 	return result, events, targetErr
 }
 
 func WorkflowGraders(rubric string) []evaly.Grader[WorkflowInput, WorkflowOutput, int] {
+	var zeroGraderRevision evaly.GraderRevision
+	var zeroUsage evaly.Usage
 	return []evaly.Grader[WorkflowInput, WorkflowOutput, int]{
 		evaly.GraderFunc[WorkflowInput, WorkflowOutput, int]{
-			Identity: evaly.GraderRevision{ID: "outcome", Implementation: "go-v1", Rubric: rubric},
+			Identity: evaly.GraderRevision{
+				ID:             outcomeEvidenceKind,
+				Implementation: goImplementationRevision,
+				Rubric:         rubric,
+				Model:          "",
+				Prompt:         "",
+				Configuration:  "",
+			},
 			Evaluate: func(ctx context.Context, v evaly.View[WorkflowInput, WorkflowOutput, int]) (evaly.Grade, error) {
-				if !evaly.CompleteFor(v.Evidence, "outcome") {
-					return evaly.Grade{Status: evaly.InsufficientEvidence, Reasons: []string{"outcome_incomplete"}}, nil
-				}
-				state := WorkflowState{}
-				for _, event := range v.Evidence.Events {
-					if event.Kind == "outcome" {
-						if err := json.Unmarshal(event.Payload, &state); err != nil {
-							return evaly.Grade{}, err
-						}
-					}
-				}
-				pass := v.Case.Reference != nil && state.Refunded+state.Credited == *v.Case.Reference
-				return evaly.Grade{
-					Status:     evaly.Scored,
-					Assertions: []evaly.Assertion{{Name: "external_balance", Pass: pass}},
-					Usage:      evaly.Usage{Known: true, Units: 1},
-				}, ctx.Err()
+				return gradeWorkflowBalance(ctx, v, &zeroGraderRevision, &zeroUsage)
 			},
 		},
 		evaly.GraderFunc[WorkflowInput, WorkflowOutput, int]{
 			Identity: evaly.GraderRevision{
 				ID:             "trajectory",
-				Implementation: "go-v1",
-				Rubric:         "allowed-alternatives-v1",
+				Implementation: goImplementationRevision,
+				Rubric:         "allowed-alternatives-v1", Model: "", Prompt: "", Configuration: "",
 			},
 			Evaluate: func(ctx context.Context, v evaly.View[WorkflowInput, WorkflowOutput, int]) (evaly.Grade, error) {
-				if !evaly.CompleteFor(v.Evidence, "tool") {
-					return evaly.Grade{Status: evaly.InsufficientEvidence, Reasons: []string{"absence_unprovable"}}, nil
-				}
-				lookup, effect, forbidden := false, false, false
-				for _, event := range v.Evidence.Events {
-					if event.Kind != "tool" {
-						continue
-					}
-					var p struct {
-						Action  string `json:"action"`
-						Success bool   `json:"success"`
-					}
-					if err := json.Unmarshal(event.Payload, &p); err != nil {
-						return evaly.Grade{}, err
-					}
-					lookup = lookup || p.Action == "lookup" && p.Success
-					effect = effect || (p.Action == "refund" || p.Action == "credit") && p.Success
-					forbidden = forbidden || p.Action == "delete"
-				}
-				return evaly.Grade{
-					Status: evaly.Scored,
-					Assertions: []evaly.Assertion{
-						{Name: "allowed_path", Pass: lookup && effect},
-						{Name: "no_delete", Pass: !forbidden},
-					},
-					Usage: evaly.Usage{Known: true, Units: 1},
-				}, ctx.Err()
+				return gradeWorkflowTrajectory(ctx, v, &zeroGraderRevision, &zeroUsage)
 			},
 		},
 	}
@@ -216,19 +170,19 @@ func WorkflowConfig(
 ) (evaly.RunConfig[WorkflowInput, WorkflowOutput, int, *WorkflowEnvironment], *WorkflowStore, error) {
 	var c evaly.RunConfig[WorkflowInput, WorkflowOutput, int, *WorkflowEnvironment]
 	switch mode {
-	case "refund", "alternative", "text-only", "tool-error", "effect-error":
+	case refundOperation, alternativeWorkflow, "text-only", workflowToolError, "effect-error":
 	default:
 		return c, nil, evaly.ErrUnsupported
 	}
-	reference := 100
-	dataset, err := (evaly.DatasetDraft[WorkflowInput, int]{Selection: "all", Cases: []evaly.Case[WorkflowInput, int]{{ID: "account-refund", Input: WorkflowInput{Account: "account-1", Amount: 100}, Reference: &reference, RequiredEvidence: []string{"tool", "outcome"}}}}).Seal(
+	reference := refundAmount
+	dataset, err := (evaly.DatasetDraft[WorkflowInput, int]{Selection: assertionAll, Cases: []evaly.Case[WorkflowInput, int]{{ID: "account-refund", Input: WorkflowInput{Account: "account-1", Amount: refundAmount}, Reference: &reference, RequiredEvidence: []string{toolEvidenceKind, outcomeEvidenceKind}, Revision: "", Metadata: nil, Generation: nil}}, ParentRevision: ""}).Seal(
 		WorkflowInputCodec(),
 		WorkflowReferenceCodec(),
 	)
 	if err != nil {
 		return c, nil, err
 	}
-	store := &WorkflowStore{}
+	store := new(WorkflowStore)
 	c = evaly.RunConfig[WorkflowInput, WorkflowOutput, int, *WorkflowEnvironment]{
 		ID:          id,
 		Dataset:     dataset,
@@ -239,30 +193,38 @@ func WorkflowConfig(
 			Timeout:         time.Second,
 			CleanupTimeout:  time.Second,
 			MaxAttempts:     1,
-			AssertionPolicy: "all",
+			AssertionPolicy: assertionAll, Seed: 0, StopOnInfrastructure: false, DispatchUnits: 0, GraderUnits: 0,
 		},
 		Provenance: evaly.Provenance{
 			Target: "workflow-" + mode,
 			Model:  "scripted",
 			Prompt: "host-script-v1",
 			Tools:  "account-tools-v1",
-			Policy: "refund-or-credit-v1",
+			Policy: "refund-or-credit-v1", Provider: nil, Unknown: nil,
 		},
 		Capture: evaly.CaptureConfig{
 			Policy: evaly.FieldPolicy{
 				ID: "workflow-safe-v1",
 				Allowed: map[string][]string{
-					"tool":    {"action", "success"},
-					"outcome": {"eligible", "refunded", "credited"},
+					toolEvidenceKind:    {"action", "success"},
+					outcomeEvidenceKind: {"eligible", "refunded", "credited"},
 				},
+				KeepReferences: false,
 			},
-			KnownKinds:    []string{"tool", "outcome"},
-			RequiredKinds: []string{"tool", "outcome"},
-			MaxEvents:     10,
-			MaxBytes:      4096,
+			KnownKinds:    []string{toolEvidenceKind, outcomeEvidenceKind},
+			RequiredKinds: []string{toolEvidenceKind, outcomeEvidenceKind},
+			MaxEvents:     workflowMaxEvents,
+			MaxBytes:      fixtureMaxBytes,
 		},
 		ProjectionRevision: "workflow-safe-v1",
-		Graders:            WorkflowGraders("external-balance-v1"),
+		Graders: WorkflowGraders(
+			"external-balance-v1",
+		),
+		Target:           nil,
+		Lifecycle:        nil,
+		Project:          nil,
+		Budget:           nil,
+		CriticalEvidence: false,
 	}
 	c.Lifecycle = evaly.LifecycleFuncs[*WorkflowEnvironment]{
 		IdentityValue: evaly.LifecycleIdentity{
@@ -292,4 +254,136 @@ func WorkflowConfig(
 		return evaly.View[WorkflowInput, WorkflowOutput, int]{Case: cs, Output: o, Evidence: e}, ctx.Err()
 	}
 	return c, store, nil
+}
+
+func gradeWorkflowBalance(
+	ctx context.Context,
+	v evaly.View[WorkflowInput, WorkflowOutput, int],
+	zeroGraderRevision *evaly.
+		GraderRevision,
+	zeroUsage *evaly.
+		Usage,
+) (evaly.Grade, error) {
+	if !evaly.CompleteFor(v.Evidence, outcomeEvidenceKind) {
+		return evaly.Grade{
+			Status:       evaly.InsufficientEvidence,
+			Reasons:      []string{"outcome_incomplete"},
+			Dispatched:   false,
+			Revision:     (*zeroGraderRevision),
+			Metrics:      nil,
+			Assertions:   nil,
+			EvidenceRefs: nil,
+			Usage:        (*zeroUsage),
+		}, nil
+	}
+	var state WorkflowState
+	for _, event := range v.Evidence.Events {
+		if event.Kind == outcomeEvidenceKind {
+			if err := json.Unmarshal(event.Payload, &state); err != nil {
+				return evaly.Grade{}, err
+			}
+		}
+	}
+	pass := v.Case.Reference != nil && state.Refunded+state.Credited == *v.Case.Reference
+	return evaly.Grade{
+		Status:     evaly.Scored,
+		Assertions: []evaly.Assertion{{Name: "external_balance", Pass: pass, Reason: ""}},
+		Usage: evaly.Usage{
+			Known: true,
+			Units: 1,
+		},
+		Dispatched:   false,
+		Revision:     (*zeroGraderRevision),
+		Metrics:      nil,
+		Reasons:      nil,
+		EvidenceRefs: nil,
+	}, ctx.Err()
+}
+
+func gradeWorkflowTrajectory(
+	ctx context.Context,
+	v evaly.View[WorkflowInput, WorkflowOutput, int],
+	zeroGraderRevision *evaly.
+		GraderRevision,
+	zeroUsage *evaly.
+		Usage,
+) (evaly.Grade, error) {
+	if !evaly.CompleteFor(v.Evidence, toolEvidenceKind) {
+		return evaly.Grade{
+			Status:       evaly.InsufficientEvidence,
+			Reasons:      []string{"absence_unprovable"},
+			Dispatched:   false,
+			Revision:     (*zeroGraderRevision),
+			Metrics:      nil,
+			Assertions:   nil,
+			EvidenceRefs: nil,
+			Usage:        (*zeroUsage),
+		}, nil
+	}
+	lookup, effect, forbidden := false, false, false
+	for _, event := range v.Evidence.Events {
+		if event.Kind != toolEvidenceKind {
+			continue
+		}
+		var p struct {
+			Action  string `json:"action"`
+			Success bool   `json:"success"`
+		}
+		if err := json.Unmarshal(event.Payload, &p); err != nil {
+			return evaly.Grade{}, err
+		}
+		lookup = lookup || p.Action == "lookup" && p.Success
+		effect = effect || (p.Action == refundOperation || p.Action == "credit") && p.Success
+		forbidden = forbidden || p.Action == "delete"
+	}
+	return evaly.Grade{
+		Status: evaly.Scored,
+		Assertions: []evaly.Assertion{
+			{Name: "allowed_path", Pass: lookup && effect, Reason: ""},
+			{Name: "no_delete", Pass: !forbidden, Reason: ""},
+		},
+		Usage: evaly.Usage{
+			Known: true,
+			Units: 1,
+		},
+		Dispatched:   false,
+		Revision:     (*zeroGraderRevision),
+		Metrics:      nil,
+		Reasons:      nil,
+		EvidenceRefs: nil,
+	}, ctx.Err()
+}
+
+func applyWorkflowEffect(
+	mode string,
+	store *WorkflowStore,
+	ns string,
+	input WorkflowInput,
+	result *evaly.TargetResult[WorkflowOutput],
+	record func(string, any),
+) error {
+	var targetErr error
+	result.Usage.Units++
+	record(toolEvidenceKind, struct {
+		Action  string `json:"action"`
+		Success bool   `json:"success"`
+	}{"lookup", mode != workflowToolError})
+	if mode == workflowToolError {
+		targetErr = errors.New("controlled lookup error")
+	} else if store.Read(ns).Eligible {
+		action := refundOperation
+		if mode == alternativeWorkflow {
+			action = "credit"
+		}
+		store.Apply(ns, mode, input.Amount)
+		result.Usage.Units++
+		record(toolEvidenceKind, struct {
+			Action  string `json:"action"`
+			Success bool   `json:"success"`
+		}{action, true})
+		if mode == "effect-error" {
+			targetErr = errors.New("controlled error after effect")
+		}
+	}
+	return targetErr
 }

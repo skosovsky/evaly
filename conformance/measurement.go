@@ -43,12 +43,20 @@ func Calibration(
 ) {
 	t.Helper()
 	// Arrange: deliberately include one result in every confusion-matrix cell.
-	revision := evaly.GraderRevision{ID: "binary", Implementation: "v1", Rubric: "binary-v1"}
+	var zeroUsage evaly.Usage
+	revision := evaly.GraderRevision{
+		ID:             "binary",
+		Implementation: "v1",
+		Rubric:         "binary-v1",
+		Model:          "",
+		Prompt:         "",
+		Configuration:  "",
+	}
 	labels := []evaly.CalibrationLabel{
-		{CaseRevision: "tp", Pass: true},
-		{CaseRevision: "tn", Pass: false},
-		{CaseRevision: "fp", Pass: false},
-		{CaseRevision: "fn", Pass: true},
+		{CaseRevision: "tp", Pass: true, Groups: nil},
+		{CaseRevision: "tn", Pass: false, Groups: nil},
+		{CaseRevision: "fp", Pass: false, Groups: nil},
+		{CaseRevision: "fn", Pass: true, Groups: nil},
 	}
 	records := make([]evaly.CalibrationRecord, 0, len(labels))
 	for _, label := range labels {
@@ -58,13 +66,21 @@ func Calibration(
 			evaly.CalibrationRecord{
 				CaseRevision: label.CaseRevision,
 				Grade: evaly.Grade{
-					Revision:   revision,
-					Status:     evaly.Scored,
-					Assertions: []evaly.Assertion{{Name: "binary", Pass: pass}},
+					Revision: revision,
+					Status:   evaly.Scored,
+					Assertions: []evaly.Assertion{
+						{Name: "binary", Pass: pass, Reason: ""},
+					},
+					Dispatched:   false,
+					Metrics:      nil,
+					Reasons:      nil,
+					EvidenceRefs: nil,
+					Usage:        zeroUsage,
 				},
 			},
 		)
 	}
+
 	// Act.
 	report, err := calculate(revision, labels, records)
 	empty, emptyErr := calculate(revision, nil, nil)

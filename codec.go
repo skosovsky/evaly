@@ -27,7 +27,10 @@ type CodecIdentity struct {
 
 // JSONCodec supports finite, acyclic JSON values. Object keys are sorted and
 // duplicate keys, invalid UTF-8 and trailing data are rejected.
-type JSONCodec[T any] struct{ ID, Version string }
+type JSONCodec[T any] struct {
+	ID      string `json:"ID"`
+	Version string `json:"Version"`
+}
 
 func (c JSONCodec[T]) Identity() CodecIdentity { return CodecIdentity(c) }
 func (c JSONCodec[T]) Encode(v T) ([]byte, error) {
@@ -82,44 +85,9 @@ func readJSON(d *json.Decoder) (any, error) {
 	}
 	switch delim {
 	case '{':
-		m := map[string]any{}
-		for d.More() {
-			k, e := d.Token()
-			if e != nil {
-				return nil, e
-			}
-			key, ok := k.(string)
-			if !ok {
-				return nil, ErrInvalid
-			}
-			if _, ok = m[key]; ok {
-				return nil, fmt.Errorf("duplicate key %q", key)
-			}
-			v, e := readJSON(d)
-			if e != nil {
-				return nil, e
-			}
-			m[key] = v
-		}
-		closing, e := d.Token()
-		if e != nil || closing != json.Delim('}') {
-			return nil, ErrInvalid
-		}
-		return m, nil
+		return readJSONObject(d)
 	case '[':
-		a := []any{}
-		for d.More() {
-			v, e := readJSON(d)
-			if e != nil {
-				return nil, e
-			}
-			a = append(a, v)
-		}
-		closing, e := d.Token()
-		if e != nil || closing != json.Delim(']') {
-			return nil, ErrInvalid
-		}
-		return a, nil
+		return readJSONArray(d)
 	default:
 		return nil, ErrInvalid
 	}
@@ -159,60 +127,142 @@ func validateJSONValue(v reflect.Value, visited map[uintptr]bool) error {
 			return ErrInvalid
 		}
 	case reflect.Map:
-		if v.Type().Key().Kind() != reflect.String {
-			return ErrInvalid
+		return validateJSONMap(v, visited)
+	case reflect.Pointer, reflect.Interface:
+		return validateJSONPointer(v, visited)
+	case reflect.Slice, reflect.Array:
+		return validateJSONSequence(v, visited)
+	case reflect.Struct:
+		return validateJSONStruct(v, visited)
+	case reflect.Invalid,
+		reflect.Bool,
+		reflect.Int,
+		reflect.Int8,
+		reflect.Int16,
+		reflect.Int32,
+		reflect.Int64,
+		reflect.Uint,
+		reflect.Uint8,
+		reflect.Uint16,
+		reflect.Uint32,
+		reflect.Uint64,
+		reflect.Uintptr,
+		reflect.Float32,
+		reflect.Float64,
+		reflect.Complex64,
+		reflect.Complex128,
+		reflect.Chan,
+		reflect.Func,
+		reflect.UnsafePointer:
+	}
+	return nil
+}
+
+func readJSONObject(d *json.Decoder) (any, error) {
+	m := map[string]any{}
+	for d.More() {
+		k, e := d.Token()
+		if e != nil {
+			return nil, e
 		}
-		if v.IsNil() {
-			return nil
+		key, ok := k.(string)
+		if !ok {
+			return nil, ErrInvalid
 		}
+		if _, ok = m[key]; ok {
+			return nil, fmt.Errorf("duplicate key %q", key)
+		}
+		v, e := readJSON(d)
+		if e != nil {
+			return nil, e
+		}
+		m[key] = v
+	}
+	closing, e := d.Token()
+	if e != nil || closing != json.Delim('}') {
+		return nil, ErrInvalid
+	}
+	return m, nil
+}
+
+func readJSONArray(d *json.Decoder) (any, error) {
+	a := []any{}
+	for d.More() {
+		v, e := readJSON(d)
+		if e != nil {
+			return nil, e
+		}
+		a = append(a, v)
+	}
+	closing, e := d.Token()
+	if e != nil || closing != json.Delim(']') {
+		return nil, ErrInvalid
+	}
+	return a, nil
+}
+
+func validateJSONMap(v reflect.Value, visited map[uintptr]bool) error {
+	if v.Type().Key().Kind() != reflect.String {
+		return ErrInvalid
+	}
+	if v.IsNil() {
+		return nil
+	}
+	ptr := v.Pointer()
+	if visited[ptr] {
+		return ErrInvalid
+	}
+	visited[ptr] = true
+	defer delete(visited, ptr)
+	iter := v.MapRange()
+	for iter.Next() {
+		if err := validateJSONValue(iter.Key(), visited); err != nil {
+			return err
+		}
+		if err := validateJSONValue(iter.Value(), visited); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateJSONPointer(v reflect.Value, visited map[uintptr]bool) error {
+	if v.IsNil() {
+		return nil
+	}
+	if v.Kind() == reflect.Pointer {
 		ptr := v.Pointer()
 		if visited[ptr] {
 			return ErrInvalid
 		}
 		visited[ptr] = true
 		defer delete(visited, ptr)
-		iter := v.MapRange()
-		for iter.Next() {
-			if err := validateJSONValue(iter.Key(), visited); err != nil {
+	}
+	return validateJSONValue(v.Elem(), visited)
+}
+
+func validateJSONSequence(v reflect.Value, visited map[uintptr]bool) error {
+	if v.Kind() == reflect.Slice && !v.IsNil() {
+		ptr := v.Pointer()
+		if visited[ptr] {
+			return ErrInvalid
+		}
+		visited[ptr] = true
+		defer delete(visited, ptr)
+	}
+	for i := range v.Len() {
+		if err := validateJSONValue(v.Index(i), visited); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateJSONStruct(v reflect.Value, visited map[uintptr]bool) error {
+	for i := range v.NumField() {
+		if v.Type().Field(i).IsExported() {
+			if err := validateJSONValue(v.Field(i), visited); err != nil {
 				return err
-			}
-			if err := validateJSONValue(iter.Value(), visited); err != nil {
-				return err
-			}
-		}
-	case reflect.Pointer, reflect.Interface:
-		if v.IsNil() {
-			return nil
-		}
-		if v.Kind() == reflect.Pointer {
-			ptr := v.Pointer()
-			if visited[ptr] {
-				return ErrInvalid
-			}
-			visited[ptr] = true
-			defer delete(visited, ptr)
-		}
-		return validateJSONValue(v.Elem(), visited)
-	case reflect.Slice, reflect.Array:
-		if v.Kind() == reflect.Slice && !v.IsNil() {
-			ptr := v.Pointer()
-			if visited[ptr] {
-				return ErrInvalid
-			}
-			visited[ptr] = true
-			defer delete(visited, ptr)
-		}
-		for i := 0; i < v.Len(); i++ {
-			if err := validateJSONValue(v.Index(i), visited); err != nil {
-				return err
-			}
-		}
-	case reflect.Struct:
-		for i := 0; i < v.NumField(); i++ {
-			if v.Type().Field(i).IsExported() {
-				if err := validateJSONValue(v.Field(i), visited); err != nil {
-					return err
-				}
 			}
 		}
 	}
