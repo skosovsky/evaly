@@ -84,6 +84,9 @@ acyclic slices/maps/pointers. Custom JSON marshalers must produce valid JSON;
 canonicalization sorts object keys, rejects duplicate keys and keeps JSON number
 spelling (1 and 1.0 are distinct). It rejects invalid UTF-8, nonfinite numbers,
 trailing data and unrepresentable values. No implicit reflection-based store codec.
+Generic decoded numbers are json.Number; stock Encode verifies reversible canonical
+bytes before success. [Codec representation and ownership](codecs.md) describes
+custom callbacks, byte lifetime and conservative source-string UTF-8 validation.
 
 `DatasetDraft[I,R]` validates then seals through codecs. Sealing encodes all caller
 values and stores private bytes; every access decodes new values. Identity includes

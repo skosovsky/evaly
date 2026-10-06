@@ -45,7 +45,7 @@ The mapping below assigns each D exactly once; related tasks may depend on it.
      repros and mixed-scale settlement/release permutations without epsilon.
   2. Idempotency, claim-once, unknown liability and concurrent accounting pass.
   3. Public accounting/host recovery semantics and migration limits documented.
-- [ ] T04 — Codec: F04/F05; D23/D24.
+- [x] T04 — Codec: F04/F05; D23/D24.
   1. Generic numbers, typed overflow and lexical identity pass all source cases
      and supported dataset/snapshot roundtrips.
   2. Aliases and ignored fields follow declared semantics; genuine cycles fail;

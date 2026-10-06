@@ -79,3 +79,32 @@ Limits: finite binary float receipts, process-local adapter; short settlement fu
 does not prove all possible transition sequences or distributed host recovery.
 Public API/wire representation unchanged. Only acceptance metadata changed after
 review. Commit subject: `fix: preserve exact budget accounting`.
+
+## T04 — accepted
+
+Previous accepted task: T03 commit `5872faa`.
+Changes: generic UseNumber decoding, stock reversibility validation, standard
+encoder cycle semantics, typed/extent-aware UTF-8 traversal excluding ignored
+fields, number/alias/cycle/ownership regression and fuzz coverage. D23/D24 decisions
+and migration are documented in `docs/codecs.md`.
+Initial correctness review reproduced invalid UTF-8 bypass for named string map
+keys implementing MarshalJSON and false rejection of addressable pointer-receiver
+MarshalJSON. Fixed direct key-string validation and addressable custom method-set
+recognition, with explicit regression tests; both reviewers must recheck.
+Final independent acceptance: `/root/t04_completeness` — 3/3, 100%;
+`/root/t04_correctness` — no errors found, both initial findings closed.
+Reviewed codec SHA256 `8aaf2922bce5696ed964890c6764aa2cdb366736fa094f6aebbb768098208ad7`;
+roundtrip tests `ae90691b9fa153020bd3dc986f9d305eb03ed28cfa0173119093723f73881031`;
+fuzz test `4ff1b615060a27d55334555c445b8b052193de669ea9ef4a134576c17eb73160`;
+codec docs `b1ed04e41ab0c7b9a74549d6ab57c902d52d7c5ddf38b863dafc61456e3f1e0e`.
+Commands: final root `go test -race ./...` — PASS; final focused codec race — PASS;
+pinned lint 2.14.0 root run — 0 issues; baseline overlay — F04/F05 PASS;
+canonical roundtrip fuzz 10s parallel 2 — 23,341 executions PASS (before final
+source-string custom-method fixes); final independent fuzz — 44,083 and 56,801
+executions PASS; independent final `go test ./...` — PASS; `git diff --check` — PASS.
+Limits: conservative source UTF-8 for shadowed/omitzero fields, stable pure custom
+callbacks and caller-owned host buffers required; short generic fuzz does not
+certify arbitrary host callbacks. Generic decoded representation changes to
+json.Number, without rewriting valid canonical bytes or wire schemas.
+Only acceptance metadata changed after review.
+Commit subject: `fix: preserve canonical JSON values`.
