@@ -28,10 +28,10 @@ type Lifecycle[E any] interface {
 
 // LifecycleFuncs is a runnable reference adapter for host-owned fixtures.
 type LifecycleFuncs[E any] struct {
-	IdentityValue LifecycleIdentity                        `json:"IdentityValue"`
-	PrepareFunc   func(context.Context, string) (E, error) `json:"PrepareFunc"`
-	ResetFunc     func(context.Context, E) error           `json:"ResetFunc"`
-	CleanupFunc   func(context.Context, E) error           `json:"CleanupFunc"`
+	IdentityValue LifecycleIdentity
+	PrepareFunc   func(context.Context, string) (E, error)
+	ResetFunc     func(context.Context, E) error
+	CleanupFunc   func(context.Context, E) error
 }
 
 // Validate checks callback presence without preparing an environment.
@@ -64,14 +64,14 @@ func (l LifecycleFuncs[E]) Cleanup(ctx context.Context, e E) error {
 }
 
 type TrialContext[E any] struct {
-	ID           string       `json:"ID"`
-	CaseRevision string       `json:"CaseRevision"`
-	Repeat       int          `json:"Repeat"`
-	Attempt      int          `json:"Attempt"`
-	Seed         int64        `json:"Seed"`
-	Environment  E            `json:"Environment"`
-	Evidence     EvidenceSink `json:"Evidence"`
-	Budget       Budget       `json:"Budget"`
+	ID           string
+	CaseRevision string
+	Repeat       int
+	Attempt      int
+	Seed         int64
+	Environment  E
+	Evidence     EvidenceSink
+	Budget       Budget
 }
 type TargetResult[O any] struct {
 	Output O     `json:"Output"`
@@ -95,16 +95,19 @@ func (f TargetFunc[I, O, E]) Run(ctx context.Context, i I, t TrialContext[E]) (T
 }
 
 type RunPlan struct {
-	Repeats              int           `json:"repeats"`
-	Concurrency          int           `json:"concurrency"`
-	Timeout              time.Duration `json:"timeout"`
-	CleanupTimeout       time.Duration `json:"cleanup_timeout"`
-	MaxAttempts          int           `json:"max_attempts"`
-	Seed                 int64         `json:"seed"`
-	StopOnInfrastructure bool          `json:"stop_on_infrastructure"`
-	DispatchUnits        float64       `json:"dispatch_units"`
-	GraderUnits          float64       `json:"grader_units"`
-	AssertionPolicy      string        `json:"assertion_policy"`
+	Repeats        int           `json:"repeats"`
+	Concurrency    int           `json:"concurrency"`
+	Timeout        time.Duration `json:"timeout"`
+	CleanupTimeout time.Duration `json:"cleanup_timeout"`
+	MaxAttempts    int           `json:"max_attempts"`
+	Seed           int64         `json:"seed"`
+	// StopOnInfrastructure stops future dispatch after the final allowed setup
+	// attempt or another infrastructure failure. TargetError alone does not stop
+	// the run. In-flight callbacks receive cooperative cancellation.
+	StopOnInfrastructure bool    `json:"stop_on_infrastructure"`
+	DispatchUnits        float64 `json:"dispatch_units"`
+	GraderUnits          float64 `json:"grader_units"`
+	AssertionPolicy      string  `json:"assertion_policy"`
 }
 type Provenance struct {
 	Target   string            `json:"target"`
@@ -258,20 +261,20 @@ func validateExperimentRecord(r ExperimentRecord) error {
 }
 
 type RunConfig[I, O, R, E any] struct {
-	ID          string            `json:"ID"`
-	Dataset     Dataset[I, R]     `json:"Dataset"`
-	Target      Target[I, O, E]   `json:"Target"`
-	OutputCodec Codec[O]          `json:"OutputCodec"`
-	Lifecycle   Lifecycle[E]      `json:"Lifecycle"`
-	Plan        RunPlan           `json:"Plan"`
-	Provenance  Provenance        `json:"Provenance"`
-	Capture     CaptureConfig     `json:"Capture"`
-	Graders     []Grader[I, O, R] `json:"Graders"`
+	ID          string
+	Dataset     Dataset[I, R]
+	Target      Target[I, O, E]
+	OutputCodec Codec[O]
+	Lifecycle   Lifecycle[E]
+	Plan        RunPlan
+	Provenance  Provenance
+	Capture     CaptureConfig
+	Graders     []Grader[I, O, R]
 	// Project must return a permitted grading view and is part of identity.
-	Project            func(context.Context, Case[I, R], O, EvidenceRecord) (View[I, O, R], error) `json:"Project"`
-	ProjectionRevision string                                                                      `json:"ProjectionRevision"`
-	Budget             Budget                                                                      `json:"Budget"`
-	CriticalEvidence   bool                                                                        `json:"CriticalEvidence"`
+	Project            func(context.Context, Case[I, R], O, EvidenceRecord) (View[I, O, R], error)
+	ProjectionRevision string
+	Budget             Budget
+	CriticalEvidence   bool
 }
 
 func Run[I, O, R, E any](ctx context.Context, c RunConfig[I, O, R, E]) (Experiment, error) {
@@ -366,7 +369,7 @@ func runTrial[I, O, R, E any](
 	cfg.RequiredKinds = append(append([]string(nil), cfg.RequiredKinds...), cs.RequiredEvidence...)
 	capture, err := NewCapture(cfg)
 	if err != nil {
-		capture, _ = NewCapture(c.Capture)
+		capture = mustValidatedCapture(c.Capture)
 		r.Status = SetupError
 		r.Reason = "unsupported_case_evidence"
 		finalizeTrialGrading(&r, c.Graders)
@@ -465,27 +468,15 @@ func validateProvenance(p Provenance) error {
 }
 
 func codecFailure[I, O, R, E any](c RunConfig[I, O, R, E], cs Case[I, R], repeat, attempt int) TrialRecord {
-	var zeroUsage Usage
-	capture, _ := NewCapture(c.Capture)
-	r := TrialRecord{
-		ID:                c.ID + "/" + cs.ID + "/" + identityPart(repeat) + "/" + identityPart(attempt),
-		CaseID:            cs.ID,
-		CaseRevision:      cs.Revision,
-		Repeat:            repeat,
-		Attempt:           attempt,
-		Seed:              c.Plan.Seed + int64(repeat),
-		States:            []string{"queued", "terminal"},
-		Status:            SetupError,
-		Reason:            "codec_failure",
-		Cleanup:           CleanupStatus{State: cleanupNotNeeded, Reason: ""},
-		Evidence:          capture.Seal(),
-		Grades:            nil,
-		TargetUsage:       zeroUsage,
-		UsageError:        "",
-		GradingState:      "",
-		GradingStopReason: "",
-		SkippedGraders:    nil,
-	}
+	capture := mustValidatedCapture(c.Capture)
+	var r TrialRecord
+	r.ID = c.ID + "/" + cs.ID + "/" + identityPart(repeat) + "/" + identityPart(attempt)
+	r.CaseID, r.CaseRevision = cs.ID, cs.Revision
+	r.Repeat, r.Attempt, r.Seed = repeat, attempt, c.Plan.Seed+int64(repeat)
+	r.States = []string{"queued", "terminal"}
+	r.Status, r.Reason = SetupError, "codec_failure"
+	r.Cleanup.State = cleanupNotNeeded
+	r.Evidence = capture.Seal()
 	finalizeTrialGrading(&r, c.Graders)
 	return r
 }

@@ -37,6 +37,7 @@ func TestMeasurementReferenceConformance(t *testing.T) {
 		t.Run("numeric_"+direction, func(t *testing.T) {
 			// Arrange: a numeric grade retains native units and an explicit scale.
 			identity := evaly.ObjectiveIdentity{
+				SourceGrader: revision.ID, SourceMetric: "quality",
 				ID:                  "numeric",
 				Revision:            "v1",
 				Unit:                "points",
@@ -44,8 +45,8 @@ func TestMeasurementReferenceConformance(t *testing.T) {
 				Minimum:             0,
 				Maximum:             10,
 				Direction:           direction,
-				EligibilityRevision: "all-v1",
-				MissingnessRevision: "all-repeats-v1",
+				EligibilityRevision: "all-declared-v1",
+				MissingnessRevision: "all-repeats-required-v1",
 				AggregationRevision: "repeat-mean-case-mean-v1",
 			}
 			factory := func() evaly.TrialRecord {
@@ -73,12 +74,12 @@ func TestMeasurementReferenceConformance(t *testing.T) {
 			// Act / Assert.
 			conformance.Objective(
 				t,
-				evaly.NumericObjective{Descriptor: identity, GraderID: revision.ID, MetricName: "quality"},
+				evaly.NumericObjective{Descriptor: identity},
 				cs,
 				factory,
 				evaly.Measurement{Present: true, Value: 7},
 			)
 		})
 	}
-	t.Run("calibration", func(t *testing.T) { conformance.Calibration(t, evaly.Calibrate) })
+	t.Run("calibration", func(t *testing.T) { conformance.Calibration(t, evaly.EvaluateBinaryAgreement) })
 }

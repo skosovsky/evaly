@@ -71,15 +71,15 @@ func constrain(pkg, parent, name string, s schema) {
 	if name == "Version" && s[schemaType] == schemaInteger {
 		s["const"] = 1
 		s["x-evaly-version"] = true
-		if parent == "ScenarioRecord" || parent == "Comparison" {
+		if parent == "ScenarioRecord" || parent == "ComparisonPolicy" {
 			s["const"] = 2
 		}
 		if parent == "ExperimentManifest" || parent == "Assessment" || parent == schemaResult || parent == "Request" ||
-			parent == "Response" {
+			parent == "Response" || parent == "Comparison" {
 			s["const"] = 3
 		}
 		if parent == schemaResult && pkg == optimizerPackagePath {
-			s["const"] = 5
+			s["const"] = 6
 		}
 	}
 	if parent == "CalibrationCounts" {
@@ -196,6 +196,12 @@ func constrainExecution(parent, name string, s schema) {
 
 func constrainMeasurement(parent, name string, s schema) {
 	switch parent + "." + name {
+	case "MeasurementDiagnostic.Side":
+		s["enum"] = []string{"baseline", "candidate"}
+	case "MeasurementDiagnostic.Repeat":
+		s[schemaMinimum] = 0
+	case "MeasurementDiagnostic.Category":
+		s["enum"] = []string{"trial_clone", "objective_identity_changed", "measurement_callback", "measurement_invalid"}
 	case "GatePolicy.MinimumCoverage", "GatePolicy.MinimumMatchedCoverage":
 		s[schemaMinimum] = 0
 		s[schemaMaximum] = 1

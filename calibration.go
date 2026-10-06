@@ -57,8 +57,14 @@ type CalibrationReport struct {
 	Groups   []CalibrationGroupReport `json:"groups"`
 }
 
-// Calibrate reports binary assertion predictions; missing labels never become predictions.
-func Calibrate(rev GraderRevision, labels []CalibrationLabel, records []CalibrationRecord) (CalibrationReport, error) {
+// EvaluateBinaryAgreement reports agreement/confusion for binary assertion predictions.
+// It does not fit a probabilistic calibrator or learn thresholds; missing labels
+// never become predictions. Human label selection and holdout independence are host-owned.
+func EvaluateBinaryAgreement(
+	rev GraderRevision,
+	labels []CalibrationLabel,
+	records []CalibrationRecord,
+) (CalibrationReport, error) {
 	var zeroCalibrationCounts CalibrationCounts
 	var zeroCalibrationRates CalibrationRates
 	var zero CalibrationReport

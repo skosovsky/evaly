@@ -1,5 +1,5 @@
 {
-  "$id": "urn:evaly:comparison-policy:1",
+  "$id": "urn:evaly:comparison-policy:2",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
@@ -31,7 +31,7 @@
           "minimum": 0,
           "type": "number"
         },
-        "minimum_quality": {
+        "quality_threshold": {
           "maximum": 1.7976931348623157e+308,
           "minimum": -1.7976931348623157e+308,
           "type": "number"
@@ -50,7 +50,7 @@
         "minimum_matched_cases",
         "minimum_matched_coverage",
         "minimum_coverage",
-        "minimum_quality",
+        "quality_threshold",
         "maximum_regression",
         "bootstrap_samples",
         "seed"
@@ -130,7 +130,7 @@
       "type": "string"
     },
     "version": {
-      "const": 1,
+      "const": 2,
       "maximum": 9223372036854775807,
       "minimum": -9223372036854775808,
       "type": "integer",

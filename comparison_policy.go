@@ -2,7 +2,13 @@ package evaly
 
 import "fmt"
 
-const ComparisonPolicyVersion = 1
+const ComparisonPolicyVersion = 2
+
+// Built-in policy kinds select algorithms implemented by Resolve.
+const (
+	AssertionObjectiveKind = "assertion"
+	NumericObjectiveKind   = "numeric"
+)
 
 // ComparisonPolicy describes only the built-in serializable objectives.
 // Host-defined callbacks remain available through Compare's Objective port.
@@ -21,28 +27,24 @@ func (p ComparisonPolicy) Resolve() (Objective, error) {
 	if ValidateObjectiveIdentity(p.Objective) != nil {
 		return nil, ErrInvalid
 	}
-	if p.Objective.EligibilityRevision != "all-declared-v1" ||
-		p.Objective.MissingnessRevision != "all-repeats-required-v1" {
+	if p.Objective.EligibilityRevision != AllDeclaredEligibility ||
+		p.Objective.MissingnessRevision != AllRepeatsRequiredMissingness {
 		return nil, fmt.Errorf("%w: callback measurement", ErrUnsupported)
 	}
 	var objective Objective
 	switch p.ObjectiveKind {
-	case "assertion":
+	case AssertionObjectiveKind:
 		o := AssertionObjective{ID: p.Objective.ID, Revision: p.Objective.Revision, Policy: p.Objective.AssertionPolicy}
 		if o.Validate() != nil || o.Identity() != p.Objective {
 			return nil, fmt.Errorf("%w: assertion descriptor", ErrInvalid)
 		}
 		objective = o
-	case "numeric":
+	case NumericObjectiveKind:
 
 		if p.Objective.AssertionPolicy != "" {
 			return nil, ErrInvalid
 		}
-		o := NumericObjective{
-			Descriptor: p.Objective,
-			GraderID:   p.Objective.SourceGrader,
-			MetricName: p.Objective.SourceMetric,
-		}
+		o := NumericObjective{Descriptor: p.Objective}
 		if o.Validate() != nil {
 			return nil, ErrInvalid
 		}

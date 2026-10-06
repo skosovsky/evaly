@@ -127,7 +127,7 @@ func TestCancelledDuringRescorePreflightRetainsCanonicalAssessment(t *testing.T)
 	}
 	result := <-future.Result
 	// Assert.
-	if calls != 0 || result.State != "cancelled" || len(result.Assessment.Grades) != 0 ||
+	if calls != 0 || result.State != observation.Cancelled || len(result.Assessment.Grades) != 0 ||
 		len(result.Assessment.Skipped) != 1 ||
 		evaly.ValidateAssessment(result.Assessment) != nil ||
 		budget.Used() != 1 {

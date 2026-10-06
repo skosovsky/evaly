@@ -8,7 +8,7 @@ JSON tags define presence: fields without `omitempty` are required even at zero.
 
 HTTP request and response major versions are 3. Complete evidence delivery requires an empty reason; incomplete delivery requires a reason. These relationships, codec compatibility and target-error/output relationships are protocol semantics checked after structural decoding. Earlier HTTP versions are unsupported. No runtime validator dependency is introduced.
 
-Current revision breaks are explicit: comparison is version 2; experiment, assessment and observation-result are version 3; search is version 5. Calibration is a version-1 kind. Previous schemas for replaced formats are removed and their major versions are unsupported. Other wire kinds retain their current versions, including scenario version 2; HTTP request/response are version 3.
+Current revision breaks are explicit: comparison is version 3; experiment, assessment and observation-result are version 3; search is version 6. Calibration is a version-1 kind. Previous schemas for replaced formats are removed and their major versions are unsupported. Other wire kinds retain their current versions, including scenario version 2; HTTP request/response are version 3.
 
 Numeric grade metrics require `unit` and `scale_revision` alongside finite bounds and direction. Comparison records an objective identity, common eligible denominator, matched case count/coverage, exclusions and availability flags for observed means. Gate quality/regression thresholds use the declared native scale; only coverage remains in [0, 1]. Paired experiment records contain the complete case/repeat schedule rather than experiment-wide order. Calibration stores nonnegative confusion counts and rates with nullable values; a rate's zero-denominator relationship, schedule integrity and compatible measurement metadata are semantic validations after structural decoding.
 
@@ -18,7 +18,7 @@ restore additionally validates candidate/experiment/comparison links, determinis
 ranking, bounds, stopped-state ordering and nonnegative budget/usage fields. Rejected
 duplicate proposals remain audit entries; they cannot become ranking entries.
 
-Comparison policy is a new version-1 kind. It carries an explicit assertion or numeric
+Comparison policy is a version-2 kind. It carries an explicit assertion or numeric
 objective descriptor and gate; builtin descriptor semantics are validated by
 `ComparisonPolicy.Resolve` after structural decoding. Arbitrary callbacks and custom
 eligibility/missingness behavior are unsupported in JSON policies; they remain

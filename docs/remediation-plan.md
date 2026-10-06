@@ -81,7 +81,7 @@ The mapping below assigns each D exactly once; related tasks may depend on it.
   2. Capability flags and MaxBytes guarantees have explicit decisions/docs;
      irrelevant CLI flags and unknown commands fail before creating a store.
   3. Adapter regression tests, example/API/schema migration stay synchronized.
-- [ ] T09 — Local cleanup and measurement contracts: D01/D05–D07/D09–D19/D22/D25/D26/D29–D38/D60.
+- [x] T09 — Local cleanup and measurement contracts: D01/D05–D07/D09–D19/D22/D25/D26/D29–D38/D60.
   1. Each assigned decision has reason/evidence; recommended changes are either
      implemented with regression coverage or explicitly rejected with justification.
   2. Naming/identity, policy ownership, safe diagnostics and callback/config

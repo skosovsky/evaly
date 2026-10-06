@@ -2,6 +2,7 @@ package optimizer_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -26,6 +27,14 @@ func TestSearchCanonicalRoundTrip(t *testing.T) {
 	}
 	if len(restored.History) == 0 || restored.History[0].Comparison == nil {
 		t.Fatal("fixture did not exercise persisted comparisons", result)
+	}
+	// Arrange / Act: the former search format is deliberately unsupported.
+	old := result
+	old.Version = 5
+	_, oldErr := optimizer.RestoreResult(old, config.Codec)
+	// Assert.
+	if !errors.Is(oldErr, evaly.ErrUnsupported) || !errors.Is(optimizer.ValidateResult(old), evaly.ErrUnsupported) {
+		t.Fatal("old search version accepted", oldErr)
 	}
 	// Arrange / Act: mutate the restored service record, leaving the source intact.
 	restored.History[0].Candidate.Description[0] = 'x'

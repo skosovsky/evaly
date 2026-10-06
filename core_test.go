@@ -336,7 +336,7 @@ func TestComparisonCoverageAndCaseDenominator(t *testing.T) {
 		MinimumCoverage:        1,
 		MinimumMatchedCases:    1,
 		MinimumMatchedCoverage: 1,
-		MinimumQuality:         .7,
+		QualityThreshold:       .7,
 		MaximumRegression:      .3,
 		BootstrapSamples:       200,
 		Seed:                   3,

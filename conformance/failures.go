@@ -20,10 +20,10 @@ const (
 )
 
 type TargetFault[I, O, R, E any] struct {
-	Config        evaly.RunConfig[I, O, R, E]               `json:"Config"`
-	ExpectedUsage evaly.Usage                               `json:"ExpectedUsage"`
-	Kind          string                                    `json:"Kind"`
-	Verify        func(*testing.T, evaly.Experiment, error) `json:"Verify"`
+	Config        evaly.RunConfig[I, O, R, E]
+	ExpectedUsage evaly.Usage
+	Kind          string
+	Verify        func(*testing.T, evaly.Experiment, error)
 }
 
 // TargetFailures requires fresh adapters and mandatory external-effect verification.
@@ -50,9 +50,9 @@ func TargetFailures[I, O, R, E any](t *testing.T, factory func(TargetFailure) (T
 }
 
 type GraderFault[I, O, R any] struct {
-	Grader        evaly.Grader[I, O, R]               `json:"Grader"`
-	View          func() (evaly.View[I, O, R], error) `json:"View"`
-	ExpectedUsage evaly.Usage                         `json:"ExpectedUsage"`
+	Grader        evaly.Grader[I, O, R]
+	View          func() (evaly.View[I, O, R], error)
+	ExpectedUsage evaly.Usage
 }
 
 func GraderFailures[I, O, R any](t *testing.T, factory func() GraderFault[I, O, R]) {
@@ -82,11 +82,11 @@ func GraderFailures[I, O, R any](t *testing.T, factory func() GraderFault[I, O, 
 }
 
 type PairFault[T any] struct {
-	Judge           evaly.PairJudge[T] `json:"Judge"`
-	A               evaly.Snapshot[T]  `json:"A"`
-	B               evaly.Snapshot[T]  `json:"B"`
-	ExpectedForward evaly.Usage        `json:"ExpectedForward"`
-	ExpectedReverse evaly.Usage        `json:"ExpectedReverse"`
+	Judge           evaly.PairJudge[T]
+	A               evaly.Snapshot[T]
+	B               evaly.Snapshot[T]
+	ExpectedForward evaly.Usage
+	ExpectedReverse evaly.Usage
 }
 
 func PairJudgeFailures[T any](t *testing.T, factory func() PairFault[T]) {
@@ -123,7 +123,7 @@ func EvidenceFailures(t *testing.T, factory func() (*evaly.Capture, evaly.Event,
 	if err = capture.Record(context.Background(), event); err != nil {
 		t.Fatal(err)
 	}
-	capture.MarkIncomplete("host_delivery_failure")
+	capture.MarkIncomplete()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	late := event
@@ -139,9 +139,9 @@ func EvidenceFailures(t *testing.T, factory func() (*evaly.Capture, evaly.Event,
 }
 
 type ExportFault struct {
-	Sink   evaly.ExportSink     `json:"Sink"`
-	Record evaly.DeliveryRecord `json:"Record"`
-	Verify func(*testing.T)     `json:"Verify"`
+	Sink   evaly.ExportSink
+	Record evaly.DeliveryRecord
+	Verify func(*testing.T)
 }
 
 func ExportFailures(t *testing.T, factory func() ExportFault) {
@@ -170,11 +170,11 @@ func ExportFailures(t *testing.T, factory func() ExportFault) {
 }
 
 type ProposalFault[T, I, R any] struct {
-	Proposer           optimizer.Proposer[T, I, R]                          `json:"Proposer"`
-	Request            optimizer.ProposalRequest[I, R]                      `json:"Request"`
-	ExpectedUsage      evaly.Usage                                          `json:"ExpectedUsage"`
-	ExpectedCandidates int                                                  `json:"ExpectedCandidates"`
-	Verify             func(*testing.T, optimizer.ProposalResult[T], error) `json:"Verify"`
+	Proposer           optimizer.Proposer[T, I, R]
+	Request            optimizer.ProposalRequest[I, R]
+	ExpectedUsage      evaly.Usage
+	ExpectedCandidates int
+	Verify             func(*testing.T, optimizer.ProposalResult[T], error)
 }
 
 func ProposalFailures[T, I, R any](t *testing.T, factory func() ProposalFault[T, I, R]) {

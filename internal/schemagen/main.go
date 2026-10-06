@@ -45,12 +45,12 @@ func main() {
 		document["$schema"] = "https://json-schema.org/draft/2020-12/schema"
 		version := 1
 		switch name {
-		case "scenario", "comparison":
+		case "scenario", "comparison-policy":
 			version = 2
-		case "experiment", "assessment", "observation-result", "http-request", "http-response":
+		case "experiment", "assessment", "observation-result", "http-request", "http-response", "comparison":
 			version = 3
 		case "search":
-			version = 5
+			version = 6
 		case "candidate":
 			version = 2
 		}

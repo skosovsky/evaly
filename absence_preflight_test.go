@@ -37,7 +37,7 @@ func absenceEvidence(t *testing.T, events int, complete bool) evaly.EvidenceReco
 		}
 	}
 	if !complete {
-		capture.MarkIncomplete("host incomplete")
+		capture.MarkIncomplete()
 	}
 	return capture.Seal()
 }

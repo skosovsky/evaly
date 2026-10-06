@@ -86,7 +86,7 @@ func TestBlindPairOrderAndCalibration(t *testing.T) {
 		t.Fatal(result, judge.requests)
 	}
 	rev := evaly.GraderRevision{ID: "judge", Implementation: "scripted", Rubric: "1"}
-	report, e := evaly.Calibrate(
+	report, e := evaly.EvaluateBinaryAgreement(
 		rev,
 		[]evaly.CalibrationLabel{{CaseRevision: "one", Pass: true}, {CaseRevision: "two", Pass: false}},
 		[]evaly.CalibrationRecord{

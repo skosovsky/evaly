@@ -16,7 +16,7 @@ func measurementPolicy() evaly.GatePolicy {
 		MinimumCoverage:        .5,
 		MinimumMatchedCases:    2,
 		MinimumMatchedCoverage: .02,
-		MinimumQuality:         .5,
+		QualityThreshold:       .5,
 		MaximumRegression:      .1,
 		BootstrapSamples:       100,
 	}
@@ -108,11 +108,12 @@ func TestNumericObjectiveNativeScaleAndMissingness(t *testing.T) {
 		Minimum:             0,
 		Maximum:             100,
 		Direction:           "lower",
-		EligibilityRevision: "all-v1",
-		MissingnessRevision: "required-v1",
+		EligibilityRevision: "all-declared-v1",
+		MissingnessRevision: "all-repeats-required-v1",
 		AggregationRevision: "repeat-mean-case-mean-v1",
 	}
-	o := evaly.NumericObjective{Descriptor: descriptor, GraderID: "metric", MetricName: "latency"}
+	descriptor.SourceGrader, descriptor.SourceMetric = "metric", "latency"
+	o := evaly.NumericObjective{Descriptor: descriptor}
 	metric := evaly.Metric{
 		Name:          "latency",
 		Unit:          "ms",
@@ -209,7 +210,10 @@ func TestObjectiveProvenanceAndUnsupportedAggregation(t *testing.T) {
 	all := evaly.AssertionObjective{ID: "assertions", Revision: "v1", Policy: "all"}
 	anyObjective := all
 	anyObjective.Policy = "any"
-	numeric := evaly.NumericObjective{Descriptor: all.Identity(), GraderID: "g", MetricName: "metric"}
+	descriptor := all.Identity()
+	descriptor.AssertionPolicy = ""
+	descriptor.SourceGrader, descriptor.SourceMetric = "g", "metric"
+	numeric := evaly.NumericObjective{Descriptor: descriptor}
 	// Act.
 	identity := numeric.Identity()
 	bad := identity
@@ -259,6 +263,7 @@ func TestNumericSubnormalMeansRemainInScale(t *testing.T) {
 	c.Graders = []evaly.Grader[input, int, int]{grader(maximum)}
 	objective := evaly.NumericObjective{
 		Descriptor: evaly.ObjectiveIdentity{
+			SourceGrader: "tiny", SourceMetric: "tiny",
 			ID:                  "tiny",
 			Revision:            "v1",
 			Unit:                "tiny-unit",
@@ -266,15 +271,13 @@ func TestNumericSubnormalMeansRemainInScale(t *testing.T) {
 			Minimum:             minimum,
 			Maximum:             maximum,
 			Direction:           "higher",
-			EligibilityRevision: "all",
-			MissingnessRevision: "required",
+			EligibilityRevision: "all-declared-v1",
+			MissingnessRevision: "all-repeats-required-v1",
 			AggregationRevision: "repeat-mean-case-mean-v1",
 		},
-		GraderID:   "tiny",
-		MetricName: "tiny",
 	}
 	p := measurementPolicy()
-	p.MinimumQuality = maximum
+	p.QualityThreshold = maximum
 	p.MaximumRegression = 0
 	// Act.
 	be, e := evaly.Run(context.Background(), b)
@@ -334,6 +337,7 @@ func checkNumericComparisonDirectionAndMatchedMeans(t *testing.T, direction *str
 	c.Graders = []evaly.Grader[input, int, int]{grader(value)}
 	o := evaly.NumericObjective{
 		Descriptor: evaly.ObjectiveIdentity{
+			SourceGrader: "metric", SourceMetric: "native",
 			ID:                  "native",
 			Revision:            "v1",
 			Unit:                "points",
@@ -341,15 +345,13 @@ func checkNumericComparisonDirectionAndMatchedMeans(t *testing.T, direction *str
 			Minimum:             0,
 			Maximum:             100,
 			Direction:           (*direction),
-			EligibilityRevision: "all",
-			MissingnessRevision: "required",
+			EligibilityRevision: "all-declared-v1",
+			MissingnessRevision: "all-repeats-required-v1",
 			AggregationRevision: "repeat-mean-case-mean-v1",
 		},
-		GraderID:   "metric",
-		MetricName: "native",
 	}
 	p := measurementPolicy()
-	p.MinimumQuality = quality
+	p.QualityThreshold = quality
 	p.MaximumRegression = 5
 
 	be, e := evaly.Run(context.Background(), b)
@@ -368,9 +370,23 @@ func checkNumericComparisonDirectionAndMatchedMeans(t *testing.T, direction *str
 		r.Uncertainty.Upper != r.Delta {
 		t.Fatal(r, e)
 	}
-	p.MinimumQuality = quality - 20
+	// Act / Assert: equality passes in both directions; the adjacent float on
+	// the failing side crosses the same native-scale threshold.
+	p.QualityThreshold = value
+	equal, equalErr := evaly.Compare(be, ce, o, p)
+	toward := math.Inf(1)
+	if (*direction) == "lower" {
+		toward = math.Inf(-1)
+	}
+	p.QualityThreshold = math.Nextafter(value, toward)
+	adjacent, adjacentErr := evaly.Compare(be, ce, o, p)
+	if equalErr != nil || equal.Verdict != evaly.GatePass || adjacentErr != nil ||
+		adjacent.Verdict != evaly.GateFail || len(adjacent.Reasons) != 1 || adjacent.Reasons[0] != "quality_threshold" {
+		t.Fatal(equal, equalErr, adjacent, adjacentErr)
+	}
+	p.QualityThreshold = quality - 20
 	if (*direction) == "higher" {
-		p.MinimumQuality = quality + 20
+		p.QualityThreshold = quality + 20
 	}
 	r, e = evaly.Compare(be, ce, o, p)
 	if e != nil || r.Verdict != evaly.GateFail {
@@ -378,10 +394,10 @@ func checkNumericComparisonDirectionAndMatchedMeans(t *testing.T, direction *str
 	}
 
 	worse := 40.0
-	p.MinimumQuality = 0
+	p.QualityThreshold = 0
 	if (*direction) == "lower" {
 		worse = 60
-		p.MinimumQuality = 100
+		p.QualityThreshold = 100
 	}
 	c.Graders = []evaly.Grader[input, int, int]{grader(worse)}
 

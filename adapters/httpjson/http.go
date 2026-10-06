@@ -63,13 +63,13 @@ type Doer interface {
 	Do(*http.Request) (*http.Response, error)
 }
 type Target[I, O, E any] struct {
-	URL      string         `json:"URL"`
-	Client   Doer           `json:"Client"`
-	Input    evaly.Codec[I] `json:"Input"`
-	Output   evaly.Codec[O] `json:"Output"`
-	MaxBytes int64          `json:"MaxBytes"`
-	Fixture  string         `json:"Fixture"`
-	Reset    string         `json:"Reset"`
+	URL      string
+	Client   Doer
+	Input    evaly.Codec[I]
+	Output   evaly.Codec[O]
+	MaxBytes int64
+	Fixture  string
+	Reset    string
 }
 
 // Validate checks local configuration without dispatching any HTTP request.
@@ -107,20 +107,20 @@ func (t Target[I, O, E]) Run(ctx context.Context, i I, tc evaly.TrialContext[E])
 	if e != nil {
 		return result, e
 	}
-	incomplete := func(reason string) { tc.Evidence.MarkIncomplete(reason) }
+	incomplete := tc.Evidence.MarkIncomplete
 	if eLocal := ctx.Err(); eLocal != nil {
 		return result, eLocal
 	}
 	resp, e := t.Client.Do(req)
 	if e != nil {
-		incomplete("http_transport")
+		incomplete()
 		if resp != nil && resp.Body != nil {
 			_ = resp.Body.Close()
 		}
 		return result, e
 	}
 	if resp == nil || evaly.ValidatePort(resp.Body) != nil {
-		incomplete("http_response")
+		incomplete()
 		return result, evaly.ErrInvalid
 	}
 	defer resp.Body.Close()
@@ -241,7 +241,7 @@ func (t Target[I, O, E]) consume(
 	resp *http.Response,
 ) (evaly.TargetResult[O], error) {
 	var result evaly.TargetResult[O]
-	incomplete := func(reason string) { tc.Evidence.MarkIncomplete(reason) }
+	incomplete := tc.Evidence.MarkIncomplete
 	out, e := t.readResponse(resp, incomplete)
 	if e != nil {
 		return result, e
@@ -252,12 +252,12 @@ func (t Target[I, O, E]) consume(
 	result.Usage = out.Usage
 	for _, event := range out.Events {
 		if eLocal := tc.Evidence.Record(ctx, event); eLocal != nil {
-			incomplete("http_event_retention")
+			incomplete()
 			return result, eLocal
 		}
 	}
 	if !out.Evidence.Complete {
-		incomplete("http_host_incomplete")
+		incomplete()
 	}
 	if out.Status == valueTargetError {
 		return result, evaly.ErrTarget
@@ -306,44 +306,44 @@ func encodeInvocation[I, O any](
 	return data, nil
 }
 
-func (t Target[I, O, E]) readResponse(resp *http.Response, incomplete func(string)) (Response, error) {
+func (t Target[I, O, E]) readResponse(resp *http.Response, incomplete func()) (Response, error) {
 	if resp.StatusCode != http.StatusOK {
-		incomplete("http_status")
+		incomplete()
 		return Response{}, fmt.Errorf("HTTP status %d: %w", resp.StatusCode, evaly.ErrUnsupported)
 	}
 	if !jsonContentType(resp.Header.Get("Content-Type")) {
-		incomplete("http_content_type")
+		incomplete()
 		return Response{}, evaly.ErrInvalid
 	}
 	data, e := io.ReadAll(io.LimitReader(resp.Body, t.MaxBytes+1))
 	if e != nil {
-		incomplete("http_read")
+		incomplete()
 		return Response{}, e
 	}
 	if int64(len(data)) > t.MaxBytes {
-		incomplete("http_size")
+		incomplete()
 		return Response{}, evaly.ErrInvalid
 	}
 	out, e := evaly.DecodeWire[Response](data)
 	if e != nil {
-		incomplete("http_wire")
+		incomplete()
 		return Response{}, e
 	}
 	return out, nil
 }
 
-func (t Target[I, O, E]) validateResponse(out Response, incomplete func(string)) error {
+func (t Target[I, O, E]) validateResponse(out Response, incomplete func()) error {
 	if out.Version != wireRevision ||
 		out.Status != completedState && out.Status != valueTargetError {
-		incomplete("http_protocol")
+		incomplete()
 		return evaly.ErrUnsupported
 	}
 	if eLocal := out.Evidence.Validate(); eLocal != nil {
-		incomplete("http_evidence_declaration")
+		incomplete()
 		return eLocal
 	}
 	if out.Status == completedState && len(out.Output) == 0 || out.Status == valueTargetError && len(out.Output) != 0 {
-		incomplete("http_output_contract")
+		incomplete()
 		return evaly.ErrInvalid
 	}
 	return nil

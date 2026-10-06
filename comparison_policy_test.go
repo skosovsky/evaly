@@ -12,7 +12,7 @@ func TestSerializableComparisonPolicyRejectsUnsupportedSemantics(t *testing.T) {
 	// Arrange.
 	assertion := evaly.AssertionObjective{ID: "checks", Revision: "1", Policy: "all"}
 	policy := evaly.ComparisonPolicy{
-		Version:       1,
+		Version:       evaly.ComparisonPolicyVersion,
 		ObjectiveKind: "assertion",
 		Objective:     assertion.Identity(),
 		Gate: evaly.GatePolicy{
@@ -20,7 +20,7 @@ func TestSerializableComparisonPolicyRejectsUnsupportedSemantics(t *testing.T) {
 			MinimumMatchedCases:    1,
 			MinimumCoverage:        1,
 			MinimumMatchedCoverage: 1,
-			MinimumQuality:         1,
+			QualityThreshold:       1,
 			BootstrapSamples:       100,
 		},
 	}
@@ -29,11 +29,12 @@ func TestSerializableComparisonPolicyRejectsUnsupportedSemantics(t *testing.T) {
 		mutate func(*evaly.ComparisonPolicy)
 		want   error
 	}{
-		{"old-version", func(p *evaly.ComparisonPolicy) { p.Version = 0 }, evaly.ErrUnsupported},
+		{"zero-version", func(p *evaly.ComparisonPolicy) { p.Version = 0 }, evaly.ErrUnsupported},
+		{"old-version", func(p *evaly.ComparisonPolicy) { p.Version = 1 }, evaly.ErrUnsupported},
 		{"callback-kind", func(p *evaly.ComparisonPolicy) { p.ObjectiveKind = "callback" }, evaly.ErrUnsupported},
 		{"forged-scale", func(p *evaly.ComparisonPolicy) { p.Objective.Maximum = 2 }, evaly.ErrInvalid},
 		{"null-size", func(p *evaly.ComparisonPolicy) { p.Gate.MinimumMatchedCases = 0 }, evaly.ErrInvalid},
-		{"nan-quality", func(p *evaly.ComparisonPolicy) { p.Gate.MinimumQuality = math.NaN() }, evaly.ErrInvalid},
+		{"nan-quality", func(p *evaly.ComparisonPolicy) { p.Gate.QualityThreshold = math.NaN() }, evaly.ErrInvalid},
 		{
 			"infinite-regression",
 			func(p *evaly.ComparisonPolicy) { p.Gate.MaximumRegression = math.Inf(1) },

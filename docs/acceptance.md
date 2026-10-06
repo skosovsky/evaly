@@ -32,8 +32,8 @@ fingerprints remain historical and cannot substitute for current checks.
 | Opt-in real host/judge procedure without SDK/secrets in core/CI | [live integration](live-integration.md) | **Not run:** no host credentials supplied; scripted checks are not LLM accuracy evidence |
 
 Current format inventory: envelope, dataset, evidence, observation, view,
-calibration and comparison-policy v1; candidate, scenario and comparison
-v2; HTTP request/response, experiment, assessment and observation-result v3; search v5. Readers reject
+calibration v1; comparison-policy, candidate and scenario v2; comparison,
+HTTP request/response, experiment, assessment and observation-result v3; search v6. Readers reject
 unsupported prior major formats. There is no migration or compatibility path.
 Domain codecs remain independently versioned and owned by the host.
 

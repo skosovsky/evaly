@@ -111,7 +111,7 @@ func TestWorkerCannotExtendAbsoluteDeadlineDuringTimerRegistration(t *testing.T)
 	}
 	r := <-future.Result
 	// Assert: timer setup cannot convert an expired observation into another paid evaluation.
-	if r.State != "expired" || calls != 0 {
+	if r.State != observation.Expired || calls != 0 {
 		t.Fatalf("absolute deadline extended: result=%s calls=%d", r.State, calls)
 	}
 }

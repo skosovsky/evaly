@@ -24,7 +24,7 @@ func TestCLIExitCodesAndSealedBaseline(t *testing.T) {
 	store := t.TempDir()
 	policyFile := filepath.Join(t.TempDir(), "policy.json")
 	policy := evaly.ComparisonPolicy{
-		Version:       1,
+		Version:       evaly.ComparisonPolicyVersion,
 		ObjectiveKind: "assertion",
 		Objective:     fixtures.Objective().Identity(),
 		Gate:          fixtures.Gate(),
@@ -59,13 +59,13 @@ func TestCLIExitCodesAndSealedBaseline(t *testing.T) {
 		t.Fatal("missing host trial/evidence coordinates", string(fail))
 	}
 	// Act / Assert: an explicit caller threshold changes the gate result.
-	policy.Gate.MinimumQuality = 1.1
+	policy.Gate.QualityThreshold = 1.1
 	raw, _ = json.Marshal(policy)
 	if err = os.WriteFile(policyFile, raw, 0600); err != nil {
 		t.Fatal(err)
 	}
 	run(3, "compare", "--store", store, "--baseline", "good", "--candidate", "good")
-	policy.Gate.MinimumQuality = .5
+	policy.Gate.QualityThreshold = .5
 	policy.Gate.MaximumRegression = 1
 	raw, _ = json.Marshal(policy)
 	if err = os.WriteFile(policyFile, raw, 0600); err != nil {
@@ -73,11 +73,11 @@ func TestCLIExitCodesAndSealedBaseline(t *testing.T) {
 	}
 	run(0, "compare", "--store", store, "--baseline", "good", "--candidate", "bad")
 	for _, badPolicy := range []string{
-		`{"version":2}`, `{"version":1}`, `{"version":1,"objective_kind":"callback"}`,
+		`{"version":3}`, `{"version":1}`, `{"version":2,"objective_kind":"callback"}`,
 		string(bytes.ReplaceAll(raw, []byte(`"all-declared-v1"`), []byte(`"host-selector-v1"`))),
 		string(bytes.ReplaceAll(raw, []byte(`"minimum_matched_cases":1`), []byte(`"minimum_matched_cases":1.5`))),
 		string(bytes.ReplaceAll(raw, []byte(`"minimum_matched_cases":1`), []byte(`"minimum_matched_cases":0`))),
-		string(bytes.ReplaceAll(raw, []byte(`"minimum_quality":0.5`), []byte(`"minimum_quality":1e999`))),
+		string(bytes.ReplaceAll(raw, []byte(`"quality_threshold":0.5`), []byte(`"quality_threshold":1e999`))),
 	} {
 		if err = os.WriteFile(policyFile, []byte(badPolicy), 0600); err != nil {
 			t.Fatal(err)
@@ -156,7 +156,7 @@ func TestCLINumericPolicyForHostTarget(t *testing.T) {
 		}
 	}
 	policy := evaly.ComparisonPolicy{
-		Version:       1,
+		Version:       evaly.ComparisonPolicyVersion,
 		ObjectiveKind: "numeric",
 		Objective:     descriptor,
 		Gate: evaly.GatePolicy{
@@ -164,7 +164,7 @@ func TestCLINumericPolicyForHostTarget(t *testing.T) {
 			MinimumMatchedCases:    4,
 			MinimumMatchedCoverage: 1,
 			MinimumCoverage:        1,
-			MinimumQuality:         20,
+			QualityThreshold:       20,
 			MaximumRegression:      0,
 			BootstrapSamples:       100,
 			Seed:                   7,

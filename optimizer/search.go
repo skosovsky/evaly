@@ -75,13 +75,13 @@ type Proposal[T any] struct {
 	Value          T      `json:"Value"`
 }
 type ProposalRequest[I, R any] struct {
-	Training    evaly.Dataset[I, R] `json:"Training"`
-	Calibration evaly.Dataset[I, R] `json:"Calibration"`
-	Maximum     int                 `json:"Maximum"`
-	Round       int                 `json:"Round"`
-	DispatchID  string              `json:"DispatchID"`
-	Feedback    []Feedback          `json:"Feedback"`
-	Seed        int64               `json:"Seed"`
+	Training    evaly.Dataset[I, R]
+	Calibration evaly.Dataset[I, R]
+	Maximum     int
+	Round       int
+	DispatchID  string
+	Feedback    []Feedback
+	Seed        int64
 }
 type ProposalResult[T any] struct {
 	Exhausted  bool          `json:"Exhausted"`
@@ -93,8 +93,8 @@ type Proposer[T, I, R any] interface {
 	Revision() string
 }
 type ProposalFunc[T, I, R any] struct {
-	Identity string                                                                  `json:"Identity"`
-	Generate func(context.Context, ProposalRequest[I, R]) (ProposalResult[T], error) `json:"Generate"`
+	Identity string
+	Generate func(context.Context, ProposalRequest[I, R]) (ProposalResult[T], error)
 }
 
 func (p ProposalFunc[T, I, R]) Revision() string { return p.Identity }
@@ -112,20 +112,20 @@ func (p ProposalFunc[T, I, R]) Propose(ctx context.Context, r ProposalRequest[I,
 }
 
 type Split[I, R any] struct {
-	Revision    string              `json:"Revision"`
-	Training    evaly.Dataset[I, R] `json:"Training"`
-	Calibration evaly.Dataset[I, R] `json:"Calibration"`
-	Holdout     evaly.Dataset[I, R] `json:"Holdout"`
+	Revision    string
+	Training    evaly.Dataset[I, R]
+	Calibration evaly.Dataset[I, R]
+	Holdout     evaly.Dataset[I, R]
 }
 type EvaluationRequest[T, I, R any] struct {
-	ExperimentID string              `json:"ExperimentID"`
-	SearchID     string              `json:"SearchID"`
-	Phase        string              `json:"Phase"`
-	DispatchID   string              `json:"DispatchID"`
-	Round        int                 `json:"Round"`
-	Candidate    Candidate[T]        `json:"Candidate"`
-	Dataset      evaly.Dataset[I, R] `json:"Dataset"`
-	Budget       evaly.Budget        `json:"Budget"`
+	ExperimentID string
+	SearchID     string
+	Phase        string
+	DispatchID   string
+	Round        int
+	Candidate    Candidate[T]
+	Dataset      evaly.Dataset[I, R]
+	Budget       evaly.Budget
 }
 type Evaluate[T, I, R any] func(context.Context, EvaluationRequest[T, I, R]) (evaly.Experiment, error)
 type HoldoutLedger interface {
@@ -161,28 +161,28 @@ func (l *MemoryLedger) Claim(ctx context.Context, holdout, search string) (bool,
 }
 
 type Config[T, I, R any] struct {
-	ID                  string               `json:"ID"`
-	Algorithm           string               `json:"Algorithm"`
-	StopRevision        string               `json:"StopRevision"`
-	Seed                int64                `json:"Seed"`
-	MaximumCandidates   int                  `json:"MaximumCandidates"`
-	Timeout             time.Duration        `json:"Timeout"`
-	Split               Split[I, R]          `json:"Split"`
-	MaximumRounds       int                  `json:"MaximumRounds"`
-	EvaluationUnits     float64              `json:"EvaluationUnits"`
-	Constraints         Constraints[T]       `json:"Constraints"`
-	SplitValidator      SplitValidator[I, R] `json:"SplitValidator"`
-	FeedbackProjector   FeedbackProjector    `json:"FeedbackProjector"`
-	Proposal            Proposer[T, I, R]    `json:"Proposal"`
-	Codec               evaly.Codec[T]       `json:"Codec"`
-	Evaluate            Evaluate[T, I, R]    `json:"Evaluate"`
-	Budget              evaly.Budget         `json:"Budget"`
-	ProposalUnits       float64              `json:"ProposalUnits"`
-	Ledger              HoldoutLedger        `json:"Ledger"`
-	CalibrationBaseline evaly.Experiment     `json:"CalibrationBaseline"`
-	HoldoutBaseline     evaly.Experiment     `json:"HoldoutBaseline"`
-	Gate                evaly.GatePolicy     `json:"Gate"`
-	Objective           evaly.Objective      `json:"Objective"`
+	ID                  string
+	Algorithm           string
+	StopRevision        string
+	Seed                int64
+	MaximumCandidates   int
+	Timeout             time.Duration
+	Split               Split[I, R]
+	MaximumRounds       int
+	EvaluationUnits     float64
+	Constraints         Constraints[T]
+	SplitValidator      SplitValidator[I, R]
+	FeedbackProjector   FeedbackProjector
+	Proposal            Proposer[T, I, R]
+	Codec               evaly.Codec[T]
+	Evaluate            Evaluate[T, I, R]
+	Budget              evaly.Budget
+	ProposalUnits       float64
+	Ledger              HoldoutLedger
+	CalibrationBaseline evaly.Experiment
+	HoldoutBaseline     evaly.Experiment
+	Gate                evaly.GatePolicy
+	Objective           evaly.Objective
 }
 type Evaluation struct {
 	Round             int                     `json:"Round"`

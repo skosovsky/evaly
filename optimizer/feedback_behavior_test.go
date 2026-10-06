@@ -219,7 +219,7 @@ func checkLowerObjectiveSeparatesMeasuredBestFromFeasibleWinner(t *testing.T, fe
 			return evaly.Measurement{Present: present, Value: value}, nil
 		},
 	}
-	c.Gate.MinimumQuality, c.Gate.MaximumRegression = 1, 1
+	c.Gate.QualityThreshold, c.Gate.MaximumRegression = 1, 1
 	c.Constraints = optimizer.ConstraintsFunc[recipe]{
 		Identity: "host-feasibility-v1",
 		Assess: func(_ context.Context, value recipe, _ optimizer.EvaluationSummary) (optimizer.Feasibility, error) {

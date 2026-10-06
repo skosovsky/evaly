@@ -188,7 +188,7 @@ func TestSecretAbsentInJudgeExportAndVerdictUnchanged(t *testing.T) {
 		MinimumCoverage:        1,
 		MinimumMatchedCases:    1,
 		MinimumMatchedCoverage: 1,
-		MinimumQuality:         1,
+		QualityThreshold:       1,
 		BootstrapSamples:       100,
 	}
 	before, e := evaly.Compare(

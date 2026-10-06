@@ -59,8 +59,8 @@ type Grader[I, O, R any] interface {
 	Grade(context.Context, View[I, O, R]) (Grade, error)
 }
 type GraderFunc[I, O, R any] struct {
-	Identity GraderRevision                                      `json:"Identity"`
-	Evaluate func(context.Context, View[I, O, R]) (Grade, error) `json:"Evaluate"`
+	Identity GraderRevision
+	Evaluate func(context.Context, View[I, O, R]) (Grade, error)
 }
 
 func (g GraderFunc[I, O, R]) Validate() error {
@@ -270,9 +270,9 @@ type Judge[I, O, R any] interface {
 	Judge(context.Context, JudgeRequest[I, O, R]) (Grade, error)
 }
 type LLMGrader[I, O, R any] struct {
-	Identity     GraderRevision `json:"Identity"`
-	Instructions string         `json:"Instructions"`
-	Port         Judge[I, O, R] `json:"Port"`
+	Identity     GraderRevision
+	Instructions string
+	Port         Judge[I, O, R]
 }
 
 func (g LLMGrader[I, O, R]) Validate() error {
@@ -294,7 +294,7 @@ func (g LLMGrader[I, O, R]) Grade(ctx context.Context, v View[I, O, R]) (Grade, 
 
 // ScriptedJudge is a deterministic reference adapter, not proof of real judge accuracy.
 type ScriptedJudge[I, O, R any] struct {
-	Evaluate func(context.Context, JudgeRequest[I, O, R]) (Grade, error) `json:"Evaluate"`
+	Evaluate func(context.Context, JudgeRequest[I, O, R]) (Grade, error)
 }
 
 func (s ScriptedJudge[I, O, R]) Validate() error {

@@ -1,5 +1,5 @@
 package optimizer
 
 const (
-	resultWireRevision = 5
+	resultWireRevision = 6
 )

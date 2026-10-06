@@ -145,7 +145,7 @@ func calibrationExample() error {
 		Prompt:         "",
 		Configuration:  "",
 	}
-	calibration, e := evaly.Calibrate(revision,
+	calibration, e := evaly.EvaluateBinaryAgreement(revision,
 		[]evaly.CalibrationLabel{
 			{CaseRevision: "positive", Pass: true, Groups: []string{scriptedImplementation}},
 			{CaseRevision: "negative", Pass: false, Groups: []string{scriptedImplementation}},

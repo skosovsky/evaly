@@ -14,8 +14,8 @@ type SplitValidator[I, R any] interface {
 }
 
 type SplitValidatorFunc[I, R any] struct {
-	Identity string                                   `json:"Identity"`
-	Check    func(context.Context, Split[I, R]) error `json:"Check"`
+	Identity string
+	Check    func(context.Context, Split[I, R]) error
 }
 
 func (v SplitValidatorFunc[I, R]) Revision() string { return v.Identity }
@@ -39,9 +39,9 @@ func (v SplitValidatorFunc[I, R]) ValidateSplit(ctx context.Context, s Split[I, 
 // keys. It does not infer semantic similarity. Repeated keys within one split
 // are permitted; the same key across two splits is a conflict.
 type KeySplitValidator[I, R any] struct {
-	Identity   string                                 `json:"Identity"`
-	GroupKey   func(evaly.Case[I, R]) (string, error) `json:"GroupKey"`
-	ContentKey func(evaly.Case[I, R]) (string, error) `json:"ContentKey"`
+	Identity   string
+	GroupKey   func(evaly.Case[I, R]) (string, error)
+	ContentKey func(evaly.Case[I, R]) (string, error)
 }
 
 func (v KeySplitValidator[I, R]) Revision() string { return v.Identity }

@@ -24,8 +24,8 @@ type Constraints[T any] interface {
 	Check(context.Context, T, EvaluationSummary) (Feasibility, error)
 }
 type ConstraintsFunc[T any] struct {
-	Identity string                                                           `json:"Identity"`
-	Assess   func(context.Context, T, EvaluationSummary) (Feasibility, error) `json:"Assess"`
+	Identity string
+	Assess   func(context.Context, T, EvaluationSummary) (Feasibility, error)
 }
 
 func (c ConstraintsFunc[T]) Revision() string { return c.Identity }
@@ -66,8 +66,8 @@ type FeedbackProjector interface {
 	Project(context.Context, Evaluation) ([]string, error)
 }
 type FeedbackProjectionFunc struct {
-	Identity        string                                              `json:"Identity"`
-	ProjectFeedback func(context.Context, Evaluation) ([]string, error) `json:"ProjectFeedback"`
+	Identity        string
+	ProjectFeedback func(context.Context, Evaluation) ([]string, error)
 }
 
 func (p FeedbackProjectionFunc) Revision() string { return p.Identity }

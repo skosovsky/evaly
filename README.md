@@ -12,8 +12,8 @@ dispatch/usage records. Assessments retain planned graders, partial results and
 skipped reasons even after budget, deadline or accounting failure. Scenario drivers
 receive seed, mode and step directly. See the normative
 [execution contract](docs/execution-contract.md). Experiment, assessment,
-observation-result formats use revision 3; search uses revision 5; scenario and comparison use
-revision 2. Old formats are unsupported.
+observation-result formats use revision 3; search uses revision 6; scenario uses revision 2; comparison uses revision 3
+and comparison-policy uses revision 2. Old formats are unsupported.
 
 HTTP request/response revision 3 declares evidence delivery completeness separately
 from target success and preserves delivered events on target failure. Wire readers
@@ -180,4 +180,4 @@ Contracttest is a development module and receives no release tag.
 See [release safety and recovery](docs/release.md) for failure handling and local
 fixtures. Commit identity/signing use the resolved source Git configuration.
 
-Optimizer candidate records use schema v2 (`ParentRevision`); search v5 adds concrete provenance and bounded received counts. See [migration](docs/optimizer-remediation.md).
+Optimizer candidate records use schema v2 (`ParentRevision`); search v6 includes concrete provenance and bounded received counts. See [migration](docs/optimizer-remediation.md).

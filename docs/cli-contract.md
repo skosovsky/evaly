@@ -28,7 +28,7 @@ An explicit policy for the offline calculation fixture (save as `policy.json`):
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "objective_kind": "assertion",
   "objective": {
     "id": "assertion-pass",
@@ -48,7 +48,7 @@ An explicit policy for the offline calculation fixture (save as `policy.json`):
     "minimum_matched_cases": 1,
     "minimum_matched_coverage": 1,
     "minimum_coverage": 1,
-    "minimum_quality": 0.8,
+    "quality_threshold": 0.8,
     "maximum_regression": 0,
     "bootstrap_samples": 1000,
     "seed": 42
@@ -59,7 +59,7 @@ An explicit policy for the offline calculation fixture (save as `policy.json`):
 The numeric variant sets `objective_kind` to `numeric`, removes
 `assertion_policy`, and adds `source_grader` and `source_metric` to `objective`.
 Its native unit/bounds/direction/scale must match the chosen persisted metric;
-`minimum_quality` is interpreted in that unit, including the `lower` direction.
+`quality_threshold` is interpreted in that unit, including the `lower` direction.
 
 
 D56: each subcommand registers only its own flags. Both accept `--store`;

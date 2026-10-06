@@ -56,7 +56,7 @@ func saved(t *testing.T, complete bool) evaly.SavedView[int, string, int] {
 		t.Fatal(e)
 	}
 	if !complete {
-		capture.MarkIncomplete("pending outcome")
+		capture.MarkIncomplete()
 	}
 	reference := 1
 	view := evaly.View[int, string, int]{
@@ -138,7 +138,8 @@ func TestBoundedOverloadFakeDeadlineAndFlush(t *testing.T) {
 	}
 	r1 := <-first.Result
 	r2 := <-second.Result
-	if r1.State != "expired" || r2.State != "expired" || r1.Assessment.Grades[0].Status != evaly.GraderError {
+	if r1.State != observation.Expired || r2.State != observation.Expired ||
+		r1.Assessment.Grades[0].Status != evaly.GraderError {
 		t.Fatal(r1, r2)
 	}
 	if e = worker.Cancel(cleanupctx); e != nil {

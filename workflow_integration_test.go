@@ -375,7 +375,7 @@ func checkWorkflowTargetFailureConformance(t *testing.T, transport *string) {
 				c.Target = evaly.TargetFunc[fixtures.WorkflowInput, fixtures.WorkflowOutput, *fixtures.WorkflowEnvironment](
 					func(ctx context.Context, i fixtures.WorkflowInput, tc evaly.TrialContext[*fixtures.WorkflowEnvironment]) (evaly.TargetResult[fixtures.WorkflowOutput], error) {
 						r, e := underlying.Run(ctx, i, tc)
-						tc.Evidence.MarkIncomplete("connection_interrupted")
+						tc.Evidence.MarkIncomplete()
 						return r, e
 					},
 				)

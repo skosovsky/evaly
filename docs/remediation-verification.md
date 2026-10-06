@@ -209,3 +209,73 @@ response schema `cd4346d18f61375947304eb2536c212457cf6e4ce850489167e2353930d8547
 Limits: local HTTP/scripted fixtures; hard cancellation, live provider interoperability
 and total memory bound are not certified. Only acceptance metadata changed after reviews.
 Commit subject: `fix: validate adapter setup before dispatch`.
+
+## T09 — accepted
+
+Previous accepted task: T08 commit `7823a2e`.
+Initial work: D25 immutable-after-configuration FieldPolicy ownership GoDoc;
+D26 removes the unused MarkIncomplete argument across stock callers;
+D33 reproducible SavedView benchmark and decision to retain one immutable record
+validation plus fresh decode per grader. Evidence and measurement limits are in
+`docs/local-remediation-decisions.md`. Remaining assigned D items are outstanding.
+Checks for this initial subset: focused evidence/capture/HTTP/absence/workflow/
+SavedView race selection across root packages — PASS; pinned root lint 2.14.0
+— 0 issues; three-sample SavedView benchmark — PASS; `git diff --check` — PASS.
+No independent T09 acceptance or commit yet. Final T09 checks must cover the
+complete frozen change rather than relying on these partial checks.
+
+Further T09 work: D13 descriptor-only NumericObjective, canonical built-in
+eligibility/missingness validation in direct calls and policy Resolve, migrated
+numeric/conformance regressions and independent direct-vs-policy error table;
+D09 removes tags from executable configs/adapters/fixtures while retaining wire
+records; D19 exports built-in objective kind and revision vocabulary.
+Checks for this intermediate version: root `go test ./...` and `go test -race
+./...` — PASS; numeric/objective/policy focused race — PASS; pinned root lint
+2.14.0 — 0 issues; independent temp schema regeneration — all 16 schemas
+byte-identical; `git diff --check` — PASS. D33 decision now explicitly distinguishes
+single Rescore validation from repeated per-grader observation calls. No claim
+of worker optimization or complete T09 acceptance is made.
+
+D12 intermediate validation: QualityThreshold/quality_threshold migration,
+comparison v3, comparison-policy v2 and search v6 schemas/callers synchronized.
+Root `go test -race ./...` — PASS; full contracttest race — PASS (118.153s);
+root and contracttest pinned lint 2.14.0 — 0 issues; seven `make examples` — PASS;
+additional final old-search-v5 rejection roundtrip race — PASS (1.688s);
+equality/adjacent-float threshold regressions run in both numeric directions;
+`git diff --check` — PASS. Current docs updated; historical T06 evidence retains
+the versions checked at that commit. Retained D01/D06/D07/D10/D11/D14/D17/D22/
+D29–D31/D34–D38 boundaries now have explicit decisions and implementation evidence.
+T09 still awaits D05/D15/D16/D18/D32/D60 and complete independent acceptance.
+
+
+T09 initial independent acceptance: completeness 1/3 (33.33%); correctness found
+no runtime defect but confirmed the D09 omission. PairFault and EvaluationRequest
+still carried tags on live ports. Repaired both and corresponding Dataset-bearing
+ProposalRequest/Split runtime values; no supported wire fields changed in repair.
+Final D05/D15/D16/D18/D32/D60 implementation and decisions are now recorded.
+Pre-repair final runtime checks: root race — PASS; contracttest race — PASS
+(214.365s); both pinned lints — 0 issues; seven examples — PASS; temp schema
+regeneration — all 16 byte-identical. Independent completeness schema/corpus/
+semantic race — PASS (190.895s); independent correctness focused race and four
+adversarial overlays — PASS. Correctness full schema race was still pending at
+its first verdict. Repaired T09 requires both reviewers to recheck before commit.
+
+Final T09 independent acceptance: `/root/t09_completeness` — 3/3, 100%;
+`/root/t09_correctness` — no errors found in scope, D09 omissions closed.
+Final repair checks: conformance/optimizer race — PASS (2.783s/11.917s); root
+pinned lint — 0 issues; temp regeneration — all 16 schemas byte-identical;
+independent final conformance/optimizer race and four adversarial overlays — PASS;
+independent full contracttest race — PASS (192.892s); `git diff --check` — PASS.
+Runtime comparison SHA256 `744e80b5f12c1aa6262811f5bc9fa38716957a9e63caab84bd40e94ccaa1dc4c`;
+measurement `82e0987911c29bf1cf00c1a9c3001fc4ffc6529df8854b7d6008d35c48549d84`;
+evidence `1c2a83905f9f394a98a469b6225f3e665e48f58543ad84acb8bb83e5399d991b`;
+runner `ed221689574d6c661693ee445d0dcfa823dd3e972b818eec76faf9ace9ffcbb7`;
+vocabulary `4d774479b08868b3d1d965703c0d371812b9c8b4ff97c34e98bb4764bd4b2b5f`;
+decision record `d5c057d68c93c30a3e85a039587e6f03a8b823768c71f330269f856e11efe829`;
+comparison schema `2d6d802dc5563dfe35045b80083f6a0bda088c8d71a7388e8c44d11feef9e561`;
+policy schema `e9c416906b4bdfe2e0eadb41b2eb5f465529d5e7a62f413342d42492f62d1d33`;
+search schema `3507c055957310b2da3464a5513b8eb3d3472b47284788f245e88f139a7d8f3d`.
+Limits: local macOS/arm64, scripted callbacks and short synthetic benchmark;
+arbitrary host stability/concurrency and production infrastructure are not certified.
+Only acceptance metadata changed after final reviews.
+Commit subject: `fix: align measurement and runtime contracts`.

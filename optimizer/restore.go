@@ -93,7 +93,7 @@ func RestoreResult[T any](r Result, c evaly.Codec[T]) (Result, error) {
 }
 
 func validateComparison(c evaly.Comparison) error {
-	if c.Version != 2 || evaly.ValidateObjectiveIdentity(c.Objective) != nil {
+	if c.Version != evaly.ComparisonVersion || evaly.ValidateObjectiveIdentity(c.Objective) != nil {
 		return evaly.ErrInvalid
 	}
 	revision := c.Revision

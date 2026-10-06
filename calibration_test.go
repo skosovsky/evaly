@@ -50,7 +50,7 @@ func TestCalibrationConfusionMissingAndGroups(t *testing.T) {
 	// Arrange.
 	rev, labels, records := calibrationFixture()
 	// Act.
-	r, err := evaly.Calibrate(rev, labels, records)
+	r, err := evaly.EvaluateBinaryAgreement(rev, labels, records)
 	// Assert.
 	if err != nil || evaly.ValidateCalibrationReport(r) != nil {
 		t.Fatal(err, r)
@@ -88,7 +88,7 @@ func TestCalibrationConfusionMissingAndGroups(t *testing.T) {
 	// Input order is not provenance: the same aggregates have the same identity.
 	labels[0], labels[1] = labels[1], labels[0]
 	records[0], records[1] = records[1], records[0]
-	permuted, err := evaly.Calibrate(rev, labels, records)
+	permuted, err := evaly.EvaluateBinaryAgreement(rev, labels, records)
 	if err != nil || permuted.Revision != r.Revision {
 		t.Fatal(err, permuted.Revision, r.Revision)
 	}
@@ -107,7 +107,7 @@ func TestCalibrationUnavailableRates(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange / Act.
-			r, err := evaly.Calibrate(rev, tt.labels, tt.records)
+			r, err := evaly.EvaluateBinaryAgreement(rev, tt.labels, tt.records)
 			// Assert.
 			if err != nil || evaly.ValidateCalibrationReport(r) != nil || r.Rates.Accuracy.Value != nil ||
 				r.Rates.Precision.Value != nil ||
@@ -148,7 +148,7 @@ func TestCalibrationRejectsMalformedUnlabeledAndDuplicates(t *testing.T) {
 			r := append([]evaly.CalibrationRecord(nil), records...)
 			tt.mutate(&l, &r)
 			// Act.
-			_, err := evaly.Calibrate(rev, l, r)
+			_, err := evaly.EvaluateBinaryAgreement(rev, l, r)
 			// Assert.
 			if !errors.Is(err, tt.want) {
 				t.Fatal(err)
@@ -160,7 +160,7 @@ func TestCalibrationRejectsMalformedUnlabeledAndDuplicates(t *testing.T) {
 func TestCalibrationReportRejectsMutation(t *testing.T) {
 	// Arrange.
 	rev, labels, records := calibrationFixture()
-	r, err := evaly.Calibrate(rev, labels, records)
+	r, err := evaly.EvaluateBinaryAgreement(rev, labels, records)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +192,7 @@ func TestCalibrationNumericOnlyDoesNotInventBinaryPrediction(t *testing.T) {
 		},
 	}}}
 	// Act.
-	r, err := evaly.Calibrate(rev, labels, records)
+	r, err := evaly.EvaluateBinaryAgreement(rev, labels, records)
 	// Assert.
 	if err != nil || evaly.ValidateCalibrationReport(r) != nil || r.Counts.Reviewed != 0 ||
 		r.Counts.Abstentions != 1 || r.Counts.Unreviewed != 1 || r.Rates.Accuracy.Value != nil ||

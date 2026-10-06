@@ -3,8 +3,8 @@
 Status: implementation contract. Original requirement authority: `.cursor/tasks/task1.md`.
 Current execution changes are governed by `.cursor/task/01-execution-and-assessments.md`
 and the normative [execution contract revision 2](execution-contract.md).
-Experiment, assessment and observation-result formats use revision 3; search uses revision 5;
-scenario, comparison and candidate formats use revision 2; HTTP uses revision 3. Calibration uses revision 1.
+Experiment, assessment and observation-result formats use revision 3; search uses revision 6;
+scenario and candidate formats use revision 2; comparison uses revision 3; comparison-policy uses revision 2; HTTP uses revision 3. Calibration uses revision 1.
 Their previous major formats are unsupported. Unaffected formats retain
 their declared revisions. No compatibility reader or migration layer is supplied.
 

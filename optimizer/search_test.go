@@ -203,7 +203,7 @@ func TestSearchUsesDeclaredDirectionAndAbsentMeasurements(t *testing.T) {
 			}
 			return evaly.Measurement{Present: true, Value: value}, nil
 		}}
-	c.Gate.MinimumQuality = 1
+	c.Gate.QualityThreshold = 1
 	c.Gate.MaximumRegression = 1
 	// Act.
 	result, err := optimizer.Search(context.Background(), c)

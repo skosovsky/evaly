@@ -1,6 +1,6 @@
 # Optimizer artifact semantics and migration
 
-Search v5 validates redundant audit fields against ordered attempts before every
+Search v6 validates redundant audit fields against ordered attempts before every
 successful return. ValidateResult uses the same contract; RestoreResult additionally
 decodes/reseals candidates with the supplied codec. Content checksums establish
 integrity, not producer truth or authenticity.
@@ -34,7 +34,7 @@ and BestMeasured are derived; retained audit copies cannot independently contrad
 their source (D44).
 
 D41: Parent is renamed ParentRevision on Proposal, CandidateRecord and
-CandidateLineage. Candidate schema is v2, search is v5; candidate hashes change.
+CandidateLineage. Candidate schema is v2, search is v6; candidate hashes change.
 Reseal supported source descriptions deliberately; no implicit legacy reader or
 field alias. Older search versions are ErrUnsupported. Update schema selectors and
 callers using Parent. Descriptions remain BYOT codec-owned.

@@ -77,21 +77,24 @@ type RealClock struct{}
 func (RealClock) Now() time.Time                         { return time.Now() }
 func (RealClock) After(d time.Duration) <-chan time.Time { return time.After(d) }
 
+// Config is executable host configuration, not a portable artifact. Graders,
+// Clock and Budget remain shared implementations: use concurrency-safe ports or
+// Concurrency=1. Deadline also bounds detached usage reconciliation.
 type Config[I, O, R any] struct {
-	Capacity    int                     `json:"Capacity"`
-	Concurrency int                     `json:"Concurrency"`
-	Deadline    time.Duration           `json:"Deadline"`
-	Clock       Clock                   `json:"Clock"`
-	Graders     []evaly.Grader[I, O, R] `json:"Graders"`
-	Budget      evaly.Budget            `json:"Budget"`
-	GraderUnits float64                 `json:"GraderUnits"`
+	Capacity    int
+	Concurrency int
+	Deadline    time.Duration
+	Clock       Clock
+	Graders     []evaly.Grader[I, O, R]
+	Budget      evaly.Budget
+	GraderUnits float64
 }
 type Result struct {
 	Version     int              `json:"version"`
-	State       string           `json:"State"`
+	State       State            `json:"State"`
 	Observation Record           `json:"Observation"`
 	Assessment  evaly.Assessment `json:"Assessment"`
-	Reason      string           `json:"Reason"`
+	Reason      Reason           `json:"Reason"`
 }
 type Future struct {
 	Result <-chan Result `json:"Result"`
@@ -232,9 +235,9 @@ func (w *Worker[I, O, R]) cancelledResult(t task[I, O, R]) Result {
 		t,
 		Result{
 			Version:     resultWireRevision,
-			State:       cancelledState,
+			State:       Cancelled,
 			Observation: t.observation.Record(),
-			Reason:      workerCancellationReason,
+			Reason:      WorkerCancelled,
 			Assessment:  zeroAssessment,
 		},
 	)
@@ -257,17 +260,17 @@ func (w *Worker[I, O, R]) sealResult(t task[I, O, R], r Result) Result {
 		rev := g.Revision()
 		a.Planned = append(a.Planned, rev)
 		if !seen[rev.ID] {
-			a.Skipped = append(a.Skipped, evaly.SkippedGrader{Revision: rev, Reason: r.Reason})
+			a.Skipped = append(a.Skipped, evaly.SkippedGrader{Revision: rev, Reason: string(r.Reason)})
 		}
 	}
-	if r.State != "graded" {
+	if r.State != Graded {
 		a.State = "partial"
-		a.StopReason = r.Reason
+		a.StopReason = string(r.Reason)
 	}
 	sealed, e := evaly.SealAssessment(a)
 	if e != nil {
-		r.State = failedState
-		r.Reason = "assessment_encoding"
+		r.State = Failed
+		r.Reason = AssessmentEncoding
 		return r
 	}
 	r.Assessment = sealed
@@ -287,14 +290,14 @@ func (w *Worker[I, O, R]) evaluateUnsealed(t task[I, O, R]) Result {
 		Reason:      "",
 	}
 	if w.ctx.Err() != nil {
-		r.State = cancelledState
-		r.Reason = workerCancellationReason
+		r.State = Cancelled
+		r.Reason = WorkerCancelled
 		return r
 	}
 	remaining := t.expires.Sub(w.config.Clock.Now())
 	if remaining <= 0 {
-		r.State = expiredState
-		r.Reason = observationDeadlineReason
+		r.State = Expired
+		r.Reason = ObservationDeadline
 		return r
 	}
 	ctx, cancel := context.WithCancel(w.ctx)
@@ -302,8 +305,8 @@ func (w *Worker[I, O, R]) evaluateUnsealed(t task[I, O, R]) Result {
 	timer := w.config.Clock.After(remaining)
 	if !w.config.Clock.Now().Before(t.expires) {
 		cancel()
-		r.State = expiredState
-		r.Reason = observationDeadlineReason
+		r.State = Expired
+		r.Reason = ObservationDeadline
 		return r
 	}
 	go func() {
@@ -321,17 +324,20 @@ func (w *Worker[I, O, R]) evaluateUnsealed(t task[I, O, R]) Result {
 			return r
 		}
 	}
-	r.State = "graded"
+	r.State = Graded
 	if ctx.Err() != nil || !w.config.Clock.Now().Before(t.expires) {
-		r.State = expiredState
-		r.Reason = observationDeadlineReason
+		r.State = Expired
+		r.Reason = ObservationDeadline
 		if w.ctx.Err() != nil {
-			r.State = cancelledState
-			r.Reason = workerCancellationReason
+			r.State = Cancelled
+			r.Reason = WorkerCancelled
 		}
 	}
 	return r
 }
+
+// Flush waits for pending work without closing admission. Stop producers before
+// calling Flush for a final drain; cancellation stops waiting, not grading.
 func (w *Worker[I, O, R]) Flush(ctx context.Context) error {
 	for {
 		w.mu.Lock()
@@ -363,11 +369,11 @@ func (w *Worker[I, O, R]) Cancel(ctx context.Context) error {
 
 func (w *Worker[I, O, R]) evaluateGrade(ctx context.Context, t task[I, O, R], g evaly.Grader[I, O, R], r *Result) bool {
 	if !w.config.Clock.Now().Before(t.expires) || ctx.Err() != nil {
-		r.State = expiredState
-		r.Reason = observationDeadlineReason
+		r.State = Expired
+		r.Reason = ObservationDeadline
 		if w.ctx.Err() != nil {
-			r.State = cancelledState
-			r.Reason = workerCancellationReason
+			r.State = Cancelled
+			r.Reason = WorkerCancelled
 		}
 		return false
 	}
@@ -376,11 +382,11 @@ func (w *Worker[I, O, R]) evaluateGrade(ctx context.Context, t task[I, O, R], g 
 		return false
 	}
 	if ctx.Err() != nil || !w.config.Clock.Now().Before(t.expires) {
-		r.State = expiredState
-		r.Reason = observationDeadlineReason
+		r.State = Expired
+		r.Reason = ObservationDeadline
 		if w.ctx.Err() != nil {
-			r.State = cancelledState
-			r.Reason = workerCancellationReason
+			r.State = Cancelled
+			r.Reason = WorkerCancelled
 		}
 		return false
 	}
@@ -393,8 +399,8 @@ func (w *Worker[I, O, R]) evaluateGrade(ctx context.Context, t task[I, O, R], g 
 		"observation",
 	)
 	if e != nil {
-		r.State = failedState
-		r.Reason = "invalid_observation"
+		r.State = Failed
+		r.Reason = InvalidObservation
 		return false
 	}
 	r.Assessment.Grades = append(r.Assessment.Grades, a.Grades...)
@@ -407,8 +413,8 @@ func (w *Worker[I, O, R]) evaluateGrade(ctx context.Context, t task[I, O, R], g 
 		e = w.config.Budget.Reconcile(reconcileCtx, reservation, a.Grades[0].Usage)
 		done()
 		if e != nil {
-			r.State = failedState
-			r.Reason = "usage_reconciliation"
+			r.State = Failed
+			r.Reason = UsageReconciliation
 			return false
 		}
 	}
@@ -430,30 +436,30 @@ func (w *Worker[I, O, R]) authorizeGrade(
 			w.config.GraderUnits,
 		)
 		if e != nil {
-			r.State = "budget_exhausted"
-			r.Reason = "grader_reservation"
+			r.State = BudgetExhausted
+			r.Reason = GraderReservation
 			return reservation, false
 		}
 	}
 	if w.config.Budget != nil {
 		if e = w.config.Budget.Claim(ctx, reservation); e != nil {
-			r.State = "budget_exhausted"
-			r.Reason = "grader_dispatch_claim"
+			r.State = BudgetExhausted
+			r.Reason = GraderDispatchClaim
 			return reservation, false
 		}
 	}
 	return reservation, true
 }
 func (w *Worker[I, O, R]) missingGrade(a evaly.Assessment, reservation evaly.Reservation, r *Result) bool {
-	r.State = failedState
-	r.Reason = a.StopReason
+	r.State = Failed
+	r.Reason = GradingProjection
 	if a.StopReason == "context_cancelled" {
-		r.State = expiredState
-		r.Reason = observationDeadlineReason
+		r.State = Expired
+		r.Reason = ObservationDeadline
 	}
 	if w.ctx.Err() != nil {
-		r.State = cancelledState
-		r.Reason = workerCancellationReason
+		r.State = Cancelled
+		r.Reason = WorkerCancelled
 	}
 	// A claimed reservation retains unknown liability; never release a claim.
 	if w.config.Budget != nil {

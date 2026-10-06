@@ -1,6 +1,7 @@
 package evaly
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -18,12 +19,17 @@ const (
 	GateInvalid      GateVerdict = "invalid_comparison"
 )
 
+// ComparisonVersion is the supported persisted comparison format.
+const ComparisonVersion = 3
+
+// GatePolicy applies QualityThreshold in the native objective direction: a lower
+// bound for higher-is-better, an upper bound for lower-is-better. Equality passes.
 type GatePolicy struct {
 	Revision               string  `json:"revision"`
 	MinimumMatchedCases    int     `json:"minimum_matched_cases"`
 	MinimumMatchedCoverage float64 `json:"minimum_matched_coverage"`
 	MinimumCoverage        float64 `json:"minimum_coverage"`
-	MinimumQuality         float64 `json:"minimum_quality"`
+	QualityThreshold       float64 `json:"quality_threshold"`
 	MaximumRegression      float64 `json:"maximum_regression"`
 	BootstrapSamples       int     `json:"bootstrap_samples"`
 	Seed                   int64   `json:"seed"`
@@ -74,29 +80,44 @@ type TrialSummary struct {
 	Status           TrialStatus   `json:"Status"`
 	Cleanup          CleanupStatus `json:"Cleanup"`
 }
+
+// MeasurementDiagnostic localizes the first measurement contract failure without
+// retaining callback error text or domain values. Side is baseline or candidate.
+type MeasurementDiagnostic struct {
+	Side     string `json:"side"`
+	CaseID   string `json:"case_id"`
+	Repeat   int    `json:"repeat"`
+	Category string `json:"category"`
+}
+
+type measurementContractError struct{ diagnostic MeasurementDiagnostic }
+
+func (e *measurementContractError) Error() string { return e.diagnostic.Category }
+
 type Comparison struct {
-	Trials                []TrialSummary    `json:"trials"`
-	Version               int               `json:"version"`
-	Revision              string            `json:"revision"`
-	Baseline              string            `json:"baseline"`
-	Candidate             string            `json:"candidate"`
-	Verdict               GateVerdict       `json:"verdict"`
-	Reasons               []string          `json:"reasons"`
-	Policy                GatePolicy        `json:"policy"`
-	BaselineAggregate     Aggregate         `json:"baseline_aggregate"`
-	CandidateAggregate    Aggregate         `json:"candidate_aggregate"`
-	Pairs                 []CaseDifference  `json:"pairs"`
-	Uncertainty           *Interval         `json:"uncertainty,omitempty"`
-	Objective             ObjectiveIdentity `json:"objective"`
-	MatchedEligible       int               `json:"matched_eligible"`
-	MatchedCases          int               `json:"matched_cases"`
-	MatchedCoverage       float64           `json:"matched_coverage"`
-	MatchedMeansAvailable bool              `json:"matched_means_available"`
-	MatchedBaselineMean   float64           `json:"matched_baseline_mean"`
-	MatchedCandidateMean  float64           `json:"matched_candidate_mean"`
-	Delta                 float64           `json:"delta"`
-	UncertaintyReason     string            `json:"uncertainty_reason"`
-	Unit                  string            `json:"unit"`
+	MeasurementDiagnostic *MeasurementDiagnostic `json:"measurement_diagnostic,omitempty"`
+	Trials                []TrialSummary         `json:"trials"`
+	Version               int                    `json:"version"`
+	Revision              string                 `json:"revision"`
+	Baseline              string                 `json:"baseline"`
+	Candidate             string                 `json:"candidate"`
+	Verdict               GateVerdict            `json:"verdict"`
+	Reasons               []string               `json:"reasons"`
+	Policy                GatePolicy             `json:"policy"`
+	BaselineAggregate     Aggregate              `json:"baseline_aggregate"`
+	CandidateAggregate    Aggregate              `json:"candidate_aggregate"`
+	Pairs                 []CaseDifference       `json:"pairs"`
+	Uncertainty           *Interval              `json:"uncertainty,omitempty"`
+	Objective             ObjectiveIdentity      `json:"objective"`
+	MatchedEligible       int                    `json:"matched_eligible"`
+	MatchedCases          int                    `json:"matched_cases"`
+	MatchedCoverage       float64                `json:"matched_coverage"`
+	MatchedMeansAvailable bool                   `json:"matched_means_available"`
+	MatchedBaselineMean   float64                `json:"matched_baseline_mean"`
+	MatchedCandidateMean  float64                `json:"matched_candidate_mean"`
+	Delta                 float64                `json:"delta"`
+	UncertaintyReason     string                 `json:"uncertainty_reason"`
+	Unit                  string                 `json:"unit"`
 }
 
 func aggregate(
@@ -210,6 +231,9 @@ func Compare(baseline, candidate Experiment, objective Objective, p GatePolicy) 
 		return c, e
 	}
 	b, cv := baseline.Record(), candidate.Record()
+	if err := validateNumericObjectivePlan(objective, id, b.Manifest, cv.Manifest); err != nil {
+		return c, err
+	}
 	collectTrialSummaries(&c, b, cv)
 
 	if !compatible(b.Manifest, cv.Manifest) {
@@ -221,11 +245,11 @@ func Compare(baseline, candidate Experiment, objective Objective, p GatePolicy) 
 	}
 	ba, bvalues, e := aggregate(b, objective, eligible)
 	if e != nil {
-		return invalidComparison(c, "measurement_contract_invalid")
+		return invalidMeasurementComparison(c, "baseline", e)
 	}
 	ca, cvalues, e := aggregate(cv, objective, eligible)
 	if e != nil {
-		return invalidComparison(c, "measurement_contract_invalid")
+		return invalidMeasurementComparison(c, "candidate", e)
 	}
 	for _, a := range []*Aggregate{&ba, &ca} {
 		for i := range a.Excluded {
@@ -416,10 +440,10 @@ func validateGatePolicy(id ObjectiveIdentity, p GatePolicy) error {
 		p.MinimumMatchedCases < 1 ||
 		!finiteNonnegative(p.MinimumMatchedCoverage) ||
 		p.MinimumMatchedCoverage > 1 ||
-		math.IsNaN(p.MinimumQuality) ||
-		math.IsInf(p.MinimumQuality, 0) ||
-		p.MinimumQuality < id.Minimum ||
-		p.MinimumQuality > id.Maximum ||
+		math.IsNaN(p.QualityThreshold) ||
+		math.IsInf(p.QualityThreshold, 0) ||
+		p.QualityThreshold < id.Minimum ||
+		p.QualityThreshold > id.Maximum ||
 		!finiteNonnegative(p.MaximumRegression) ||
 		p.BootstrapSamples < 100 ||
 		p.BootstrapSamples > 100000 {
@@ -482,17 +506,17 @@ func measureCase(
 		}
 		cloned, e := cloneJSON(t)
 		if e != nil {
-			return 0, "", e
+			return 0, "", measurementFailure(cs.ID, repeat, "trial_clone")
 		}
 		m, e := objective.Measure(cloned)
 		if objective.Identity() != identity {
-			return 0, "", ErrConflict
+			return 0, "", measurementFailure(cs.ID, repeat, "objective_identity_changed")
 		}
 		if e != nil {
-			return 0, "", e
+			return 0, "", measurementFailure(cs.ID, repeat, "measurement_callback")
 		}
 		if e = ValidateMeasurement(identity, m); e != nil {
-			return 0, "", e
+			return 0, "", measurementFailure(cs.ID, repeat, "measurement_invalid")
 		}
 		if !m.Present {
 			reason = m.Reason
@@ -507,7 +531,8 @@ func comparisonRecord(baseline, candidate Experiment, p GatePolicy) Comparison {
 	var zeroAggregate Aggregate
 	var zeroObjectiveIdentity ObjectiveIdentity
 	c := Comparison{
-		Version:               2,
+		Version:               ComparisonVersion,
+		MeasurementDiagnostic: nil,
 		Baseline:              baseline.Revision(),
 		Candidate:             candidate.Revision(),
 		Policy:                p,
@@ -648,19 +673,59 @@ func comparisonGate(c *Comparison, b, cv ExperimentManifest, p GatePolicy, id Ob
 		c.Verdict = GateInconclusive
 		c.Reasons = append(c.Reasons, "insufficient_matched_coverage")
 	default:
-		badQuality := c.MatchedCandidateMean < p.MinimumQuality
+		badQuality := c.MatchedCandidateMean < p.QualityThreshold
 		regression := c.Delta < -p.MaximumRegression
 		if id.Direction == directionLower {
-			badQuality = c.MatchedCandidateMean > p.MinimumQuality
+			badQuality = c.MatchedCandidateMean > p.QualityThreshold
 			regression = c.Delta > p.MaximumRegression
 		}
 		if badQuality {
 			c.Verdict = GateFail
-			c.Reasons = append(c.Reasons, "minimum_quality")
+			c.Reasons = append(c.Reasons, "quality_threshold")
 		}
 		if regression {
 			c.Verdict = GateFail
 			c.Reasons = append(c.Reasons, "regression")
 		}
 	}
+}
+
+func measurementFailure(caseID string, repeat int, category string) error {
+	return &measurementContractError{
+		diagnostic: MeasurementDiagnostic{Side: "", CaseID: caseID, Repeat: repeat, Category: category},
+	}
+}
+
+func invalidMeasurementComparison(c Comparison, side string, err error) (Comparison, error) {
+	if failure, ok := errors.AsType[*measurementContractError](err); ok {
+		diagnostic := failure.diagnostic
+		diagnostic.Side = side
+		c.MeasurementDiagnostic = &diagnostic
+	}
+	return invalidComparison(c, "measurement_contract_invalid")
+}
+
+func validateNumericObjectivePlan(
+	objective Objective,
+	identity ObjectiveIdentity,
+	manifests ...ExperimentManifest,
+) error {
+	switch objective.(type) {
+	case NumericObjective, *NumericObjective:
+	default:
+		return nil
+	}
+	for _, manifest := range manifests {
+		planned := false
+		for _, grader := range manifest.Graders {
+			if grader.ID == identity.SourceGrader {
+				planned = true
+				break
+			}
+		}
+		if !planned {
+			return fmt.Errorf("%w: numeric source grader not planned", ErrInvalid)
+		}
+	}
+	return nil
 }

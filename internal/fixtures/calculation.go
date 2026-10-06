@@ -132,7 +132,7 @@ func Gate() evaly.GatePolicy {
 		MinimumCoverage:        1,
 		MinimumMatchedCoverage: 1,
 		MinimumMatchedCases:    1,
-		MinimumQuality:         minimumCalculationQuality,
+		QualityThreshold:       minimumCalculationQuality,
 		MaximumRegression:      0,
 		BootstrapSamples:       fixtureBootstrapSamples,
 		Seed:                   fixtureBootstrapSeed,

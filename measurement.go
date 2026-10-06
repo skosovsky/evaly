@@ -2,6 +2,12 @@ package evaly
 
 import "math"
 
+// Built-in objective revisions describe the algorithms implemented by evaly.
+const (
+	AllDeclaredEligibility        = "all-declared-v1"
+	AllRepeatsRequiredMissingness = "all-repeats-required-v1"
+)
+
 // ObjectiveIdentity records the meaning and aggregation of native-scale values.
 type ObjectiveIdentity struct {
 	AssertionPolicy     string  `json:"assertion_policy,omitempty"`
@@ -35,9 +41,9 @@ type Objective interface {
 	Measure(TrialRecord) (Measurement, error)
 }
 type ObjectiveFuncs struct {
-	Descriptor ObjectiveIdentity                       `json:"Descriptor"`
-	Select     func(CaseIdentity) (Eligibility, error) `json:"Select"`
-	Evaluate   func(TrialRecord) (Measurement, error)  `json:"Evaluate"`
+	Descriptor ObjectiveIdentity
+	Select     func(CaseIdentity) (Eligibility, error)
+	Evaluate   func(TrialRecord) (Measurement, error)
 }
 
 func (o ObjectiveFuncs) Identity() ObjectiveIdentity { return o.Descriptor }
@@ -104,8 +110,8 @@ func (o AssertionObjective) Identity() ObjectiveIdentity {
 		Minimum:             0,
 		Maximum:             1,
 		Direction:           directionHigher,
-		EligibilityRevision: "all-declared-v1",
-		MissingnessRevision: "all-repeats-required-v1",
+		EligibilityRevision: AllDeclaredEligibility,
+		MissingnessRevision: AllRepeatsRequiredMissingness,
 		AggregationRevision: "repeat-mean-case-mean-v1", SourceGrader: "", SourceMetric: "",
 	}
 }
@@ -130,38 +136,47 @@ func (o AssertionObjective) Measure(t TrialRecord) (Measurement, error) {
 	return Measurement{Present: true, Value: v, Reason: ""}, nil
 }
 
-// NumericObjective selects one metric without normalization or cross-unit averaging.
+// NumericObjective selects Descriptor.SourceGrader/SourceMetric without normalization
+// or cross-unit averaging. Descriptor is the sole source of identity and must use
+// all-declared-v1 eligibility and all-repeats-required-v1 missingness. Arbitrary
+// eligibility/missingness callbacks require a host Objective implementation.
 type NumericObjective struct {
-	Descriptor ObjectiveIdentity `json:"Descriptor"`
-	GraderID   string            `json:"GraderID"`
-	MetricName string            `json:"MetricName"`
+	Descriptor ObjectiveIdentity
 }
 
-func (o NumericObjective) Identity() ObjectiveIdentity {
-	i := o.Descriptor
-	i.SourceGrader = o.GraderID
-	i.SourceMetric = o.MetricName
-	return i
-}
+func (o NumericObjective) Identity() ObjectiveIdentity { return o.Descriptor }
 func (o NumericObjective) Validate() error {
-	if o.GraderID == "" || o.MetricName == "" {
+	if o.Descriptor.SourceGrader == "" || o.Descriptor.SourceMetric == "" || o.Descriptor.AssertionPolicy != "" {
 		return ErrInvalid
 	}
-	return ValidateObjectiveIdentity(o.Descriptor)
+	if err := ValidateObjectiveIdentity(o.Descriptor); err != nil {
+		return err
+	}
+	if o.Descriptor.EligibilityRevision != AllDeclaredEligibility ||
+		o.Descriptor.MissingnessRevision != AllRepeatsRequiredMissingness {
+		return ErrUnsupported
+	}
+	return nil
 }
 func (o NumericObjective) Eligible(CaseIdentity) (Eligibility, error) {
+	if err := o.Validate(); err != nil {
+		return Eligibility{}, err
+	}
 	return Eligibility{Eligible: true, Reason: ""}, nil
 }
 func (o NumericObjective) Measure(t TrialRecord) (Measurement, error) {
+	if err := o.Validate(); err != nil {
+		return Measurement{}, err
+	}
 	for _, g := range t.Grades {
-		if g.Revision.ID != o.GraderID {
+		if g.Revision.ID != o.Descriptor.SourceGrader {
 			continue
 		}
 		if g.Status != Scored {
 			return Measurement{Reason: "metric_grader_unavailable", Present: false, Value: 0}, nil
 		}
 		for _, m := range g.Metrics {
-			if m.Name != o.MetricName {
+			if m.Name != o.Descriptor.SourceMetric {
 				continue
 			}
 			i := o.Descriptor

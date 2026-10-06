@@ -41,6 +41,8 @@ type CapturePolicy interface {
 
 // FieldPolicy keeps only explicitly allowed top-level JSON fields. Nested values
 // in allowed fields are host-classified. References default to being removed.
+// Configure before use: Allowed and its slices must remain immutable while the policy
+// is used. Copying this value does not copy its map or the allowed-field slices.
 type FieldPolicy struct {
 	ID             string              `json:"ID"`
 	Allowed        map[string][]string `json:"Allowed"`
@@ -122,16 +124,18 @@ func safeReference(ref string) bool {
 	return true
 }
 
+// EvidenceSink retains permitted events and can conservatively invalidate channel coverage.
+// MarkIncomplete records only host_incomplete; arbitrary host diagnostics stay outside artifacts.
 type EvidenceSink interface {
 	Record(context.Context, Event) error
-	MarkIncomplete(string)
+	MarkIncomplete()
 }
 type CaptureConfig struct {
-	Policy        CapturePolicy `json:"Policy"`
-	RequiredKinds []string      `json:"RequiredKinds"`
-	KnownKinds    []string      `json:"KnownKinds"`
-	MaxEvents     int           `json:"MaxEvents"`
-	MaxBytes      int           `json:"MaxBytes"`
+	Policy        CapturePolicy
+	RequiredKinds []string
+	KnownKinds    []string
+	MaxEvents     int
+	MaxBytes      int
 }
 
 // Capture bounds retained data and seals irreversibly. Record is thread-safe.
@@ -237,7 +241,7 @@ func (c *Capture) Record(ctx context.Context, e Event) error {
 	c.record.Events = append(c.record.Events, out)
 	return nil
 }
-func (c *Capture) MarkIncomplete(_ string) {
+func (c *Capture) MarkIncomplete() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.closed {
@@ -369,4 +373,15 @@ func validateProjectedEvent(e, out Event) (Event, error) {
 		}
 	}
 	return out, nil
+}
+
+// mustValidatedCapture is used only after successful execution preflight. A
+// subsequent failure means a host policy/config changed its validated behavior;
+// do not ignore that error or disguise it as an ordinary empty capture.
+func mustValidatedCapture(config CaptureConfig) *Capture {
+	capture, err := NewCapture(config)
+	if err != nil {
+		panic("evaly: validated capture configuration changed")
+	}
+	return capture
 }

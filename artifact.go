@@ -79,10 +79,14 @@ type StoreCapabilities struct {
 	Checksums         bool `json:"Checksums"`
 	MultiHost         bool `json:"MultiHost"`
 }
+
+// FileStore is a local reference store. Configure MaxBytes and Fault before use
+// and keep them immutable during concurrent operations. Filesystem durability
+// does not imply network filesystem or multi-host correctness.
 type FileStore struct {
 	directory string
-	MaxBytes  int                `json:"MaxBytes"`
-	Fault     func(string) error `json:"Fault"`
+	MaxBytes  int
+	Fault     func(string) error
 }
 
 func OpenFileStore(directory string) (*FileStore, error) {

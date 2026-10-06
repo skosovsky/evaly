@@ -23,12 +23,12 @@ func compile(t *testing.T, name string) *jsonschema.Schema {
 	compiler.AssertFormat()
 	version := "1"
 	switch name {
-	case "scenario", "comparison":
+	case "scenario", "comparison-policy":
 		version = "2"
-	case "experiment", "assessment", "observation-result", "http-request", "http-response":
+	case "experiment", "assessment", "observation-result", "http-request", "http-response", "comparison":
 		version = "3"
 	case "search":
-		version = "5"
+		version = "6"
 	case "candidate":
 		version = "2"
 	}
@@ -169,7 +169,7 @@ func generatedWireValues(t *testing.T) map[string]any {
 	if e != nil {
 		t.Fatal(e)
 	}
-	calibration, e := evaly.Calibrate(
+	calibration, e := evaly.EvaluateBinaryAgreement(
 		c.Graders[0].Revision(),
 		[]evaly.CalibrationLabel{{CaseRevision: cases[0].Revision, Pass: true, Groups: []string{"fixture"}}},
 		[]evaly.CalibrationRecord{{CaseRevision: cases[0].Revision, Grade: experiment.Record().Trials[0].Grades[0]}},
@@ -185,7 +185,7 @@ func generatedWireValues(t *testing.T) map[string]any {
 		"evidence":    evidence,
 		"comparison":  comparison,
 		"comparison-policy": evaly.ComparisonPolicy{
-			Version:       1,
+			Version:       evaly.ComparisonPolicyVersion,
 			ObjectiveKind: "assertion",
 			Objective:     fixtures.Objective().Identity(),
 			Gate:          fixtures.Gate(),

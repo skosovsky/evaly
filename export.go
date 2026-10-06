@@ -87,6 +87,8 @@ func deliveryReason(err error) string {
 }
 
 // MemoryExport is a local reference sink with explicit optional deduplication.
+// MemoryExport is a process-local reference sink, not a durable outbox.
+// Configure Dedup and Fail before use and do not mutate them concurrently.
 type MemoryExport struct {
 	mu      sync.Mutex
 	Dedup   bool `json:"Dedup"`

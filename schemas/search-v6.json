@@ -1,5 +1,5 @@
 {
-  "$id": "urn:evaly:search:5",
+  "$id": "urn:evaly:search:6",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
@@ -280,6 +280,49 @@
                   "matched_means_available": {
                     "type": "boolean"
                   },
+                  "measurement_diagnostic": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "case_id": {
+                            "type": "string"
+                          },
+                          "category": {
+                            "enum": [
+                              "trial_clone",
+                              "objective_identity_changed",
+                              "measurement_callback",
+                              "measurement_invalid"
+                            ],
+                            "type": "string"
+                          },
+                          "repeat": {
+                            "maximum": 9223372036854775807,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "side": {
+                            "enum": [
+                              "baseline",
+                              "candidate"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "side",
+                          "case_id",
+                          "repeat",
+                          "category"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "objective": {
                     "additionalProperties": false,
                     "properties": {
@@ -409,7 +452,7 @@
                         "minimum": 0,
                         "type": "number"
                       },
-                      "minimum_quality": {
+                      "quality_threshold": {
                         "maximum": 1.7976931348623157e+308,
                         "minimum": -1.7976931348623157e+308,
                         "type": "number"
@@ -428,7 +471,7 @@
                       "minimum_matched_cases",
                       "minimum_matched_coverage",
                       "minimum_coverage",
-                      "minimum_quality",
+                      "quality_threshold",
                       "maximum_regression",
                       "bootstrap_samples",
                       "seed"
@@ -603,7 +646,7 @@
                     "type": "string"
                   },
                   "version": {
-                    "const": 2,
+                    "const": 3,
                     "maximum": 9223372036854775807,
                     "minimum": -9223372036854775808,
                     "type": "integer",
@@ -2792,6 +2835,49 @@
             "matched_means_available": {
               "type": "boolean"
             },
+            "measurement_diagnostic": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "case_id": {
+                      "type": "string"
+                    },
+                    "category": {
+                      "enum": [
+                        "trial_clone",
+                        "objective_identity_changed",
+                        "measurement_callback",
+                        "measurement_invalid"
+                      ],
+                      "type": "string"
+                    },
+                    "repeat": {
+                      "maximum": 9223372036854775807,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "side": {
+                      "enum": [
+                        "baseline",
+                        "candidate"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "side",
+                    "case_id",
+                    "repeat",
+                    "category"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "objective": {
               "additionalProperties": false,
               "properties": {
@@ -2921,7 +3007,7 @@
                   "minimum": 0,
                   "type": "number"
                 },
-                "minimum_quality": {
+                "quality_threshold": {
                   "maximum": 1.7976931348623157e+308,
                   "minimum": -1.7976931348623157e+308,
                   "type": "number"
@@ -2940,7 +3026,7 @@
                 "minimum_matched_cases",
                 "minimum_matched_coverage",
                 "minimum_coverage",
-                "minimum_quality",
+                "quality_threshold",
                 "maximum_regression",
                 "bootstrap_samples",
                 "seed"
@@ -3115,7 +3201,7 @@
               "type": "string"
             },
             "version": {
-              "const": 2,
+              "const": 3,
               "maximum": 9223372036854775807,
               "minimum": -9223372036854775808,
               "type": "integer",
@@ -3470,7 +3556,7 @@
       "type": "integer"
     },
     "Version": {
-      "const": 5,
+      "const": 6,
       "maximum": 9223372036854775807,
       "minimum": -9223372036854775808,
       "type": "integer",
