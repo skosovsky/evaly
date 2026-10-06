@@ -159,3 +159,29 @@ Limits: short targeted fuzz; provenance is internally bound, not proof of host
 truth/independence. Received count cap does not bound host string/description bytes.
 Private must-clone failures indicate internal invariant breaches; arbitrary callbacks
 remain host responsibility. Only acceptance metadata changed after final reviews.
+
+## T07 — accepted
+
+Previous accepted task: T06 commit `e56e0d8`.
+Changes: immediate owned lifecycle cleanup with explicit fixture options/defaults,
+expanded atomic budget conformance and no-op Claim rejection, exact decimal schema
+boundary corpus, subprocess regressions and original F10/D51 reproduction.
+D04/D51/D57–D59 contracts and namespace/cancellation limits are documented in
+`docs/conformance-contract.md`.
+Final independent acceptance: `/root/t07_completeness` — 3/3, 100%;
+`/root/t07_correctness` — no errors found in scope.
+Commands: root `go test -race ./...` — PASS; contracttest `go test -race ./...`
+— PASS (103.260s); both modules pinned lint 2.14.0 — 0 issues;
+independent conformance race — PASS (2.614s/2.713s); independent full contracttest
+race `-count=1` — PASS (90.620s); independent exact-boundary/semantic-checksum
+race and optimizer rehashed/terminal/restore negatives — PASS;
+`python3 scripts/conformance_baseline_repro.py` — PASS F10 Reset leak and D51
+no-op Claim acceptance; `git diff --check` — PASS.
+Reviewed lifecycle suite SHA256 `78fb09b5066df9ef8973bd5b30900380d578cf457406dc661ce478c62862eff7`;
+budget suite `46a4c124e8054e64ced35ae5de27228eaacf009e9daebcb89709efc029a6e2b2`;
+corpus `01688907bea2928554ac2715fbf2e85e445f2c54c448ffe56be4723b179a04a5`.
+Limits: local subprocess/in-process fixtures; real external namespaces and host
+in-flight cooperation are not certified. Cleanup cannot forcibly stop callbacks,
+and Prepare Goexit before returning supplies no handle to this helper.
+Only acceptance metadata changed after final reviews.
+Commit subject: `fix: enforce adapter conformance contracts`.

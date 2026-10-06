@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -349,13 +351,11 @@ func schemaBoundMutations(schema map[string]any, path []any) []mutation {
 	}
 	for _, bound := range []string{"minimum", "maximum"} {
 		if n, ok := schema[bound].(json.Number); ok {
-			f, _ := n.Float64()
+			delta := int64(1)
 			if bound == "minimum" {
-				f--
-			} else {
-				f++
+				delta = -1
 			}
-			out = append(out, mutation{bound, path, f, false})
+			out = append(out, mutation{bound, path, exactBoundaryNeighbour(n, delta), false})
 		}
 	}
 	return out
@@ -487,4 +487,36 @@ func duplicateRootKey(t *testing.T, raw []byte) []byte {
 	duplicate = append(duplicate, ',')
 	duplicate = append(duplicate, raw[1:]...)
 	return duplicate
+}
+
+// exactBoundaryNeighbour moves a trusted generated decimal boundary by exactly
+// one unit, without passing through binary floating-point or silently rounding.
+func exactBoundaryNeighbour(n json.Number, delta int64) json.Number {
+	boundary, ok := new(big.Rat).SetString(n.String())
+	if !ok {
+		panic("invalid generated numeric boundary: " + n.String())
+	}
+	shifted := new(big.Rat).Add(boundary, new(big.Rat).SetInt64(delta))
+	if shifted.IsInt() {
+		return json.Number(shifted.Num().String())
+	}
+	literal := strings.ToLower(n.String())
+	mantissa, exponentText, hasExponent := strings.Cut(literal, "e")
+	exponent := 0
+	if hasExponent {
+		var err error
+		exponent, err = strconv.Atoi(exponentText)
+		if err != nil {
+			panic("invalid generated decimal exponent")
+		}
+	}
+	_, fraction, hasFraction := strings.Cut(mantissa, ".")
+	precision := -exponent
+	if hasFraction {
+		precision += len(fraction)
+	}
+	if precision < 0 {
+		panic("nonintegral generated boundary has invalid precision")
+	}
+	return json.Number(shifted.FloatString(precision))
 }

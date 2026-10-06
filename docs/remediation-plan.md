@@ -68,7 +68,7 @@ The mapping below assigns each D exactly once; related tasks may depend on it.
      reason precedence and diagnostic bounds have explicit decisions/evidence.
   4. Relevant semantic mutation/race/fuzz checks, schemas/revisions and migration
      are synchronized; no holdout-based reselection or deploy permission.
-- [ ] T07 — Conformance: F10; D04/D51/D57–D59.
+- [x] T07 — Conformance: F10; D04/D51/D57–D59.
   1. Subprocess lifecycle fixtures prove exactly-once bounded cleanup after
      successful/partial Prepare, failed Reset and Goexit, including cleanup error.
   2. Budget suite checks claim-once/concurrent claim, reserve idempotency/conflict,

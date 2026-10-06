@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -79,42 +78,6 @@ func Artifact(t *testing.T, open func() (evaly.ArtifactStore, error)) {
 	})
 }
 
-// Budget requires an atomic adapter with capacity exactly 2 units.
-func Budget(t *testing.T, makeBudget func() (evaly.Budget, error)) {
-	t.Helper()
-	ctx := context.Background()
-	b, e := makeBudget()
-	if e != nil {
-		t.Fatal(e)
-	}
-	var accepted atomic.Int32
-	var wg sync.WaitGroup
-	for _, id := range []string{"one", "two", "three"} {
-		wg.Go(func() {
-			r, eLocal := b.Reserve(ctx, id, 1)
-			if eLocal == nil {
-				accepted.Add(1)
-				if eLocal = b.Reconcile(ctx, r, evaly.Usage{Known: false, Units: 0}); eLocal != nil {
-					t.Error(eLocal)
-				}
-			} else if !errors.Is(eLocal, evaly.ErrBudget) {
-				t.Error(eLocal)
-			}
-		})
-	}
-	wg.Wait()
-	if accepted.Load() != 2 {
-		t.Fatal("reservation oversubscription", accepted.Load())
-	}
-	if _, e = b.Reserve(ctx, "four", 1); !errors.Is(e, evaly.ErrBudget) {
-		t.Fatal("unknown usage released", e)
-	}
-	cancelled, cancel := context.WithCancel(ctx)
-	cancel()
-	if _, e = b.Reserve(cancelled, "cancelled", 0); !errors.Is(e, context.Canceled) {
-		t.Fatal(e)
-	}
-}
 func Codec[T any](t *testing.T, c evaly.Codec[T], value T) {
 	t.Helper()
 	if c.Identity().ID == "" || c.Identity().Version == "" {
@@ -173,31 +136,61 @@ func Grader[I, O, R any](t *testing.T, g evaly.Grader[I, O, R], factory func() (
 	if len(grades) != 1 || evaly.ValidateGrade(grades[0]) != nil || grades[0].Revision != g.Revision() {
 		t.Fatal(grades)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
-	defer cancel()
-	<-ctx.Done()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
 	result := evaly.Assess(ctx, []evaly.Grader[I, O, R]{g}, factory)[0]
 	if result.Status != evaly.GraderError || len(result.Metrics) != 0 {
-		t.Fatal("timeout collapsed into score", result)
+		t.Fatal("pre-cancellation collapsed into score", result)
 	}
 }
+
+// Lifecycle uses local test defaults; external hosts should choose their own ID
+// and cooperative operation/cleanup deadlines with LifecycleWithOptions.
 func Lifecycle[E any](t *testing.T, l evaly.Lifecycle[E]) {
 	t.Helper()
-	ctx := context.Background()
+	LifecycleWithOptions(
+		t,
+		l,
+		LifecycleOptions{ID: "conformance-lifecycle", Timeout: time.Second, CleanupTimeout: time.Second},
+	)
+}
+
+// LifecycleOptions belongs to the test fixture, not a runtime execution policy.
+type LifecycleOptions struct {
+	ID             string
+	Timeout        time.Duration
+	CleanupTimeout time.Duration
+}
+
+// LifecycleWithOptions owns every returned Prepare handle, including partial
+// failure handles. Cleanup runs once at test exit with a detached bounded context.
+// A callback must cooperate with cancellation; this suite does not forcibly abort it.
+func LifecycleWithOptions[E any](t *testing.T, l evaly.Lifecycle[E], options LifecycleOptions) {
+	t.Helper()
+	if options.ID == "" || options.Timeout <= 0 || options.CleanupTimeout <= 0 {
+		t.Fatal("invalid lifecycle test options")
+	}
+	if err := evaly.ValidatePort(l); err != nil {
+		t.Fatal("invalid lifecycle", err)
+	}
 	if l.Identity().Fixture == "" || l.Identity().Reset == "" {
 		t.Fatal("unversioned fixture")
 	}
-	env, e := l.Prepare(ctx, "conformance-lifecycle")
-	if e != nil {
-		t.Fatal(e)
-	}
-	if e = l.Reset(ctx, env); e != nil {
-		t.Fatal(e)
-	}
-	cleanupctx, cancel := context.WithTimeout(ctx, time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), options.Timeout)
 	defer cancel()
-	if e = l.Cleanup(cleanupctx, env); e != nil {
-		t.Fatal(e)
+	env, err := l.Prepare(ctx, options.ID)
+	t.Cleanup(func() {
+		cleanupctx, done := context.WithTimeout(context.WithoutCancel(ctx), options.CleanupTimeout)
+		defer done()
+		if cleanupErr := l.Cleanup(cleanupctx, env); cleanupErr != nil {
+			t.Error("cleanup failure", cleanupErr)
+		}
+	})
+	if err != nil {
+		t.Fatal("prepare failure", err)
+	}
+	if err = l.Reset(ctx, env); err != nil {
+		t.Fatal("reset failure", err)
 	}
 }
 func Export(t *testing.T, s evaly.ExportSink, count func() int) {
