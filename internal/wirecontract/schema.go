@@ -71,10 +71,11 @@ func constrain(pkg, parent, name string, s schema) {
 	if name == "Version" && s[schemaType] == schemaInteger {
 		s["const"] = 1
 		s["x-evaly-version"] = true
-		if parent == "ScenarioRecord" || parent == "Comparison" || parent == "Request" || parent == "Response" {
+		if parent == "ScenarioRecord" || parent == "Comparison" {
 			s["const"] = 2
 		}
-		if parent == "ExperimentManifest" || parent == "Assessment" || parent == schemaResult {
+		if parent == "ExperimentManifest" || parent == "Assessment" || parent == schemaResult || parent == "Request" ||
+			parent == "Response" {
 			s["const"] = 3
 		}
 		if parent == schemaResult && pkg == optimizerPackagePath {

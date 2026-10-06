@@ -4,13 +4,13 @@ Status: implementation contract. Original requirement authority: `.cursor/tasks/
 Current execution changes are governed by `.cursor/task/01-execution-and-assessments.md`
 and the normative [execution contract revision 2](execution-contract.md).
 Experiment, assessment and observation-result formats use revision 3; search uses revision 5;
-scenario, comparison and HTTP formats use revision 2. Calibration uses revision 1.
+scenario, comparison and candidate formats use revision 2; HTTP uses revision 3. Calibration uses revision 1.
 Their previous major formats are unsupported. Unaffected formats retain
 their declared revisions. No compatibility reader or migration layer is supplied.
 
 Task 02 is governed by the normative [evidence and export contract](evidence-contract.md),
 [wire validation contract](wire-contract.md), and [HTTP protocol](http-protocol.md).
-HTTP requests and responses move to revision 2. A remote invocation explicitly
+HTTP requests and responses use revision 3. A remote invocation explicitly
 declares event delivery completeness independently of target success. Runtime
 wire decoding checks required presence before callbacks; domain payloads remain
 the responsibility of host codecs.
@@ -239,7 +239,7 @@ from verdict. Backend advertises dedup capability; absent it retries may duplica
 Interop capability mappings report lost outcome/reset/evidence/status/scale; a
 boolean-only sink cannot silently consume incomplete/error records. Export rejection
 distinguishes invalid, conflict, unsupported, cancelled and delivery failure; it
-does not choose retries or alter quality verdicts. HTTP JSON v2
+does not choose retries or alter quality verdicts. HTTP JSON v3
 is optional, bounded request/response and context-aware, with explicit domain
 codecs and status mapping. No advertised SDK compatibility.
 

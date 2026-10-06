@@ -75,7 +75,7 @@ The mapping below assigns each D exactly once; related tasks may depend on it.
      release before/after claim and unknown usage, and rejects a no-op Claim host.
   3. Numeric schema boundary mutations use exact tokens; independent semantic
      negatives remain; fixture namespace/timeouts/cancellation limits explicit.
-- [ ] T08 — HTTP and CLI: D52–D56.
+- [x] T08 — HTTP and CLI: D52–D56.
   1. Pre-cancelled handler avoids callback effects; static invalid handler setup
      fails construction; request errors retain appropriate runtime classification.
   2. Capability flags and MaxBytes guarantees have explicit decisions/docs;

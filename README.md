@@ -15,7 +15,7 @@ receive seed, mode and step directly. See the normative
 observation-result formats use revision 3; search uses revision 5; scenario and comparison use
 revision 2. Old formats are unsupported.
 
-HTTP request/response revision 2 declares evidence delivery completeness separately
+HTTP request/response revision 3 declares evidence delivery completeness separately
 from target success and preserves delivered events on target failure. Wire readers
 use `DecodeWire[T]` for published service envelopes, followed by semantic validation;
 host domain codecs stay independent. References reject malformed syntax, fragments,
@@ -131,7 +131,7 @@ atomicity, global optimum or real LLM robustness claim.
 Filesystem publication supports local Linux/macOS filesystems with atomic hard
 links and fsync, same-device staging, checksum/reopen verification. Network mounts,
 Windows and cloud-sync durability semantics are unverified. Host owns access,
-provisioning, credentials, retention and scheduling. HTTP adapter capabilities apply
+provisioning, credentials, retention and scheduling. HTTP adapter guarantees apply
 to the supplied JSON protocol, not any vendor SDK. Optional packages live in the
 same module because they introduce no third-party dependencies; core never imports
 them. Consumers choose what to import.

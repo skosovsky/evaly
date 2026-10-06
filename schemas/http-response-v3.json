@@ -1,44 +1,8 @@
 {
-  "$id": "urn:evaly:http-response:2",
+  "$id": "urn:evaly:http-response:3",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
-    "capabilities": {
-      "additionalProperties": false,
-      "properties": {
-        "Evidence": {
-          "type": "boolean"
-        },
-        "MetricScales": {
-          "type": "boolean"
-        },
-        "Outcome": {
-          "type": "boolean"
-        },
-        "ResetIdentity": {
-          "type": "boolean"
-        },
-        "RichStatus": {
-          "type": "boolean"
-        },
-        "Version": {
-          "const": 1,
-          "maximum": 9223372036854775807,
-          "minimum": -9223372036854775808,
-          "type": "integer",
-          "x-evaly-version": true
-        }
-      },
-      "required": [
-        "Version",
-        "Outcome",
-        "ResetIdentity",
-        "Evidence",
-        "RichStatus",
-        "MetricScales"
-      ],
-      "type": "object"
-    },
     "events": {
       "items": {
         "additionalProperties": false,
@@ -128,7 +92,7 @@
       "type": "object"
     },
     "version": {
-      "const": 2,
+      "const": 3,
       "maximum": 9223372036854775807,
       "minimum": -9223372036854775808,
       "type": "integer",
@@ -140,7 +104,6 @@
     "status",
     "usage",
     "events",
-    "capabilities",
     "evidence"
   ],
   "type": "object"

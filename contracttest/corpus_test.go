@@ -91,9 +91,9 @@ func decodeDocument(t *testing.T, raw []byte) any {
 func wireSchemaPath(name string) string {
 	version := 1
 	switch name {
-	case "scenario", "comparison", "http-request", "http-response":
+	case "scenario", "comparison":
 		version = 2
-	case "experiment", "assessment", "observation-result":
+	case "experiment", "assessment", "observation-result", "http-request", "http-response":
 		version = 3
 	case "search":
 		version = 5

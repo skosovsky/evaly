@@ -185,3 +185,27 @@ in-flight cooperation are not certified. Cleanup cannot forcibly stop callbacks,
 and Prepare Goexit before returning supplies no handle to this helper.
 Only acceptance metadata changed after final reviews.
 Commit subject: `fix: enforce adapter conformance contracts`.
+
+## T08 — accepted
+
+Previous accepted task: T07 commit `2e81d4d`.
+Changes: fallible HTTP NewHandler constructor, cancellation guards at dispatch
+boundaries, HTTP v3 without redundant capability flags, per-command CLI argument
+validation before store creation. D52–D55 and schema/API migration are documented
+in `docs/http-protocol.md`; D56 in `docs/cli-contract.md`.
+Final independent acceptance: `/root/t08_completeness` — 3/3, 100%;
+`/root/t08_correctness` — no errors found in scope.
+Commands: root `go test -race ./...` — PASS; contracttest `go test -race ./...`
+— PASS (98.635s); both modules pinned lint 2.14.0 — 0 issues;
+`make examples` — all seven PASS; independent uncached HTTP/CLI race — PASS;
+independent full contracttest race — PASS (103s); independent schema generation,
+generated artifacts and shared structural corpus race — PASS (107.073s);
+independent runtime probe confirms constructor-only identities, read failure 400
+without Invoke and oversized callback response 500; `git diff --check` — PASS.
+Reviewed HTTP implementation SHA256 `daaae188c5342f092ef449ebb4609a081b469743ebc066bd90ab7e2d6ae2ca9f`;
+CLI `1553abedc686780c2983e29d9a07e7bdc80d98229164c349b1a2564e7d885a20`;
+request schema `03307b9eb3e1524e34a19977df8fc65b04df2fe50dbd12c58c249fac7b1fe450`;
+response schema `cd4346d18f61375947304eb2536c212457cf6e4ce850489167e2353930d85471`.
+Limits: local HTTP/scripted fixtures; hard cancellation, live provider interoperability
+and total memory bound are not certified. Only acceptance metadata changed after reviews.
+Commit subject: `fix: validate adapter setup before dispatch`.

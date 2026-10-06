@@ -23,9 +23,9 @@ func compile(t *testing.T, name string) *jsonschema.Schema {
 	compiler.AssertFormat()
 	version := "1"
 	switch name {
-	case "scenario", "comparison", "http-request", "http-response":
+	case "scenario", "comparison":
 		version = "2"
-	case "experiment", "assessment", "observation-result":
+	case "experiment", "assessment", "observation-result", "http-request", "http-response":
 		version = "3"
 	case "search":
 		version = "5"
@@ -198,7 +198,7 @@ func generatedWireValues(t *testing.T) map[string]any {
 		"observation-result": result,
 		"search":             searchResult(t),
 		"http-request": httpjson.Request{
-			Version:     2,
+			Version:     3,
 			InputCodec:  fixtures.InputCodec().Identity(),
 			OutputCodec: fixtures.OutputCodec().Identity(),
 			Trial: httpjson.Trial{
@@ -210,20 +210,12 @@ func generatedWireValues(t *testing.T) map[string]any {
 			Input: json.RawMessage(`{"left":1,"right":2}`),
 		},
 		"http-response": httpjson.Response{
-			Version:  2,
+			Version:  3,
 			Evidence: httpjson.EvidenceDelivery{Complete: true},
 			Status:   "completed",
 			Output:   json.RawMessage(`{"sum":3}`),
 			Usage:    evaly.Usage{Known: true, Units: 1},
 			Events:   []evaly.Event{},
-			Capabilities: evaly.InteropCapabilities{
-				Version:       1,
-				Outcome:       true,
-				ResetIdentity: true,
-				Evidence:      true,
-				RichStatus:    true,
-				MetricScales:  true,
-			},
 		},
 	}
 	return values

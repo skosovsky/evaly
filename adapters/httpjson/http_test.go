@@ -15,7 +15,7 @@ import (
 
 func TestHTTPReferenceConformance(t *testing.T) {
 	// Arrange.
-	handler := httpjson.Handler(
+	handler, handlerErr := httpjson.NewHandler(
 		fixtures.InputCodec(),
 		fixtures.OutputCodec(),
 		4096,
@@ -32,6 +32,9 @@ func TestHTTPReferenceConformance(t *testing.T) {
 			}, ctx.Err()
 		},
 	)
+	if handlerErr != nil {
+		t.Fatal(handlerErr)
+	}
 	server := httptest.NewServer(handler)
 	defer server.Close()
 	c, e := fixtures.CalculationConfig("http-conformance", "good", "")
@@ -50,14 +53,14 @@ func TestHTTPReferenceConformance(t *testing.T) {
 	// Act / Assert using the same suite as the local target.
 	conformance.Target(t, c)
 }
-func TestHTTPRejectsLossAndUnknownVersion(t *testing.T) {
+func TestHTTPRejectsOldAndUnknownVersion(t *testing.T) {
 	for _, version := range []int{1, 2, 99} {
 		t.Run(string(rune('0'+version)), func(t *testing.T) {
 			// Arrange.
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				_ = json.NewEncoder(w).
-					Encode(httpjson.Response{Version: version, Status: "completed", Output: json.RawMessage(`{"sum":3}`), Evidence: httpjson.EvidenceDelivery{Complete: true}, Capabilities: evaly.InteropCapabilities{Version: 1, Outcome: false, ResetIdentity: true, Evidence: true, RichStatus: true, MetricScales: true}})
+					Encode(httpjson.Response{Version: version, Status: "completed", Output: json.RawMessage(`{"sum":3}`), Evidence: httpjson.EvidenceDelivery{Complete: true}})
 			}))
 			defer server.Close()
 			c, e := fixtures.CalculationConfig("http-loss", "good", "")

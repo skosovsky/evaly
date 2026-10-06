@@ -72,7 +72,7 @@ func TestHandlerRequiresExplicitSeedBeforeInvoke(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			// Arrange.
 			calls := 0
-			handler := httpjson.Handler(
+			handler, handlerErr := httpjson.NewHandler(
 				fixtures.InputCodec(),
 				fixtures.OutputCodec(),
 				4096,
@@ -84,7 +84,10 @@ func TestHandlerRequiresExplicitSeedBeforeInvoke(t *testing.T) {
 					}, nil
 				},
 			)
-			body := `{"version":2,"input_codec":{"id":"` + fixtures.InputCodec().
+			if handlerErr != nil {
+				t.Fatal(handlerErr)
+			}
+			body := `{"version":3,"input_codec":{"id":"` + fixtures.InputCodec().
 				Identity().
 				ID + `","version":"` + fixtures.InputCodec().
 				Identity().
@@ -111,26 +114,18 @@ func TestHandlerRequiresExplicitSeedBeforeInvoke(t *testing.T) {
 
 func TestUndeliverableResponseNeverProvesAbsence(t *testing.T) {
 	valid := httpjson.Response{
-		Version:  2,
+		Version:  3,
 		Status:   "completed",
 		Output:   json.RawMessage(`{"sum":3}`),
 		Usage:    evaly.Usage{Known: true, Units: 7},
 		Events:   []evaly.Event{toolEvent()},
 		Evidence: httpjson.EvidenceDelivery{Complete: true},
-		Capabilities: evaly.InteropCapabilities{
-			Version:       1,
-			Outcome:       true,
-			ResetIdentity: true,
-			Evidence:      true,
-			RichStatus:    true,
-			MetricScales:  true,
-		},
 	}
 	encoded, _ := json.Marshal(valid)
 	for _, test := range []struct {
 		name, body string
 		status     int
-	}{{"truncated", string(encoded[:len(encoded)-3]), 200}, {"oversized", strings.Repeat(" ", 4097), 200}, {"malformed", `{"version":2,}`, 200}, {"old_version", strings.Replace(string(encoded), `"version":2`, `"version":1`, 1), 200}, {"unknown_status", strings.Replace(string(encoded), `"completed"`, `"unknown"`, 1), 200}, {"server_error", string(encoded), 500}, {"missing_evidence", strings.Replace(string(encoded), `,"evidence":{"complete":true,"reason":""}`, "", 1), 200}} {
+	}{{"truncated", string(encoded[:len(encoded)-3]), 200}, {"oversized", strings.Repeat(" ", 4097), 200}, {"malformed", `{"version":3,}`, 200}, {"old_version", strings.Replace(string(encoded), `"version":3`, `"version":1`, 1), 200}, {"unknown_status", strings.Replace(string(encoded), `"completed"`, `"unknown"`, 1), 200}, {"server_error", string(encoded), 500}, {"missing_evidence", strings.Replace(string(encoded), `,"evidence":{"complete":true,"reason":""}`, "", 1), 200}} {
 		t.Run(test.name, func(t *testing.T) {
 			// Arrange.
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -179,20 +174,12 @@ func TestTransportCancellationMarksEvidenceIncomplete(t *testing.T) {
 func TestOutputDecodeFailureRetainsProvenCompleteEvidence(t *testing.T) {
 	// Arrange.
 	response := httpjson.Response{
-		Version:  2,
+		Version:  3,
 		Status:   "completed",
 		Output:   json.RawMessage(`"invalid-domain-output"`),
 		Usage:    evaly.Usage{Known: true, Units: 4},
 		Events:   []evaly.Event{toolEvent()},
 		Evidence: httpjson.EvidenceDelivery{Complete: true},
-		Capabilities: evaly.InteropCapabilities{
-			Version:       1,
-			Outcome:       true,
-			ResetIdentity: true,
-			Evidence:      true,
-			RichStatus:    true,
-			MetricScales:  true,
-		},
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -256,19 +243,11 @@ func TestResponseContentTypeAndInvalidDeliveryAreUntrusted(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			// Arrange.
 			response := httpjson.Response{
-				Version:  2,
+				Version:  3,
 				Status:   "target_error",
 				Usage:    evaly.Usage{Known: true, Units: 4},
 				Events:   []evaly.Event{toolEvent()},
 				Evidence: test.delivery,
-				Capabilities: evaly.InteropCapabilities{
-					Version:       1,
-					Outcome:       true,
-					ResetIdentity: true,
-					Evidence:      true,
-					RichStatus:    true,
-					MetricScales:  true,
-				},
 			}
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.Header()["Content-Type"] = []string{test.contentType}
@@ -293,19 +272,11 @@ func TestEventRetentionFailurePreservesDeliveredPrefixAndUsage(t *testing.T) {
 	second.Sequence = 2
 	second.Kind = "unknown"
 	response := httpjson.Response{
-		Version:  2,
+		Version:  3,
 		Status:   "target_error",
 		Usage:    evaly.Usage{Known: true, Units: 4},
 		Events:   []evaly.Event{toolEvent(), second},
 		Evidence: httpjson.EvidenceDelivery{Complete: true},
-		Capabilities: evaly.InteropCapabilities{
-			Version:       1,
-			Outcome:       true,
-			ResetIdentity: true,
-			Evidence:      true,
-			RichStatus:    true,
-			MetricScales:  true,
-		},
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -333,22 +304,24 @@ func checkTargetFailurePreservesUsageAndPolicyControlledEffects(
 	if !(*complete) {
 		delivery.Reason = "upstream_gap"
 	}
-	server := httptest.NewServer(
-		httpjson.Handler(
-			fixtures.InputCodec(),
-			fixtures.OutputCodec(),
-			4096,
-			func(context.Context, fixtures.Calculation, httpjson.Trial) (httpjson.Invocation[fixtures.CalculationOutput], error) {
-				return httpjson.Invocation[fixtures.CalculationOutput]{
-					Usage:    evaly.Usage{Known: true, Units: 7},
-					Events:   []evaly.Event{toolEvent()},
-					Evidence: delivery,
-				}, errors.New(
-					"domain failed after write",
-				)
-			},
-		),
+	handler, handlerErr := httpjson.NewHandler(
+		fixtures.InputCodec(),
+		fixtures.OutputCodec(),
+		4096,
+		func(context.Context, fixtures.Calculation, httpjson.Trial) (httpjson.Invocation[fixtures.CalculationOutput], error) {
+			return httpjson.Invocation[fixtures.CalculationOutput]{
+				Usage:    evaly.Usage{Known: true, Units: 7},
+				Events:   []evaly.Event{toolEvent()},
+				Evidence: delivery,
+			}, errors.New(
+				"domain failed after write",
+			)
+		},
 	)
+	if handlerErr != nil {
+		t.Fatal(handlerErr)
+	}
+	server := httptest.NewServer(handler)
 	defer server.Close()
 	capture := newCapture(t)
 

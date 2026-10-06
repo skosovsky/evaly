@@ -60,3 +60,12 @@ The numeric variant sets `objective_kind` to `numeric`, removes
 `assertion_policy`, and adds `source_grader` and `source_metric` to `objective`.
 Its native unit/bounds/direction/scale must match the chosen persisted metric;
 `minimum_quality` is interpreted in that unit, including the `lower` direction.
+
+
+D56: each subcommand registers only its own flags. Both accept `--store`;
+fixture accepts `--id`, `--behavior`, `--seed`, `--case`; compare accepts
+`--baseline`, `--candidate`, `--policy`. Unknown commands, irrelevant flags,
+positionals, missing required values and invalid IDs/fixture behavior reject with
+exit 3 before opening/creating a store. Compare policy decoding/resolution also
+precedes opening the store. Existing comparison exit classes and replay output
+are unchanged; flags previously accepted but ignored are now errors.

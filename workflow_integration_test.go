@@ -20,27 +20,29 @@ type workflowConfig = evaly.RunConfig[fixtures.WorkflowInput, fixtures.WorkflowO
 
 func workflowHTTP(t *testing.T, c *workflowConfig, s *fixtures.WorkflowStore, mode string, incomplete bool) {
 	t.Helper()
-	server := httptest.NewServer(
-		httpjson.Handler(
-			fixtures.WorkflowInputCodec(),
-			fixtures.WorkflowOutputCodec(),
-			8192,
-			func(ctx context.Context, i fixtures.WorkflowInput, trial httpjson.Trial) (httpjson.Invocation[fixtures.WorkflowOutput], error) {
-				r, events, err := fixtures.WorkflowInvoke(ctx, i, trial.ID, s, mode)
-				delivery := httpjson.EvidenceDelivery{Complete: true}
-				if incomplete {
-					delivery = httpjson.EvidenceDelivery{Reason: "connection_interrupted"}
-					err = errors.New("partial host delivery")
-				}
-				return httpjson.Invocation[fixtures.WorkflowOutput]{
-					Output:   r.Output,
-					Usage:    r.Usage,
-					Events:   events,
-					Evidence: delivery,
-				}, err
-			},
-		),
+	handler, handlerErr := httpjson.NewHandler(
+		fixtures.WorkflowInputCodec(),
+		fixtures.WorkflowOutputCodec(),
+		8192,
+		func(ctx context.Context, i fixtures.WorkflowInput, trial httpjson.Trial) (httpjson.Invocation[fixtures.WorkflowOutput], error) {
+			r, events, err := fixtures.WorkflowInvoke(ctx, i, trial.ID, s, mode)
+			delivery := httpjson.EvidenceDelivery{Complete: true}
+			if incomplete {
+				delivery = httpjson.EvidenceDelivery{Reason: "connection_interrupted"}
+				err = errors.New("partial host delivery")
+			}
+			return httpjson.Invocation[fixtures.WorkflowOutput]{
+				Output:   r.Output,
+				Usage:    r.Usage,
+				Events:   events,
+				Evidence: delivery,
+			}, err
+		},
 	)
+	if handlerErr != nil {
+		t.Fatal(handlerErr)
+	}
+	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
 	c.Target = httpjson.Target[fixtures.WorkflowInput, fixtures.WorkflowOutput, *fixtures.WorkflowEnvironment]{
 		URL:      server.URL,

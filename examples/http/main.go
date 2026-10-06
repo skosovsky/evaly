@@ -24,31 +24,33 @@ func run() error {
 	if e != nil {
 		return e
 	}
-	server := httptest.NewServer(
-		httpjson.Handler(
-			fixtures.InputCodec(),
-			fixtures.OutputCodec(),
-			maxHTTPBytes,
-			func(ctx context.Context, i fixtures.Calculation, t httpjson.Trial) (httpjson.Invocation[fixtures.CalculationOutput], error) {
-				if t.Fixture != "calculation-v1" || t.Reset != "empty-v1" {
-					return httpjson.Invocation[fixtures.CalculationOutput]{
-						Evidence: httpjson.EvidenceDelivery{
-							Complete: true,
-							Reason:   "",
-						},
-						Output: zeroCalculationOutput,
-						Usage:  zeroUsage,
-						Events: nil,
-					}, evaly.ErrUnsupported
-				}
+	handler, handlerErr := httpjson.NewHandler(
+		fixtures.InputCodec(),
+		fixtures.OutputCodec(),
+		maxHTTPBytes,
+		func(ctx context.Context, i fixtures.Calculation, t httpjson.Trial) (httpjson.Invocation[fixtures.CalculationOutput], error) {
+			if t.Fixture != "calculation-v1" || t.Reset != "empty-v1" {
 				return httpjson.Invocation[fixtures.CalculationOutput]{
-					Output:   fixtures.CalculationOutput{Sum: i.Left + i.Right},
-					Usage:    evaly.Usage{Known: true, Units: 1},
-					Evidence: httpjson.EvidenceDelivery{Complete: true, Reason: ""}, Events: nil,
-				}, ctx.Err()
-			},
-		),
+					Evidence: httpjson.EvidenceDelivery{
+						Complete: true,
+						Reason:   "",
+					},
+					Output: zeroCalculationOutput,
+					Usage:  zeroUsage,
+					Events: nil,
+				}, evaly.ErrUnsupported
+			}
+			return httpjson.Invocation[fixtures.CalculationOutput]{
+				Output:   fixtures.CalculationOutput{Sum: i.Left + i.Right},
+				Usage:    evaly.Usage{Known: true, Units: 1},
+				Evidence: httpjson.EvidenceDelivery{Complete: true, Reason: ""}, Events: nil,
+			}, ctx.Err()
+		},
 	)
+	if handlerErr != nil {
+		return handlerErr
+	}
+	server := httptest.NewServer(handler)
 	defer server.Close()
 	c.Target = httpjson.Target[fixtures.Calculation, fixtures.CalculationOutput, *fixtures.Environment]{
 		URL:      server.URL,

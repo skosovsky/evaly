@@ -52,13 +52,12 @@ type Invocation[O any] struct {
 	Evidence EvidenceDelivery `json:"Evidence"`
 }
 type Response struct {
-	Version      int                       `json:"version"`
-	Status       string                    `json:"status"`
-	Output       json.RawMessage           `json:"output,omitempty"`
-	Usage        evaly.Usage               `json:"usage"`
-	Events       []evaly.Event             `json:"events"`
-	Capabilities evaly.InteropCapabilities `json:"capabilities"`
-	Evidence     EvidenceDelivery          `json:"evidence"`
+	Version  int              `json:"version"`
+	Status   string           `json:"status"`
+	Output   json.RawMessage  `json:"output,omitempty"`
+	Usage    evaly.Usage      `json:"usage"`
+	Events   []evaly.Event    `json:"events"`
+	Evidence EvidenceDelivery `json:"evidence"`
 }
 type Doer interface {
 	Do(*http.Request) (*http.Response, error)
@@ -101,6 +100,9 @@ func (t Target[I, O, E]) Run(ctx context.Context, i I, tc evaly.TrialContext[E])
 	if e := evaly.ValidatePort(tc.Evidence); e != nil {
 		return result, e
 	}
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
 	req, e := t.request(ctx, i, tc)
 	if e != nil {
 		return result, e
@@ -125,60 +127,99 @@ func (t Target[I, O, E]) Run(ctx context.Context, i I, tc evaly.TrialContext[E])
 	return t.consume(ctx, tc, resp)
 }
 
-// Handler is the reference v2 server. Invoke owns isolation, fixture/reset
-// compatibility and the declaration of evidence completeness.
-func Handler[I, O any](
-	ic evaly.Codec[I],
-	oc evaly.Codec[O],
-	maxBytes int64,
-	invoke func(context.Context, I, Trial) (Invocation[O], error),
-) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fail := func(code int) { http.Error(w, "invalid evaly request", code) }
-		if evaly.ValidatePort(ic) != nil || evaly.ValidatePort(oc) != nil || invoke == nil || maxBytes <= 0 ||
-			maxBytes == math.MaxInt64 ||
-			r.Method != http.MethodPost ||
-			!jsonContentType(r.Header.Get("Content-Type")) {
-			fail(http.StatusBadRequest)
-			return
+// NewHandler constructs the reference v3 server after local configuration checks.
+// Codecs must keep their validated identities and behavior stable for its lifetime.
+// Invoke owns isolation, fixture/reset compatibility and evidence completeness.
+func NewHandler[I, O any](ic evaly.Codec[I], oc evaly.Codec[O], maxBytes int64,
+	invoke func(context.Context, I, Trial) (Invocation[O], error)) (http.Handler, error) {
+	if invoke == nil || maxBytes <= 0 || maxBytes == math.MaxInt64 {
+		return nil, evaly.ErrInvalid
+	}
+	for _, port := range []any{ic, oc} {
+		if err := evaly.ValidatePort(port); err != nil {
+			return nil, err
 		}
-		if evaly.ValidateCodecIdentity(ic.Identity()) != nil || evaly.ValidateCodecIdentity(oc.Identity()) != nil {
-			fail(http.StatusBadRequest)
-			return
+	}
+	inputIdentity, outputIdentity := ic.Identity(), oc.Identity()
+	for _, identity := range []evaly.CodecIdentity{inputIdentity, outputIdentity} {
+		if err := evaly.ValidateCodecIdentity(identity); err != nil {
+			return nil, err
 		}
-		b, e := io.ReadAll(io.LimitReader(r.Body, maxBytes+1))
-		if e != nil || int64(len(b)) > maxBytes {
-			fail(http.StatusRequestEntityTooLarge)
-			return
-		}
-		req, e := evaly.DecodeWire[Request](b)
-		if e != nil {
-			fail(http.StatusBadRequest)
-			return
-		}
-		if req.Version != 2 || req.InputCodec != ic.Identity() || req.OutputCodec != oc.Identity() ||
-			req.Trial.ID == "" ||
-			req.Trial.CaseRevision == "" ||
-			req.Trial.Fixture == "" ||
-			req.Trial.Reset == "" {
-			fail(http.StatusUnprocessableEntity)
-			return
-		}
-		i, e := ic.Decode(req.Input)
-		if e != nil {
-			fail(http.StatusBadRequest)
-			return
-		}
-		data, e := encodeInvocation(r.Context(), i, req.Trial, oc, maxBytes, invoke)
-		if e != nil {
-			fail(http.StatusInternalServerError)
-			return
-		}
+	}
+	return &referenceHandler[I, O]{
+		input:          ic,
+		output:         oc,
+		maxBytes:       maxBytes,
+		inputIdentity:  inputIdentity,
+		outputIdentity: outputIdentity,
+		invoke:         invoke,
+	}, nil
+}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(data)
-	})
+type referenceHandler[I, O any] struct {
+	input          evaly.Codec[I]
+	output         evaly.Codec[O]
+	maxBytes       int64
+	inputIdentity  evaly.CodecIdentity
+	outputIdentity evaly.CodecIdentity
+	invoke         func(context.Context, I, Trial) (Invocation[O], error)
+}
+
+func (h *referenceHandler[I, O]) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	fail := func(code int) { http.Error(w, "invalid evaly request", code) }
+	if r.Context().Err() != nil {
+		fail(http.StatusRequestTimeout)
+		return
+	}
+	if r.Method != http.MethodPost || !jsonContentType(r.Header.Get("Content-Type")) ||
+		evaly.ValidatePort(r.Body) != nil {
+		fail(http.StatusBadRequest)
+		return
+	}
+	b, err := io.ReadAll(io.LimitReader(r.Body, h.maxBytes+1))
+	if r.Context().Err() != nil {
+		fail(http.StatusRequestTimeout)
+		return
+	}
+	if err != nil {
+		fail(http.StatusBadRequest)
+		return
+	}
+	if int64(len(b)) > h.maxBytes {
+		fail(http.StatusRequestEntityTooLarge)
+		return
+	}
+	req, err := evaly.DecodeWire[Request](b)
+	if err != nil {
+		fail(http.StatusBadRequest)
+		return
+	}
+	if req.InputCodec != h.inputIdentity || req.OutputCodec != h.outputIdentity || req.Trial.ID == "" ||
+		req.Trial.CaseRevision == "" || req.Trial.Fixture == "" || req.Trial.Reset == "" {
+		fail(http.StatusUnprocessableEntity)
+		return
+	}
+	if r.Context().Err() != nil {
+		fail(http.StatusRequestTimeout)
+		return
+	}
+	input, err := h.input.Decode(req.Input)
+	if err != nil {
+		fail(http.StatusBadRequest)
+		return
+	}
+	if r.Context().Err() != nil {
+		fail(http.StatusRequestTimeout)
+		return
+	}
+	data, err := encodeInvocation(r.Context(), input, req.Trial, h.output, h.maxBytes, h.invoke)
+	if err != nil {
+		fail(http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
 }
 
 func (t Target[I, O, E]) request(ctx context.Context, i I, tc evaly.TrialContext[E]) (*http.Request, error) {
@@ -239,19 +280,12 @@ func encodeInvocation[I, O any](
 		return nil, evaly.ErrInvalid
 	}
 	resp := Response{
-		Version:  2,
+		Version:  wireRevision,
 		Status:   completedState,
 		Usage:    invocation.Usage,
 		Events:   invocation.Events,
 		Evidence: invocation.Evidence,
-		Capabilities: evaly.InteropCapabilities{
-			Version:       1,
-			Outcome:       true,
-			ResetIdentity: true,
-			Evidence:      true,
-			RichStatus:    true,
-			MetricScales:  true,
-		}, Output: nil,
+		Output:   nil,
 	}
 	if invokeErr != nil {
 		resp.Status = valueTargetError
@@ -299,7 +333,7 @@ func (t Target[I, O, E]) readResponse(resp *http.Response, incomplete func(strin
 }
 
 func (t Target[I, O, E]) validateResponse(out Response, incomplete func(string)) error {
-	if out.Version != 2 || !evaly.CheckMapping(out.Capabilities).Supported ||
+	if out.Version != wireRevision ||
 		out.Status != completedState && out.Status != valueTargetError {
 		incomplete("http_protocol")
 		return evaly.ErrUnsupported
@@ -321,7 +355,7 @@ func (t Target[I, O, E]) encodeRequest(i I, tc evaly.TrialContext[E]) ([]byte, e
 		return nil, e
 	}
 	wire := Request{
-		Version:     2,
+		Version:     wireRevision,
 		InputCodec:  t.Input.Identity(),
 		OutputCodec: t.Output.Identity(),
 		Trial:       Trial{tc.ID, tc.CaseRevision, tc.Seed, t.Fixture, t.Reset},
