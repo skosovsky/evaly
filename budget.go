@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"math/big"
 	"sync"
 )
 
@@ -32,17 +33,21 @@ type budgetEntry struct {
 }
 
 // MemoryBudget is process-local and mutex-atomic; it is not a distributed budget.
+// Every finite float64 unit is accounted as its exact binary rational value.
+// Admission and settlement never round liabilities; Used rounds upward for display.
 type MemoryBudget struct {
-	mu             sync.Mutex
-	capacity, used float64
-	entries        map[string]budgetEntry
+	mu       sync.Mutex
+	capacity float64
+	used     big.Rat
+	entries  map[string]budgetEntry
 }
 
 func NewMemoryBudget(capacity float64) (*MemoryBudget, error) {
 	if !finiteNonnegative(capacity) {
 		return nil, ErrInvalid
 	}
-	return &MemoryBudget{capacity: capacity, entries: map[string]budgetEntry{}, mu: sync.Mutex{}, used: 0}, nil
+	var used big.Rat
+	return &MemoryBudget{capacity: capacity, entries: map[string]budgetEntry{}, mu: sync.Mutex{}, used: used}, nil
 }
 
 // Validate checks constructor invariants without reserving or dispatching work.
@@ -78,12 +83,16 @@ func (b *MemoryBudget) Reserve(ctx context.Context, id string, units float64) (R
 		}
 		return old.reservation, nil
 	}
-	if b.used+units > b.capacity {
+	var requested, total, capacity big.Rat
+	requested.SetFloat64(units)
+	total.Add(&b.used, &requested)
+	capacity.SetFloat64(b.capacity)
+	if total.Cmp(&capacity) > 0 {
 		return Reservation{}, ErrBudget
 	}
 	r := Reservation{id, units}
 	b.entries[id] = budgetEntry{reservation: r, settled: false, claimed: false, actual: zeroUsage, released: false}
-	b.used += units
+	b.used.Set(&total)
 	return r, nil
 }
 func (b *MemoryBudget) Reconcile(ctx context.Context, r Reservation, u Usage) error {
@@ -113,7 +122,11 @@ func (b *MemoryBudget) Reconcile(ctx context.Context, r Reservation, u Usage) er
 		}
 		return nil
 	}
-	b.used -= r.Units - u.Units
+	var reserved, actual big.Rat
+	reserved.SetFloat64(r.Units)
+	actual.SetFloat64(u.Units)
+	b.used.Sub(&b.used, &reserved)
+	b.used.Add(&b.used, &actual)
 	old.claimed = true
 	old.actual = u
 	old.settled = true
@@ -133,12 +146,30 @@ func (b *MemoryBudget) Release(ctx context.Context, r Reservation) error {
 	if old.released {
 		return nil
 	}
-	b.used -= r.Units
+	var reserved big.Rat
+	reserved.SetFloat64(r.Units)
+	b.used.Sub(&b.used, &reserved)
 	old.released = true
 	b.entries[r.ID] = old
 	return nil
 }
-func (b *MemoryBudget) Used() float64 { b.mu.Lock(); defer b.mu.Unlock(); return b.used }
+
+// Used returns the smallest float64 at least as large as the exact liability.
+// All finite nonnegative float64 units, including subnormals, are supported.
+// Rounded reporting does not affect admission or reconciliation.
+func (b *MemoryBudget) Used() float64 {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	used, exact := b.used.Float64()
+	if !exact {
+		var reported big.Rat
+		reported.SetFloat64(used)
+		if reported.Cmp(&b.used) < 0 {
+			used = math.Nextafter(used, math.Inf(1))
+		}
+	}
+	return used
+}
 
 // Claim atomically authorizes one dispatch. Idempotent reservation lookup does not
 // authorize executing the external effect again.

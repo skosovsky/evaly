@@ -58,3 +58,24 @@ Commit subject: `fix: isolate release publishing`.
 F01/F02 fixed; source checkout and refs preserved by isolated preparation, exact
 staging and atomic root refspec. Portability decision: portable Go editing instead
 of BSD sed; Linux execution remains unverified.
+
+## T03 — accepted
+
+Previous accepted task: T02 commit `4b0bdb8`.
+Changes: MemoryBudget exact binary rational liability, conservative float reporting,
+AAA numeric/claim/concurrent regressions and settlement fuzz target; durable baseline
+Go overlay repro and budget semantics/migration docs. D02/D03/D46 preserve explicit
+host liability with reasons in `docs/budget.md`.
+Final independent acceptance: `/root/t03_completeness` — 3/3, 100%;
+`/root/t03_correctness` — no errors found in scope.
+Reviewed budget SHA256 `0f085b5b52b4d7ee7e60f0f63c72da3d076802b1994e6a71734ff3405f3eaa70`;
+exact tests SHA256 `70a9ee8cf6d4c89328080475bac779f40244323cc262f3a7d79c2f10503ecdad`.
+Commands: `go test -race ./...` — PASS (root module; unchanged dependent package
+results may be cached); final added budget tests `go test -race -run='TestMemoryBudget|FuzzMemoryBudget' .` — PASS;
+pinned golangci-lint 2.14.0 root run — 0 issues; baseline overlay — both repros PASS;
+settlement fuzz 10s, parallel 2 — 134,539 executions PASS; independent reviewer fuzz
+3s — 83,898 executions PASS; `git diff --check` — PASS.
+Limits: finite binary float receipts, process-local adapter; short settlement fuzz
+does not prove all possible transition sequences or distributed host recovery.
+Public API/wire representation unchanged. Only acceptance metadata changed after
+review. Commit subject: `fix: preserve exact budget accounting`.

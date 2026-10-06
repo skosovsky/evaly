@@ -125,6 +125,9 @@ liability dispatched; only unclaimed reservations can be released. Unknown actua
 usage retains the full reservation, known actual usage reconciles it. Undispatched
 reservations can be explicitly released. Units must be nonnegative finite; actual
 usage exceeding a reservation is a contract violation, not automatically affordable.
+MemoryBudget uses exact binary rational accounting and rounds Used upward only
+for reporting; see [budget accounting and recovery](budget.md) for numeric limits,
+host recovery and unchanged unit representation.
 
 Paired execution uses the same sealed dataset/fixture revision and separate prepared
 handles for each side. Each scheduled case/repeat runs both sides in seeded order;

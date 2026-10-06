@@ -40,7 +40,7 @@ The mapping below assigns each D exactly once; related tasks may depend on it.
      push, preparation/tag failures, retry and explicit detached-start policy.
   3. Publication ambiguity and recovery are explicit; no blind deletion of
      remote refs; atomic publication policy and Linux/macOS editing documented.
-- [ ] T03 — Budget: F03; D02/D03/D46.
+- [x] T03 — Budget: F03; D02/D03/D46.
   1. Exact liability and conservative Used reporting satisfy both baseline
      repros and mixed-scale settlement/release permutations without epsilon.
   2. Idempotency, claim-once, unknown liability and concurrent accounting pass.
