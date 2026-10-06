@@ -171,9 +171,11 @@ make release-break # increment minor before v1, major from v1 onward
 make release       # alias for release-break
 ```
 
-The script requires a clean committed checkout, calculates the version from existing
-root tags and asks for confirmation. It prepares release state on detached HEAD,
-pushes Git tags, then returns to the original branch. It does not create a GitHub
-Release or push the working branch. Only the root module (`.`) is passed to the
-script; contracttest is a development module and receives no release tag.
-Commit signing uses the existing Git configuration.
+The script requires a branch with clean tracked files and asks for confirmation.
+It calculates the version from root tags on the push remote, prepares the selected
+commit in a temporary repository, and publishes only the new root tag with an
+atomic push. Source HEAD, index, worktree and local tags stay unchanged; untracked
+files are never copied. Only root `go.mod` may enter a generated release commit.
+Contracttest is a development module and receives no release tag.
+See [release safety and recovery](docs/release.md) for failure handling and local
+fixtures. Commit identity/signing use the resolved source Git configuration.

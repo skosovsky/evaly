@@ -33,3 +33,28 @@ After review only acceptance metadata and the T01 checkbox were updated.
 Whitespace checks on both new documents produced no diagnostics (`git diff
 --no-index --check /dev/null PATH`; exit 1 indicates added content).
 Commit subject: `docs: define remediation contracts`.
+
+## T02 — accepted
+
+Previous accepted task: T01 commit `e7ba3c2`.
+Changes: isolated root release repository, exact go.mod staging and tag refspec,
+remote version selection, atomic push, explicit source/ref/recovery policies;
+local AAA release fixtures and release documentation.
+Initial review: completeness 3/3, 100%; correctness reproduced automatic global
+tag signing creating an annotated ref despite the lightweight contract. Corrected
+with explicit `git tag --no-sign` and a global-tag-signing regression fixture.
+Final independent acceptance: `/root/t02_completeness` — 3/3, 100%;
+`/root/t02_correctness` — no errors found, signing finding closed.
+Reviewed script SHA256 `5c5e8cf89a3207fec25ca42a5104f2e420f23ecae08afe0dd55a86d90d99bd54`;
+fixtures SHA256 `5c420db9787ea5b63d2b794bc1bb8f015066bf3bbc575a28231a38bcb3209d57`.
+Commands: `python3 scripts/release_test.py` — 10/10 PASS;
+`python3 scripts/release_test.py --baseline` — F01/F02 behavioral repro PASS,
+8 new-contract tests skipped; `bash -n scripts/release.sh`, `git diff --check` — PASS.
+Platform: Go 1.27.1, Git 2.55.0, Bash 5.3.15, Python 3.14.6, macOS arm64.
+Limits: local bare remotes, no real publication; Linux and live network/commit
+signing backends not executed. Only acceptance metadata changed after review.
+Commit subject: `fix: isolate release publishing`.
+
+F01/F02 fixed; source checkout and refs preserved by isolated preparation, exact
+staging and atomic root refspec. Portability decision: portable Go editing instead
+of BSD sed; Linux execution remains unverified.

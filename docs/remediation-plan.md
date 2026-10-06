@@ -33,7 +33,7 @@ The mapping below assigns each D exactly once; related tasks may depend on it.
      explicit in `docs/remediation-contracts.md`, with rationale and boundaries.
   3. Acceptance/rework/commit protocol and verification record exist. This is
      a proposed implementation contract; existing code is not claimed compliant.
-- [ ] T02 — Release safety: F01/F02 (together), release portability docs.
+- [x] T02 — Release safety: F01/F02 (together), release portability docs.
   1. Disposable release checkout, exact generated-file allowlist and exact
      root-only tag refspec; original HEAD/index/worktree/local refs unchanged.
   2. Local fixtures cover happy path, unrelated untracked files/tags, rejecting

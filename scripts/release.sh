@@ -1,120 +1,116 @@
 #!/bin/bash
-set -e # Stop script on any error
+# Root-module release: prepare in an isolated repository, publish one exact ref.
+set -euo pipefail
 
-RELEASE_TYPE=$1
-MODULES=$2
-
-if [ ! -f "go.mod" ]; then
-    echo "Error: go.mod not found in the current directory. Run script from the repo root."
+release_type=${1:-}
+modules=${2:-}
+if [[ "$release_type" != patch && "$release_type" != break ]] || [[ "$modules" != . ]]; then
+    echo 'Usage: release.sh {patch|break} . (only the root module is released)' >&2
     exit 1
 fi
-
-ROOT_MODULE=$(grep -m 1 '^module' go.mod | awk '{print $2}')
-
-if [[ "$RELEASE_TYPE" != "break" && "$RELEASE_TYPE" != "patch" ]]; then
-    echo "Usage: make release-patch OR make release-break"
+if [[ ! -f go.mod ]]; then
+    echo 'Error: run from the repository root containing go.mod' >&2
     exit 1
 fi
-
-if [ -z "$ROOT_MODULE" ]; then
-    echo "Error: Could not determine module path from go.mod"
+source_root=$(git rev-parse --show-toplevel)
+if [[ "$PWD" != "$source_root" ]]; then
+    echo 'Error: run from the repository root' >&2
     exit 1
 fi
-
-REPO_PREFIX=$(echo "$ROOT_MODULE" | sed 's/\//\\\//g')
-
-if [ -z "$MODULES" ]; then
-    echo "Error: MODULES is empty. Make sure Makefile is passing it correctly."
+if ! git symbolic-ref --quiet HEAD >/dev/null; then
+    echo 'Error: detached source HEAD is unsupported; select a branch first' >&2
     exit 1
 fi
-
-# Ensure there are no uncommitted changes
-git update-index -q --refresh
-if ! git diff-index --quiet HEAD --; then
-    echo "Error: You have uncommitted changes. Please commit or stash them first."
+if ! git diff --quiet HEAD -- || ! git diff --cached --quiet; then
+    echo 'Error: commit or stash tracked changes before releasing' >&2
     exit 1
 fi
-
-# 1. Fetch tags and calculate version
-git fetch --tags --quiet
-LATEST_TAG=$(git tag -l "v*" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
-
-if [ -z "$LATEST_TAG" ]; then
-    LATEST_TAG="v0.0.0"
-fi
-
-VERSION_NO_V=${LATEST_TAG#v}
-IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION_NO_V"
-
-if [ "$RELEASE_TYPE" == "break" ]; then
-    if [ "$MAJOR" -eq 0 ]; then
-        MINOR=$((MINOR + 1))
-        PATCH=0
-    else
-        MAJOR=$((MAJOR + 1))
-        MINOR=0
-        PATCH=0
+source_head=$(git rev-parse HEAD)
+remote=$(git remote get-url --push origin)
+# Relative local remotes must retain their meaning after changing directory.
+case "$remote" in
+    /*|*:* ) ;;
+    * ) remote="$source_root/$remote" ;;
+esac
+remote_tags=$(git ls-remote --refs "$remote" 'refs/tags/v*')
+latest=$(printf '%s\n' "$remote_tags" | awk '{sub("refs/tags/v", "", $2); if ($2 ~ /^[0-9]+\.[0-9]+\.[0-9]+$/) print $2}' | sort -t . -k1,1n -k2,2n -k3,3n | tail -n 1)
+latest=${latest:-0.0.0}
+IFS=. read -r major minor patch <<< "$latest"
+# Bound components before shell arithmetic, including its signed overflow.
+for component in "$major" "$minor" "$patch"; do
+    if [[ ${#component} -gt 9 ]]; then
+        echo 'Error: version component exceeds supported 9-digit range' >&2
+        exit 1
     fi
-elif [ "$RELEASE_TYPE" == "patch" ]; then
-    PATCH=$((PATCH + 1))
-fi
-
-NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
-
-# 3. User confirmation
-echo "========================================"
-echo "Current version: $LATEST_TAG"
-echo "New version:     $NEW_VERSION ($RELEASE_TYPE)"
-echo "========================================"
-read -p "Proceed with release $NEW_VERSION? [y/N] " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "Aborted."
-    exit 1
-fi
-
-echo "🚀 Starting release train for $NEW_VERSION..."
-
-CURRENT_BRANCH=$(git branch --show-current)
-echo "🔀 Detaching HEAD from $CURRENT_BRANCH to keep history clean..."
-git checkout --detach HEAD --quiet
-
-# 4. Update all go.mod files
-echo "📦 Updating go.mod files..."
-for dir in $MODULES; do
-    modfile="$dir/go.mod"
-    sed -i '' "/$REPO_PREFIX/s/ v0.0.0/ $NEW_VERSION/g" "$modfile"
-    sed -i '' "/$REPO_PREFIX.*=>/d" "$modfile"
-    go mod edit -fmt "$modfile"
 done
-
-# 5. Create the release commit
-echo "💾 Committing release state (detached)..."
-git add .
-
-if ! git diff --cached --quiet; then
-    git commit -m "chore: release $NEW_VERSION" --quiet
+major=$((10#$major)); minor=$((10#$minor)); patch=$((10#$patch))
+if [[ "$release_type" == patch ]]; then
+    patch=$((patch + 1))
+elif [[ "$major" == 0 ]]; then
+    minor=$((minor + 1)); patch=0
 else
-    echo "  ℹ️ No changes in go.mod. Will tag the current state directly."
+    major=$((major + 1)); minor=0; patch=0
+fi
+if (( major > 999999999 || minor > 999999999 || patch > 999999999 )); then
+    echo 'Error: next version exceeds supported 9-digit range' >&2
+    exit 1
+fi
+version="v$major.$minor.$patch"
+echo "Current remote version: v$latest"
+echo "New version: $version ($release_type)"
+read -r -p "Proceed with release $version? [y/N] " reply
+if [[ "$reply" != y && "$reply" != Y ]]; then
+    echo 'Aborted'
+    exit 1
 fi
 
-# 6. Tag the root and all submodules
-echo "🏷️ Tagging root and submodules..."
-git tag "$NEW_VERSION"
-
-for dir in $MODULES; do
-    if [ "$dir" != "." ]; then
-        clean_dir=${dir#./}
-        git tag "$clean_dir/$NEW_VERSION"
+release_dir=$(mktemp -d "${TMPDIR:-/tmp}/evaly-release.XXXXXXXX")
+keep_checkout=false
+cleanup() {
+    if [[ "$keep_checkout" == false ]]; then
+        rm -rf "$release_dir"
+    else
+        echo "Recovery checkout retained: $release_dir" >&2
+    fi
+}
+trap cleanup EXIT
+# Fetch only the selected commit, with no tags or source working files.
+git init --quiet "$release_dir"
+git -C "$release_dir" fetch --quiet --no-tags "$source_root" "$source_head"
+git -C "$release_dir" checkout --quiet --detach FETCH_HEAD
+# Copy resolved identity/signing options; no mutation of the source config.
+for key in user.name user.email user.signingkey commit.gpgsign gpg.format gpg.program; do
+    if value=$(git config --get "$key"); then
+        git -C "$release_dir" config "$key" "$value"
     fi
 done
-
-# 7. Push ONLY tags to GitHub
-echo "☁️ Pushing tags to GitHub..."
-git push origin --tags
-
-# 8. Return to normal state
-echo "⏪ Returning to $CURRENT_BRANCH..."
-git checkout "$CURRENT_BRANCH" --quiet
-
-echo "✅ Release $NEW_VERSION completed successfully! History is clean."
+cd "$release_dir"
+# The sole generated release file is root go.mod; no dependency rewriting or
+# module discovery. go mod edit is portable across Linux and macOS.
+go mod edit -fmt go.mod
+git add -- go.mod
+if ! git diff --cached --quiet; then
+    git commit --quiet -m "chore: release $version"
+fi
+git tag --no-sign "$version"
+release_head=$(git rev-parse HEAD)
+keep_checkout=true
+# Atomic even though there is currently one ref: never fall back to --tags.
+if git push --atomic "$remote" "refs/tags/$version:refs/tags/$version"; then
+    echo "Published refs/tags/$version at $release_head"
+    keep_checkout=false
+else
+    echo "Publication command failed for refs/tags/$version (expected $release_head)" >&2
+    if status=$(git ls-remote --refs "$remote" "refs/tags/$version"); then
+        if [[ -z "$status" ]]; then
+            echo 'Remote ref is absent; nothing published. Retry uses remote version again.' >&2
+            keep_checkout=false
+        else
+            echo "Observed remote ref: $status" >&2
+            echo 'Inspect retained checkout and remote ref before retrying; no refs were deleted.' >&2
+        fi
+    else
+        echo 'Remote status unknown. Inspect remote ref before retrying; no refs were deleted.' >&2
+    fi
+    exit 1
+fi
