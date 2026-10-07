@@ -121,14 +121,18 @@ if [[ $(git -C "$source_root" rev-parse HEAD) != "$source_head" || $(python3 "$s
     exit 1
 fi
 # Ref creation is after every prepublication check.
-git tag --no-sign "$version"
+git tag --no-sign "$version" "$release_head"
+if [[ $(git rev-parse "refs/tags/$version") != "$release_head" ]]; then
+    echo 'Error: candidate tag changed before push; publication forbidden' >&2
+    exit 1
+fi
 if [[ $(git rev-parse HEAD) != "$release_head" || $(python3 scripts/checks.py fingerprint) != "$initial" ]]; then
     echo 'Error: candidate changed before push; publication forbidden' >&2
     exit 1
 fi
 keep_checkout=true
 # Atomic even though there is currently one ref: never fall back to --tags.
-if git push --atomic "$remote" "refs/tags/$version:refs/tags/$version"; then
+if git push --atomic "$remote" "$release_head:refs/tags/$version"; then
     echo "Published refs/tags/$version at $release_head"
     # Published does not mean verified. Retain recovery on proxy/consumer/CI failure.
     if ! python3 scripts/verify_release.py "$version" "$release_head" "$evidence_dir/proxy/manifest.json" "$evidence_dir/public.json"; then

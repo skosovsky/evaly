@@ -159,6 +159,7 @@ def operation(name):
     with tempfile.TemporaryDirectory(prefix='evaly-lane-') as temp:
         work = Path(temp)
         if name == 'generation':
+            (work/'schemas').mkdir()
             run(['go','run','./internal/schemagen',str(work / 'schemas')])
             actual = {p.name:p.read_bytes() for p in (work/'schemas').iterdir()}
             expected = {p.name:p.read_bytes() for p in (ROOT/'schemas').iterdir()}

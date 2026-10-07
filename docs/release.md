@@ -29,7 +29,8 @@ validation; concurrent source changes forbid publication and remain preserved.
 Immediately before ref creation/push, a byte/mode fingerprint, HEAD and dirty/
 all-untracked guards reject changes after validation, including ignored .go files.
 Reports and artifacts remain outside the candidate tree. Only then is the
-lightweight tag created and one exact ref pushed atomically without force or
+lightweight tag created on the captured SHA and checked against it. That immutable
+SHA is pushed to one exact destination ref atomically without force or
 fallback. Concurrent version collisions fail; existing public tags are never
 rewritten. Nine-digit version bounds prevent arithmetic overflow. Root tag push
 runs the shared CI gate once; no full workflows per test-only nested module tag.

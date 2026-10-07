@@ -43,7 +43,7 @@ if [[ "$mode" = source || "$mode" = candidate ]]; then
   done
 fi
 if [[ "$mode" = candidate || "$mode" = public ]]; then
- go -C "$work" mod edit -require "github.com/skosovsky/evaly=${CONSUMER_VERSION:?exact version required}"
+ go -C "$work" mod edit -require "github.com/skosovsky/evaly@${CONSUMER_VERSION:?exact version required}"
 fi
 printf 'consumer mode: %s\n' "$mode"
 go -C "$work" mod tidy

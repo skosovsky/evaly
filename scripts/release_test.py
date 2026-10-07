@@ -261,7 +261,9 @@ class ReleaseFixture(unittest.TestCase):
         self.assertEqual(self.state(), before)
         args = capture.read_text().splitlines()
         self.assertEqual(args[:2], ['push', '--atomic'])
-        self.assertEqual(args[-1], 'refs/tags/v0.0.1:refs/tags/v0.0.1')
+        published_sha = run(['git', '--git-dir', str(self.remote), 'rev-parse',
+                             'refs/tags/v0.0.1'], self.base, env=self.env).stdout.strip()
+        self.assertEqual(args[-1], published_sha + ':refs/tags/v0.0.1')
         self.assertEqual(len(args), 4)
         changed = run(['git', '--git-dir', str(self.remote), 'diff-tree',
                        '--no-commit-id', '--name-only', '-r', 'v0.0.1'],
@@ -290,6 +292,34 @@ class ReleaseFixture(unittest.TestCase):
         self.assertEqual(self.tags(), ['v0.0.1'])
         self.assertEqual(self.state(), before)
         self.assertEqual(len(list(self.base.glob('evaly-release.????????'))), 1)
+
+    def test_tag_mutation_before_push_forbids_publication(self):
+        self.require_current()
+        # Arrange: an adversarial wrapper moves the private tag to an ancestor.
+        self.write('second.txt', 'second committed source input\n')
+        self.git('add', 'second.txt')
+        self.git('commit', '-m', 'second fixture commit')
+        before = self.state()
+        wrappers = self.base / 'bin-tag-mutation'
+        wrappers.mkdir()
+        real_git = run(['which', 'git'], self.base).stdout.strip()
+        wrapper = wrappers / 'git'
+        wrapper.write_text('#!/bin/sh\n'
+                           'if [ "$1" = tag ] && [ "$2" = --no-sign ]; then\n'
+                           f'  "{real_git}" "$@" || exit\n'
+                           f'  exec "{real_git}" tag --no-sign -f "$3" HEAD^\n'
+                           'fi\n'
+                           f'exec "{real_git}" "$@"\n')
+        wrapper.chmod(0o755)
+        self.env['PATH'] = str(wrappers) + os.pathsep + self.env['PATH']
+        # Act
+        result = self.release()
+        # Assert
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('candidate tag changed before push', result.stderr)
+        self.assertEqual(self.tags(), [])
+        self.assertEqual(self.state(), before)
+        self.clean_temps()
 
     def test_required_gate_failure_forbids_ref_mutations(self):
         self.require_current()
