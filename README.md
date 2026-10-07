@@ -188,3 +188,11 @@ For the current API, use the [runnable quickstart](docs/quickstart.md),
 [ownership/concurrency matrix](docs/concurrency.md). Remediation decisions and
 executed checks are recorded in [the plan](docs/remediation-plan.md) and
 [verification record](docs/remediation-verification.md).
+
+Optional [streaming composition recipes](integrations/recipes/README.md) live in
+an isolated consumer module. They demonstrate final stream metadata, partial
+billed errors, explicit accounting units, conservative source capture and separate
+assertion/metric export through real in-memory SDK evaluation spans. Run
+`make consumer-test` for pinned published dependencies or
+`make consumer-source CONSUMER_SOURCE_ROOT=..` for supplied SDK sources. Core and
+its normal validation remain independent of these optional dependencies.

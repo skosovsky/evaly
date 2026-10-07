@@ -51,3 +51,9 @@ read-only Go overlay (`python3 scripts/budget_baseline_repro.py`), AAA regressio
 mixed-scale operation orders, finite extremes and concurrent accounting/claim.
 `FuzzMemoryBudgetSettlement` varies binary float bounds and receipts and checks
 that full capacity never admits positive extra units and known actual survives.
+
+Optional composition uses an identified host conversion for reservation and actual
+receipts alike. Total-only receipts cannot fabricate input/output counters. Rates,
+units, upward rounding and bounds are explicit; failures return unknown usage and
+retain the claimed liability. Only final cumulative source snapshots are converted.
+See the [composition contract](composition-contract.md).

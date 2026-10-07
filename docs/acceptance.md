@@ -286,3 +286,56 @@ Results will be recorded in `docs/validation.md` after full checks and reviews.
 - Independent adversarial regressions: `evidence_validation_test.go`, `runner_validation_test.go`, and audit tests in observation/optimizer. Repaired semantic restore, bounded diagnostics, deadline precedence, atomic dispatch Claim, stopped-search dispatch and canonical assessment identity.
 
 Optimizer candidate records use schema v2 (`ParentRevision`). See [optimizer migration](optimizer-remediation.md).
+
+## Optional streaming composition (issue #1)
+
+Core API/wire records are unchanged. SDK imports occur only in the separate
+`integrations/recipes` consumer module; root and contracttest go.mod remain unchanged.
+Host-owned recipes are distributed as source, not a separately tagged SDK.
+The normative scope is [composition](composition-contract.md), with consumer
+migration and commands in [recipes](../integrations/recipes/README.md).
+
+| Criterion | Executable evidence in optional module | Result |
+| --- | --- | --- |
+| AC1 boundaries/contracts | composition contract, migration guide, isolated go.mod; no core SDK imports | PASS; independent completeness 100%, correctness findings closed |
+| AC2 sealed execution/disk roundtrip/export | TestRoundtripAndRealEvaluationDelivery, config provenance | PASS in both matrices |
+| AC3 cancellation/EOF/error/close/decode | TestStreamingTerminalFailures, TestRequiredCaptureAndDeferredFailure | PASS in both matrices |
+| AC4 judge/reset/required capture | TestJudgeErrorsUnavailableAndTrustedData, TestResetFailurePreventsDispatch, TestRequiredCaptureAndDeferredFailure | PASS in both matrices |
+| AC5 units/presence/liability | TestConversionPresenceAndLiability, TestConversionExactUpwardRounding | PASS in both matrices |
+| AC6 gaps/sampling/failure/domain effects | TestCaptureConservativeAndRequiredFailure, TestOutcomeIndependentOfConfidentText, TestStreamingTerminalFailures | PASS in both matrices |
+| AC7 artifact/sink privacy | TestRoundtripAndRealEvaluationDelivery reads disk bytes and emitted SDK spans; TestIndependentExportPrivacyAndSampling verifies separate egress policy with sampling on/off; TestStreamingTerminalFailures checks partial evidence/diagnostics | PASS in both matrices |
+| AC8 individual export/IDs/dedup/actual spans | TestRoundtripAndRealEvaluationDelivery, TestExportProjectionAndConcurrentDedup, TestExportUnmeasuredStatusesAndIDs | PASS in both matrices |
+| AC9 portable consumer CI | scripts/consumer_checks.sh, .github/workflows/consumer.yml | both local matrices PASS; hosted run pending publication |
+| AC10 validation/examples/migration | make validate, ExampleStreamingTarget, migration guide | make validate PASS; example PASS |
+
+Published matrix: root v0.3.0, stream SDK v0.15.0, evaluation SDK v0.9.0,
+`GOWORK=off`, no replacements. Source matrix: current root working tree,
+stream SDK commit `5607832ee869f63bc3c6768a02ed60a019cd691e`, evaluation SDK commit
+`7ef9f89638f29408f50996236d46d6c105dc8183`, clean SDK checkout snapshots.
+Commands use `GOPATH=/tmp/evaly-gopath` in the sandbox; CI uses its own writable
+cache. Both matrices execute format/lint/vet and `go test -race -count=1 -v ./...`.
+No skipped unsupported fixtures, credentials or live model claims. Telemetry
+acceptance is not a durable collector acknowledgment. Metric semantic metadata
+is retained in the host sidecar/artifact, not invented as telemetry attributes.
+
+Independent review remediation: the judge fixture now runs the real SDK template,
+render plan and execution before a deterministic transport receives separated
+system/user content. An additional privacy fixture explicitly permits a sensitive
+opaque target identity inside restricted artifacts, then removes it at the export
+boundary and checks actual delivered records with sampling both enabled and disabled.
+The marker-free artifact fixture remains separate and verifies default restrictive
+retention for nested content, references and diagnostics.
+
+Correctness review found two export defects, now covered by
+`TestRegistryRejectsInvalidSidecarBeforeDedup` and
+`TestExportRejectsForeignAssociationAndProvenance`: invalid sidecar values cannot
+enter the registry, and privacy projection permits identity removal but rejects
+foreign association/provenance/artifact/trace substitutions before any delivery.
+
+Final independent technical acceptance: [completeness](reviews/composition-completeness.md)
+reports 100% (10/10 criteria); [correctness](reviews/composition-correctness.md)
+confirms both reproduced defects fixed and no open findings. Final published and
+source matrix commands both exited successfully after remediation. Full root
+`make validate` exited successfully; updated root formatter isolation passed
+`make config-check fmt-check`. Hosted CI/release/closeout are verified separately
+when publishing the accepted commit.

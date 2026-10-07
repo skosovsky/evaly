@@ -43,3 +43,9 @@ Delivery is an in-process service result, not a registered persisted artifact
 kind. The fixed reason codes replace the previous lossy sink_unavailable code
 without an alias. Evidence and grade reference changes reject previously accepted
 malformed or credential-bearing values; backward compatibility is not provided.
+
+Optional composition adapters must explicitly propagate source completeness,
+sampling and terminal capture failures through `EvidenceSink.MarkIncomplete`.
+Contiguous local events alone do not establish full source coverage. See the
+[composition contract](composition-contract.md). Artifact retention and export
+projection are separate mandatory host decisions.

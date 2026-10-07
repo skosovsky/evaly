@@ -105,3 +105,19 @@ disposable checkout, exact staged go.mod and exact atomic tag refspec. Source
 HEAD/index/worktree/tags are preserved. Read the explicit remote-outcome recovery
 instructions in [release contract](release.md). Linux-compatible editing is used;
 local fixtures were executed on macOS, not certified on Linux or real remotes.
+
+## Optional streaming composition
+
+Core public API and persisted formats are unchanged. Consumers returning lazy
+handles must now finish/close streams within the target callback, retain billed
+usage on error and mark partial capture incomplete. Use an explicit identified
+conversion for reservation, target and judge receipts; unknown remains unknown,
+and total-only receipts do not invent input/output. Keep trusted judge rubric
+separate from projected data. Export individual measurements/status records with
+stable identities and host dedup, not one experiment-level boolean.
+
+The [optional recipes and runnable examples](../integrations/recipes/README.md)
+show construction and exact host changes. The separate module is host reference
+source distributed in the root release archive, not a separately tagged SDK.
+Artifacts and telemetry require independent privacy policies. Metric semantic
+metadata remains in the host record because the telemetry DTO cannot carry it.

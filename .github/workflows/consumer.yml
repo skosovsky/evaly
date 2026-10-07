@@ -1,0 +1,32 @@
+name: Optional consumer semantics
+on: [push, pull_request]
+jobs:
+  consumer:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dependencies: [published, source]
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          path: evaly
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: evaly/go.mod
+          cache-dependency-path: evaly/integrations/recipes/go.sum
+      - uses: actions/checkout@v7.0.1
+        if: matrix.dependencies == 'source'
+        with:
+          repository: skosovsky/prompty
+          path: prompty
+      - uses: actions/checkout@v7.0.1
+        if: matrix.dependencies == 'source'
+        with:
+          repository: skosovsky/metry
+          path: metry
+      - name: Semantic fixtures and actual dependency identities
+        working-directory: evaly
+        env:
+          DEPENDENCIES: ${{ matrix.dependencies }}
+        run: bash scripts/consumer_checks.sh "$DEPENDENCIES" ..

@@ -6,7 +6,7 @@ GOLANGCI_LINT_CACHE ?= /tmp/evaly-golangci-cache
 GOLANGCI_LINT_VERSION := v2.14.0
 GOLANGCI_LINT ?= $(GO) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 GOLANGCI_LINT_RUN := env GOLANGCI_LINT_CACHE=$(GOLANGCI_LINT_CACHE) $(GOLANGCI_LINT) run --allow-serial-runners --max-issues-per-linter=0 --max-same-issues=0 --uniq-by-line=false
-MODULES := $(shell find . -type d \( -name ".*" -not -name "." -o -name "vendor" \) -prune -o -type f -name "go.mod" -exec dirname {} \;)
+MODULES := $(shell find . -type d \( -name ".*" -not -name "." -o -name "vendor" -o -path "./integrations" \) -prune -o -type f -name "go.mod" -exec dirname {} \;)
 RELEASE_MODULES := .
 FUZZTIME ?= 30s
 FUZZPARALLEL ?= 2
@@ -104,3 +104,11 @@ schemas:
 
 fixtures:
 	$(GO) run ./cmd/evaly fixture --store /tmp/evaly-fixtures --id baseline
+
+# Optional SDK consumers use pinned published dependencies by default.
+.PHONY: consumer-test consumer-source
+consumer-test:
+	@bash scripts/consumer_checks.sh published
+
+consumer-source:
+	@bash scripts/consumer_checks.sh source "$(CONSUMER_SOURCE_ROOT)"

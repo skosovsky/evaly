@@ -54,3 +54,10 @@ All examples run without credentials using scripted local ports. They establish
 behavior of the infrastructure contract, not real model quality, injection immunity,
 exactly-once external effects or production durability. Live testing is separately
 opt-in and documented in [live integration](live-integration.md).
+
+## Optional streaming recipes
+
+[Composition contract](composition-contract.md) defines completed streaming targets,
+separate trusted judge instructions, explicit accounting conversion, conservative
+capture and per-result export. The executable consumer lives in
+`integrations/recipes`; core does not import its dependencies.
