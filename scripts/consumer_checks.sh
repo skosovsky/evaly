@@ -41,6 +41,15 @@ if [ "$mode" = published ]; then
   printf 'published matrix must not use replacements\n' >&2; exit 1
  fi
 fi
+# Missing required SDK protocols are explicitly unsupported, never a semantic PASS.
+for capability in github.com/skosovsky/prompty.Stream github.com/skosovsky/prompty.CaptureReport github.com/skosovsky/metry/genai.EvaluationRecorder github.com/skosovsky/metry/genai.EvaluationSkipped; do
+ package=${capability%.*}
+ go -C "$work" list "$package" >/dev/null # resolution/infrastructure failure stays an error
+ if ! go -C "$work" doc "$capability" >/dev/null 2>&1; then
+  printf 'UNSUPPORTED dependency API: %s; semantic fixtures were not executed\n' "$capability" >&2
+  exit 2
+ fi
+done
 (cd "$work" && go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0 config verify)
 (cd "$work" && go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0 fmt --diff)
 (cd "$work" && go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0 run --allow-serial-runners --max-issues-per-linter=0 --max-same-issues=0)

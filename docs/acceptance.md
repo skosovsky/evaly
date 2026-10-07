@@ -305,7 +305,7 @@ migration and commands in [recipes](../integrations/recipes/README.md).
 | AC6 gaps/sampling/failure/domain effects | TestCaptureConservativeAndRequiredFailure, TestOutcomeIndependentOfConfidentText, TestStreamingTerminalFailures | PASS in both matrices |
 | AC7 artifact/sink privacy | TestRoundtripAndRealEvaluationDelivery reads disk bytes and emitted SDK spans; TestIndependentExportPrivacyAndSampling verifies separate egress policy with sampling on/off; TestStreamingTerminalFailures checks partial evidence/diagnostics | PASS in both matrices |
 | AC8 individual export/IDs/dedup/actual spans | TestRoundtripAndRealEvaluationDelivery, TestExportProjectionAndConcurrentDedup, TestExportUnmeasuredStatusesAndIDs | PASS in both matrices |
-| AC9 portable consumer CI | scripts/consumer_checks.sh, .github/workflows/consumer.yml | both local matrices PASS; hosted run pending publication |
+| AC9 portable consumer CI | scripts/consumer_checks.sh, .github/workflows/consumer.yml | both local matrices PASS; hosted evidence recorded in issue closeout |
 | AC10 validation/examples/migration | make validate, ExampleStreamingTarget, migration guide | make validate PASS; example PASS |
 
 Published matrix: root v0.3.0, stream SDK v0.15.0, evaluation SDK v0.9.0,
@@ -339,3 +339,19 @@ source matrix commands both exited successfully after remediation. Full root
 `make validate` exited successfully; updated root formatter isolation passed
 `make config-check fmt-check`. Hosted CI/release/closeout are verified separately
 when publishing the accepted commit.
+
+Hosted CI initially exposed older default-branch SDK APIs: stream source
+`860146dd6e74154abbaad415d9a44e112a05c16d` and evaluation source
+`bd61e299a084880437fc79639c2ea14ad75b54a5` lacked required protocols. The source
+workflow now explicitly checks out the same audited SHAs used by the local source
+matrix above, both available on their remotes. The consumer command performs a
+capability preflight and rejects missing Stream/CaptureReport/EvaluationRecorder
+protocols as UNSUPPORTED (exit 2), declaring that semantic fixtures did not run.
+No compatibility layer or reduced semantic suite was introduced. Hosted CI proof
+for the accepted source and published sets is recorded in the issue closeout.
+
+The hosted consumer matrix includes a distinct `unsupported` negative case using
+those older remote snapshots. It must receive exit 2 and the explicit declaration
+that semantic fixtures were not executed; unexpected success or another failure
+class fails that contract test. Supported source/published jobs still require the
+entire semantic suite, format/lint/vet and race checks.

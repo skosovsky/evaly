@@ -34,3 +34,16 @@ Core не импортирует optional SDK module. Target синхронно 
 Логи `/tmp/evaly-consumer-published.log` и `/tmp/evaly-consumer-source.log` содержат PASS всех существующих fixtures. Лог `/tmp/evaly-validate.log` просмотрен; окончательный exit status root validation подтверждает исполняющий агент. Повторный независимый полный suite на финальном export.go закрывает оба дефекта. Финальные consumer matrix подтверждает исполняющий агент по их завершению.
 
 Отсутствие дополнительных findings не означает доказанное отсутствие любых ошибок. Адресная повторная проверка выполнена; успешный релиз и внешние closeout действия проверяет исполняющий агент отдельно.
+
+## Повторная проверка consumer CI после hosted failure
+
+Проверены финальные `scripts/consumer_checks.sh`, `.github/workflows/consumer.yml` и документация reproducibility; runtime Go-код после предыдущей приёмки не изменён. Новых дефектов не найдено.
+
+- `bash -n scripts/consumer_checks.sh` — PASS.
+- Source workflow закрепляет проверенные полные commit identities `5607832ee869f63bc3c6768a02ed60a019cd691e` и `7ef9f89638f29408f50996236d46d6c105dc8183`. Они совпадают с HEAD локального source fixture. Изменение удалённой default branch не меняет этот semantic test set.
+- Отдельный negative job использует полные старые commit identities `860146dd6e74154abbaad415d9a44e112a05c16d` и `bd61e299a084880437fc79639c2ea14ad75b54a5`. Независимый запуск script на этих checkout завершился exit 2; `/tmp/evaly-review-unsupported.log` содержит `UNSUPPORTED dependency API: github.com/skosovsky/prompty.Stream; semantic fixtures were not executed`.
+- Negative job принимает только exit 2 совместно с явным diagnostic; неожиданная успешная проверка либо иной отказ не дают PASS. Это проверка unsupported outcome, а не заявление о пройденных semantic fixtures.
+- Supported source/published jobs продолжают запускать полный прежний format/lint/vet/race suite. Последние логи `/tmp/evaly-consumer-source.log` и `/tmp/evaly-consumer-published.log` содержат PASS, включая исправленные export regression tests.
+- Capability preflight следует после module resolution/reporting. Package resolution failures остаются ошибками; published matrix запрещает replacements, GOWORK=off сохраняется. Script работает в disposable directory, удаляет её через trap и не меняет checked-in dependency pins. В workflow нет встроенных secrets или live provider credentials.
+
+Hosted CI на итоговом новом docs/CI commit и release/issue closeout остаются отдельными последующими проверками исполняющего агента; эта независимая проверка их не объявляет завершёнными.

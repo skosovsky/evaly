@@ -18,7 +18,7 @@ The published matrix uses the committed dependency pins, with no replacements
 and `GOWORK=off`. The source matrix creates a disposable consumer module and uses
 the current root checkout plus the supplied SDK checkout directory. It prints
 resolved module identities, SDK commit hashes and source dirtiness. CI obtains
-fresh SDK checkouts; all fixtures use local deterministic sources/in-memory SDK
+fresh checkouts of the audited source SHAs declared in its workflow; all fixtures use local deterministic sources/in-memory SDK
 exporters, not credentials or a live provider. Private production transport and
 live model accuracy are not covered. Core `make validate` deliberately does not
 traverse this directory; optional CI runs format checks, lint, vet and race tests.
@@ -96,3 +96,16 @@ Retry partial or ambiguous delivery with the same policy and IDs. Reusing an ID
 with changed projected content is a conflict. Delivery success means SDK
 acceptance, not a durable collector acknowledgment. Preserve artifact verdicts
 regardless of delivery. Artifact privacy is independent of sink privacy.
+
+## Unsupported source sets
+
+The audited SDK source SHAs are pinned in the workflow rather than inferred from
+moving default branches. At implementation time those default branches had older
+APIs than the audited snapshots and published SDK tags: they lacked Stream and
+EvaluationRecorder. Supplying such a source directory returns exit 2 with
+`UNSUPPORTED dependency API` before semantic fixtures; it is not a successful
+stream/evaluation integration check. Resolution/infrastructure errors remain
+failures. CI also runs a separately named unsupported matrix case pinned to these old
+source snapshots and asserts the explicit exit code/message; it does not claim
+semantic fixture success for that case. Update source pins only after running the full semantic matrix against
+the intended new source set. This keeps the tested source provenance reproducible.

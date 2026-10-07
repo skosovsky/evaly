@@ -6,7 +6,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        dependencies: [published, source]
+        dependencies: [published, source, unsupported]
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -16,17 +16,37 @@ jobs:
           go-version-file: evaly/go.mod
           cache-dependency-path: evaly/integrations/recipes/go.sum
       - uses: actions/checkout@v7.0.1
-        if: matrix.dependencies == 'source'
+        if: matrix.dependencies != 'published'
         with:
           repository: skosovsky/prompty
+          # Audited source snapshot: reproducible independently of default-branch history.
+          ref: ${{ matrix.dependencies == 'unsupported' && '860146dd6e74154abbaad415d9a44e112a05c16d' || '5607832ee869f63bc3c6768a02ed60a019cd691e' }}
           path: prompty
       - uses: actions/checkout@v7.0.1
-        if: matrix.dependencies == 'source'
+        if: matrix.dependencies != 'published'
         with:
           repository: skosovsky/metry
+          ref: ${{ matrix.dependencies == 'unsupported' && 'bd61e299a084880437fc79639c2ea14ad75b54a5' || '7ef9f89638f29408f50996236d46d6c105dc8183' }}
           path: metry
       - name: Semantic fixtures and actual dependency identities
         working-directory: evaly
         env:
           DEPENDENCIES: ${{ matrix.dependencies }}
-        run: bash scripts/consumer_checks.sh "$DEPENDENCIES" ..
+        run: |
+          if [ "$DEPENDENCIES" = unsupported ]; then
+            if bash scripts/consumer_checks.sh source .. > consumer-unsupported.log 2>&1; then
+              cat consumer-unsupported.log
+              printf 'Expected an unsupported API result, received success\n' >&2
+              exit 1
+            else
+              result=$?
+            fi
+            cat consumer-unsupported.log
+            test "$result" -eq 2
+            case "$(cat consumer-unsupported.log)" in
+              *"UNSUPPORTED dependency API:"*"semantic fixtures were not executed"*) ;;
+              *) exit 1 ;;
+            esac
+          else
+            bash scripts/consumer_checks.sh "$DEPENDENCIES" ..
+          fi

@@ -75,3 +75,9 @@ Privacy for artifacts and exported records is independent of telemetry sampling.
 Source and published dependency matrices run the same semantic tests. No network
 credentials are required. SDK test transports prove contract composition, not
 production service availability or model accuracy.
+
+The source CI matrix pins the audited source SHAs, independently of each SDK's
+moving default branch. A source checkout lacking required SDK protocols is
+explicitly unsupported (consumer command exit 2, semantic fixtures not executed),
+never a successful integration measurement. Published pins still run the full
+suite without replacements. Updating source pins requires full semantic checks.

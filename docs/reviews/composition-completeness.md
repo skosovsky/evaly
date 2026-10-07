@@ -5,7 +5,7 @@ Review is technical acceptance before release/closeout. Source: current worktree
 including untracked optional module, workflow and consumer script. Unrelated user
 files were excluded. Final remediation and both dependency matrices have been independently inspected.
 Reviewed implementation fingerprint (SHA-256 over Makefile, consumer script/workflow,
-optional Go sources and go.mod/go.sum): `aa3be57f5abc3aa64716a33cb308c235d040105b9a7e2c3f19dad34e653709a8`.
+optional Go sources and go.mod/go.sum): `d770f422d2628d9c454dee8b085611bf0d62c943df4f5a994c9a3f813b347e86`.
 
 ## Final result
 
@@ -24,7 +24,7 @@ counted. No core Go source/API/schema changes occur in the reviewed diff.
 | AC6 | Complete | CaptureConservativeAndRequiredFailure covers sampling, gap, truncation, failed/missing source report and record rejection; AbsenceGrader is insufficient evidence. OutcomeIndependentOfConfidentText distinguishes answer text from real effect. Failure tests retain permitted partial event. |
 | AC7 | Complete | Roundtrip test proves default disk artifacts, nested payloads/references and SDK spans marker-free; terminal tests cover partial evidence/diagnostics. IndependentExportPrivacyAndSampling separately preserves a host-allowed opaque sensitive reference in restricted artifact, removes it in export projection, checks all delivered DTOs even when sampling off and actual spans when on, and proves source artifact unchanged. Final matrices PASS. |
 | AC8 | Complete | Individual assertion/metric/unmeasured records, full metric semantics in sidecar; roundtrip verifies real created/ended SDK evaluation spans, partial accepted-then-ambiguous delivery retry, changed-content conflict and unchanged verdict. Concurrent dedup and illegal projection tests; repeated/policy-dependent IDs and absent scores for unavailable/error. |
-| AC9 | Complete | Consumer script copies portable module, disables workspace, enforces published no replacements, prints actual resolved identities and dirty source status; workflow checks out clean SDK sources. Both semantic matrix logs PASS, no credentials or private audit materials required. Hosted run is subsequent publication evidence, not a substitute for local matrix. |
+| AC9 | Complete | Consumer script copies portable module, disables workspace, enforces published no replacements, prints actual resolved identities and dirty source status; workflow checks out clean audited SDK SHAs matching the source matrix, plus a distinct legacy unsupported snapshot. Both final supported semantic matrix logs PASS, no credentials or private audit materials required. Capability preflight rejects missing SDK protocols with explicit exit 2 and no-semantic-execution message; negative job requires that outcome and never credits it as full semantic PASS. |
 | AC10 | Complete | make validate completed successfully; final root config/format check passed after optional-module exclusion changes. Both final consumer matrices run fmt/lint/vet and race tests including remediation, all PASS. ExampleStreamingTarget and migration show exact host changes. No core schema change or replaced legacy path exists. |
 
 ## Boundaries and original scope
@@ -51,3 +51,22 @@ Both final logs include PASS for revised judge/privacy fixtures and new invalid-
 and foreign-identity regressions. Registry validates semantic sidecar before hashing/
 recording; sink rejects identity substitutions before any delivery while allowing
 privacy removal. No unresolved completeness findings remain.
+
+## Hosted source-matrix correction audit
+
+Initial hosted source checkout used remote default branches containing older API
+than the audited local source set. Final workflow pins the same audited source
+SHAs used locally: stream `5607832ee869f63bc3c6768a02ed60a019cd691e`, evaluation
+`7ef9f89638f29408f50996236d46d6c105dc8183`. This preserves the requested current
+audited source versus published matrix; no semantic scenario was removed.
+
+An additional negative matrix pins legacy remote snapshots and expects exactly
+exit 2 plus `UNSUPPORTED dependency API` and `semantic fixtures were not executed`.
+The local unsupported log confirms missing Stream capability and Error 2; source
+and published final logs again confirm full race suite PASS. Missing capability
+never becomes successful full-composition validation. Source checkout, dependency
+identities and limitations are documented explicitly in acceptance and recipes.
+Core hosted Go CI run [37598383429](https://github.com/skosovsky/evaly/actions/runs/37598383429)
+was independently queried and is completed/success. Final hosted consumer jobs
+remain publication verification performed by the primary agent. Completeness
+remains 100% (10/10 AC); no new completeness finding from the CI correction.
