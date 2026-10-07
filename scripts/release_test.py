@@ -41,6 +41,19 @@ class ReleaseFixture(unittest.TestCase):
         else:
             source = (ROOT / 'scripts/release.sh').read_text()
         self.write('release.sh', source)
+        if not BASELINE:
+            for name in ('checks.py','artifacts.py'):
+                self.write('scripts/'+name,(ROOT/'scripts'/name).read_text())
+            self.write('checks/modulezip.go.txt',(ROOT/'checks/modulezip.go.txt').read_text())
+            self.write('checks/registry.json',(ROOT/'checks/registry.json').read_text())
+            # The fixture supplies a synthetic gate, never a production bypass.
+            self.write('Makefile', 'check:\n\t@python3 fixture_gate.py\n')
+            self.write('fixture_gate.py', 'import os,pathlib\n'
+                       'if os.environ.get("FIXTURE_GATE_FAIL"): raise SystemExit(17)\n'
+                       'if os.environ.get("FIXTURE_SOURCE_MUTATE"): pathlib.Path(os.environ["FIXTURE_SOURCE_MUTATE"]).write_text("module changed.invalid/source\\n\\ngo 1.27.1\\n")\n'
+                       'if os.environ.get("FIXTURE_IGNORED"): pathlib.Path("ignored.go").write_text("package fixture\\n")\n'
+                       'if os.environ.get("FIXTURE_MUTATE"): pathlib.Path("go.mod").write_text("module changed.invalid/fixture\\n\\ngo 1.27.1\\n")\n')
+            self.write('scripts/verify_release.py','import os\nraise SystemExit(18 if os.environ.get("FIXTURE_PUBLIC_FAIL") else 0)\n')
         self.git('add', '.')
         self.git('commit', '-m', 'fixture')
         run(['git', 'init', '--bare', str(self.remote)], self.base, env=self.env)
@@ -72,7 +85,7 @@ class ReleaseFixture(unittest.TestCase):
                    self.base, env=self.env).stdout.splitlines()
 
     def clean_temps(self):
-        self.assertEqual(list(self.base.glob('evaly-release.*')), [])
+        self.assertEqual(list(self.base.glob('evaly-release.????????')), [])
 
     def require_current(self):
         if BASELINE:
@@ -217,7 +230,7 @@ class ReleaseFixture(unittest.TestCase):
         # Assert
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('Remote status unknown', result.stderr)
-        retained = list(self.base.glob('evaly-release.*'))
+        retained = list(self.base.glob('evaly-release.????????'))
         self.assertEqual(len(retained), 1)
         self.assertEqual(run(['git', 'tag', '-l'], retained[0], env=self.env).stdout.strip(), 'v0.0.1')
         self.assertEqual(self.state(), before)
@@ -276,7 +289,78 @@ class ReleaseFixture(unittest.TestCase):
         self.assertIn('Observed remote ref:', result.stderr)
         self.assertEqual(self.tags(), ['v0.0.1'])
         self.assertEqual(self.state(), before)
-        self.assertEqual(len(list(self.base.glob('evaly-release.*'))), 1)
+        self.assertEqual(len(list(self.base.glob('evaly-release.????????'))), 1)
+
+    def test_required_gate_failure_forbids_ref_mutations(self):
+        self.require_current()
+        # Arrange
+        self.env['FIXTURE_GATE_FAIL']='1'
+        before=self.state()
+        # Act
+        result=self.release()
+        # Assert
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('required candidate gate failed',result.stderr)
+        self.assertEqual(self.tags(),[])
+        self.assertEqual(self.state(),before)
+        self.clean_temps()
+
+    def test_mutation_after_gate_forbids_publication(self):
+        self.require_current()
+        # Arrange
+        self.env['FIXTURE_MUTATE']='1'
+        before=self.state()
+        # Act
+        result=self.release()
+        # Assert
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('candidate changed after check',result.stderr)
+        self.assertEqual(self.tags(),[])
+        self.assertEqual(self.state(),before)
+        self.clean_temps()
+
+    def test_source_mutation_during_gate_forbids_publication(self):
+        self.require_current()
+        # Arrange: another writer changes caller source during the isolated gate.
+        self.env['FIXTURE_SOURCE_MUTATE']=str(self.repo/'go.mod')
+        before_head=self.git('rev-parse','HEAD').stdout
+        # Act
+        result=self.release()
+        # Assert: the writer's edit is preserved, but no release refs may be published.
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('committed source changed',result.stderr)
+        self.assertEqual(self.tags(),[])
+        self.assertEqual(self.git('rev-parse','HEAD').stdout,before_head)
+        self.assertIn('changed.invalid/source',(self.repo/'go.mod').read_text())
+
+    def test_ignored_input_after_gate_forbids_publication(self):
+        self.require_current()
+        # Arrange
+        self.write('.gitignore','ignored.go\n')
+        self.git('add','.gitignore'); self.git('commit','-m','ignored fixture')
+        self.env['FIXTURE_IGNORED']='1'
+        before=self.state()
+        # Act
+        result=self.release()
+        # Assert
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('candidate changed after check',result.stderr)
+        self.assertEqual(self.tags(),[])
+        self.assertEqual(self.state(),before)
+
+    def test_postpublication_failure_is_not_success(self):
+        self.require_current()
+        # Arrange
+        self.env['FIXTURE_PUBLIC_FAIL']='1'
+        before=self.state()
+        # Act
+        result=self.release()
+        # Assert
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('published but verification failed',result.stderr)
+        self.assertEqual(self.tags(),['v0.0.1'])
+        self.assertEqual(self.state(),before)
+        self.assertEqual(len(list(self.base.glob('evaly-release.????????'))),1)
 
     def test_global_tag_signing_cannot_change_ref_type(self):
         self.require_current()

@@ -1,0 +1,558 @@
+{
+  "schema": 1,
+  "go": "1.27.1",
+  "linter": "v2.14.0",
+  "linux_image": "golang:1.27.1-bookworm",
+  "modules": {
+    ".": "release",
+    "contracttest": "test",
+    "integrations/recipes": "consumer"
+  },
+  "release_modules": [
+    "."
+  ],
+  "peers": {
+    "supported": {
+      "prompty": "5607832ee869f63bc3c6768a02ed60a019cd691e",
+      "metry": "7ef9f89638f29408f50996236d46d6c105dc8183"
+    },
+    "unsupported": {
+      "prompty": "860146dd6e74154abbaad415d9a44e112a05c16d",
+      "metry": "bd61e299a084880437fc79639c2ea14ad75b54a5"
+    }
+  },
+  "unsupported_diagnostic": "UNSUPPORTED dependency API: github.com/skosovsky/prompty.Stream; semantic fixtures were not executed",
+  "lanes": [
+    {
+      "id": "test-root",
+      "profiles": [
+        "test",
+        "check",
+        "fast"
+      ],
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout=30m",
+        "./..."
+      ],
+      "cwd": ".",
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1"
+      ]
+    },
+    {
+      "id": "config-root",
+      "profiles": [
+        "lint",
+        "check"
+      ],
+      "command": [
+        "go",
+        "run",
+        "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0",
+        "config",
+        "verify"
+      ],
+      "cwd": ".",
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1",
+        "network: pinned Go tools and module/checksum proxy"
+      ]
+    },
+    {
+      "id": "format-root",
+      "profiles": [
+        "lint",
+        "check"
+      ],
+      "command": [
+        "go",
+        "run",
+        "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0",
+        "fmt",
+        "--diff"
+      ],
+      "cwd": ".",
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1",
+        "network: pinned Go tools and module/checksum proxy"
+      ]
+    },
+    {
+      "id": "lint-root",
+      "profiles": [
+        "lint",
+        "check"
+      ],
+      "command": [
+        "go",
+        "run",
+        "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0",
+        "run",
+        "--allow-serial-runners",
+        "--max-issues-per-linter=0",
+        "--max-same-issues=0",
+        "--uniq-by-line=false",
+        "./..."
+      ],
+      "cwd": ".",
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1",
+        "network: pinned Go tools and module/checksum proxy"
+      ]
+    },
+    {
+      "id": "vet-root",
+      "profiles": [
+        "check"
+      ],
+      "command": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "cwd": ".",
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1"
+      ]
+    },
+    {
+      "id": "test-contract",
+      "profiles": [
+        "test",
+        "check",
+        "fast"
+      ],
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout=30m",
+        "./..."
+      ],
+      "cwd": "contracttest",
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1"
+      ]
+    },
+    {
+      "id": "config-contract",
+      "profiles": [
+        "lint",
+        "check"
+      ],
+      "command": [
+        "go",
+        "run",
+        "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0",
+        "config",
+        "verify"
+      ],
+      "cwd": "contracttest",
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1",
+        "network: pinned Go tools and module/checksum proxy"
+      ]
+    },
+    {
+      "id": "format-contract",
+      "profiles": [
+        "lint",
+        "check"
+      ],
+      "command": [
+        "go",
+        "run",
+        "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0",
+        "fmt",
+        "--diff"
+      ],
+      "cwd": "contracttest",
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1",
+        "network: pinned Go tools and module/checksum proxy"
+      ]
+    },
+    {
+      "id": "lint-contract",
+      "profiles": [
+        "lint",
+        "check"
+      ],
+      "command": [
+        "go",
+        "run",
+        "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0",
+        "run",
+        "--allow-serial-runners",
+        "--max-issues-per-linter=0",
+        "--max-same-issues=0",
+        "--uniq-by-line=false",
+        "./..."
+      ],
+      "cwd": "contracttest",
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1",
+        "network: pinned Go tools and module/checksum proxy"
+      ]
+    },
+    {
+      "id": "vet-contract",
+      "profiles": [
+        "check"
+      ],
+      "command": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "cwd": "contracttest",
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1"
+      ]
+    },
+    {
+      "id": "config-recipes",
+      "profiles": [
+        "lint",
+        "check"
+      ],
+      "command": [
+        "go",
+        "run",
+        "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0",
+        "config",
+        "verify"
+      ],
+      "cwd": "integrations/recipes",
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1",
+        "network: pinned Go tools and module/checksum proxy"
+      ]
+    },
+    {
+      "id": "format-recipes",
+      "profiles": [
+        "lint",
+        "check"
+      ],
+      "command": [
+        "go",
+        "run",
+        "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0",
+        "fmt",
+        "--diff"
+      ],
+      "cwd": "integrations/recipes",
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1",
+        "network: pinned Go tools and module/checksum proxy"
+      ]
+    },
+    {
+      "id": "lint-recipes",
+      "profiles": [
+        "lint",
+        "check"
+      ],
+      "command": [
+        "go",
+        "run",
+        "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0",
+        "run",
+        "--allow-serial-runners",
+        "--max-issues-per-linter=0",
+        "--max-same-issues=0",
+        "--uniq-by-line=false",
+        "./..."
+      ],
+      "cwd": "integrations/recipes",
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1",
+        "network: pinned Go tools and module/checksum proxy"
+      ]
+    },
+    {
+      "id": "vet-recipes",
+      "profiles": [
+        "check"
+      ],
+      "command": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "cwd": "integrations/recipes",
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1"
+      ]
+    },
+    {
+      "id": "script-tests",
+      "profiles": [
+        "test",
+        "check"
+      ],
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "scripts",
+        "-p",
+        "*_test.py",
+        "-v"
+      ],
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1",
+        "Python 3",
+        "git",
+        "local bare Git origins (no public mutation)"
+      ]
+    },
+    {
+      "id": "generation",
+      "profiles": [
+        "check"
+      ],
+      "command": [
+        "python3",
+        "scripts/checks.py",
+        "operation",
+        "generation"
+      ],
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1"
+      ]
+    },
+    {
+      "id": "example-calculation",
+      "profiles": [
+        "check"
+      ],
+      "command": [
+        "go",
+        "run",
+        "./examples/calculation"
+      ],
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1"
+      ]
+    },
+    {
+      "id": "example-crm",
+      "profiles": [
+        "check"
+      ],
+      "command": [
+        "go",
+        "run",
+        "./examples/crm"
+      ],
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1"
+      ]
+    },
+    {
+      "id": "example-protocols",
+      "profiles": [
+        "check"
+      ],
+      "command": [
+        "go",
+        "run",
+        "./examples/protocols"
+      ],
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1"
+      ]
+    },
+    {
+      "id": "example-http",
+      "profiles": [
+        "check"
+      ],
+      "command": [
+        "go",
+        "run",
+        "./examples/http"
+      ],
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1"
+      ]
+    },
+    {
+      "id": "example-observation",
+      "profiles": [
+        "check"
+      ],
+      "command": [
+        "go",
+        "run",
+        "./examples/observation"
+      ],
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1"
+      ]
+    },
+    {
+      "id": "example-optimizer",
+      "profiles": [
+        "check"
+      ],
+      "command": [
+        "go",
+        "run",
+        "./examples/optimizer"
+      ],
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1"
+      ]
+    },
+    {
+      "id": "example-integration",
+      "profiles": [
+        "check"
+      ],
+      "command": [
+        "go",
+        "run",
+        "./examples/integration"
+      ],
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1"
+      ]
+    },
+    {
+      "id": "consumer-published",
+      "profiles": [
+        "test",
+        "check"
+      ],
+      "command": [
+        "python3",
+        "scripts/checks.py",
+        "operation",
+        "consumer-published"
+      ],
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1",
+        "network: pinned Go tools and module/checksum proxy"
+      ]
+    },
+    {
+      "id": "consumer-source",
+      "profiles": [
+        "test",
+        "check"
+      ],
+      "command": [
+        "python3",
+        "scripts/checks.py",
+        "operation",
+        "consumer-source"
+      ],
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1",
+        "network: pinned Go tools and module/checksum proxy",
+        "git",
+        "network: exact GitHub peer commits"
+      ]
+    },
+    {
+      "id": "consumer-candidate",
+      "profiles": [
+        "test",
+        "check"
+      ],
+      "command": [
+        "python3",
+        "scripts/checks.py",
+        "operation",
+        "consumer-candidate"
+      ],
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1",
+        "network: pinned Go tools and module/checksum proxy",
+        "git",
+        "network: exact GitHub peer commits"
+      ]
+    },
+    {
+      "id": "consumer-unsupported",
+      "profiles": [
+        "test",
+        "check"
+      ],
+      "command": [
+        "python3",
+        "scripts/checks.py",
+        "operation",
+        "consumer-unsupported"
+      ],
+      "tags": [],
+      "prerequisites": [
+        "Go 1.27.1",
+        "network: pinned Go tools and module/checksum proxy",
+        "git",
+        "network: exact GitHub peer commits"
+      ]
+    },
+    {
+      "id": "linux",
+      "profiles": [
+        "test",
+        "check"
+      ],
+      "command": [
+        "python3",
+        "scripts/checks.py",
+        "operation",
+        "linux"
+      ],
+      "tags": [],
+      "prerequisites": [
+        "Docker daemon",
+        "network: container image and apt repositories",
+        "Linux toolchain/services in checks/Dockerfile"
+      ]
+    }
+  ],
+  "manual": {
+    "live-provider": "Requires explicitly supplied provider credentials; LLM quality is outside hermetic gate",
+    "performance": "make bench/fuzz; exploratory nonrelease measurements",
+    "historical-repro": "scripts/*_baseline_repro.py and release_test.py --baseline reproduce old defects, not current acceptance"
+  },
+  "module_zip_tool": "golang.org/x/mod v0.41.0"
+}

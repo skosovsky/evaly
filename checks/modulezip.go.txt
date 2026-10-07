@@ -1,0 +1,14 @@
+package main
+
+import (
+ "os"
+ "golang.org/x/mod/module"
+ "golang.org/x/mod/zip"
+)
+
+func main() {
+ archive, err := os.Create(os.Args[4])
+ if err != nil { panic(err) }
+ defer archive.Close()
+ if err := zip.CreateFromDir(archive, module.Version{Path: os.Args[1], Version: os.Args[2]}, os.Args[3]); err != nil { panic(err) }
+}

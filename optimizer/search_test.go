@@ -73,7 +73,8 @@ func searchConfig(t testing.TB, budget float64) optimizer.Config[recipe, fixture
 		Algorithm:         "enumeration-v1",
 		StopRevision:      "bounded-v1",
 		MaximumCandidates: 2,
-		Timeout:           time.Second,
+		// Semantic fixtures stop by round/candidate limits; race instrumentation is not a performance test.
+		Timeout: time.Minute,
 		Split: optimizer.Split[fixtures.Calculation, int]{
 			Revision:    "split-v1",
 			Training:    training,
@@ -258,5 +259,35 @@ func TestInvalidObjectivePreventsPaidDispatch(t *testing.T) {
 		if !errors.Is(err, evaly.ErrInvalid) || calls != 0 {
 			t.Fatal(err, calls)
 		}
+	}
+}
+
+func TestConfiguredTimeoutStopsProposalAndSettlesUsage(t *testing.T) {
+	// Arrange: the provider blocks on the configured deadline, without sleeps or live calls.
+	c := searchConfig(t, 30)
+	c.Timeout = time.Second
+	c.ProposalUnits = 3
+	c.Proposal = optimizer.ProposalFunc[recipe, fixtures.Calculation, int]{
+		Identity: "timeout-proposal-v1",
+		Generate: func(ctx context.Context, _ optimizer.ProposalRequest[fixtures.Calculation, int]) (optimizer.ProposalResult[recipe], error) {
+			<-ctx.Done()
+			return optimizer.ProposalResult[recipe]{
+				Candidates: nil,
+				Usage:      evaly.Usage{Known: true, Units: 2},
+			}, ctx.Err()
+		},
+	}
+	evaluations := 0
+	c.Evaluate = func(context.Context, optimizer.EvaluationRequest[recipe, fixtures.Calculation, int]) (evaly.Experiment, error) {
+		evaluations++
+		return evaly.Experiment{}, errors.New("deadline must prohibit evaluation")
+	}
+	// Act.
+	result, err := optimizer.Search(context.Background(), c)
+	// Assert: the real configured deadline stops dispatch without discarding paid usage.
+	if err != nil || result.State != "stopped" || result.Reason != "deadline" || evaluations != 0 ||
+		result.Holdout != nil || result.ProposalUsage != (evaly.Usage{Known: true, Units: 2}) ||
+		len(result.RoundHistory) != 1 {
+		t.Fatal(err, evaluations, result)
 	}
 }

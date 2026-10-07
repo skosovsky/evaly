@@ -13,13 +13,15 @@ import (
 	"github.com/skosovsky/evaly"
 )
 
+const exportRevision = "export"
+
 // EvaluationRecord retains metric semantics the telemetry DTO cannot represent.
 // Artifact remains authoritative; this sidecar must be retained by the host.
 type EvaluationRecord struct {
-	Evaluation  genai.Evaluation
-	Kind        string
-	GradeStatus evaly.GradeStatus
-	Metric      *evaly.Metric
+	Evaluation  genai.Evaluation  `json:"Evaluation"`
+	Kind        string            `json:"Kind"`
+	GradeStatus evaly.GradeStatus `json:"GradeStatus"`
+	Metric      *evaly.Metric     `json:"Metric"`
 }
 
 func identity(value any) string {
@@ -41,40 +43,7 @@ func ProjectEvaluations(e evaly.Experiment, policy string) ([]EvaluationRecord, 
 		return nil, err
 	}
 	records := make([]EvaluationRecord, 0)
-	appendResult := func(trial evaly.TrialRecord, g evaly.Grade, kind, name string, score *float64, outcome string, metric *evaly.Metric) {
-		status := genai.EvaluationSkipped
-		switch g.Status {
-		case evaly.Scored:
-			status = genai.EvaluationSucceeded
-		case evaly.GraderError:
-			status = genai.EvaluationFailed
-		case evaly.NotApplicable, evaly.InsufficientEvidence:
-			status = genai.EvaluationSkipped
-		}
-		records = append(records, EvaluationRecord{
-			Kind: kind, GradeStatus: g.Status, Metric: metric,
-			Evaluation: genai.Evaluation{
-				ObservationID: identity(
-					[]any{record.Manifest.ID, record.Manifest.Revision, trial.ID, g.Revision, kind, name, policy},
-				),
-				Metric:  genai.EvaluationMetric(name),
-				Status:  status,
-				Score:   score,
-				Outcome: outcome,
-				Association: genai.EvaluationAssociation{
-					ExperimentID:     record.Manifest.ID,
-					DatasetReference: record.Manifest.Dataset,
-					CaseID:           trial.CaseID,
-					TrialID:          trial.ID,
-				},
-				Provenance: genai.EvaluationProvenance{
-					TargetReference: record.Manifest.Provenance.Target,
-					GraderReference: identity(g.Revision),
-				},
-				ArtifactReference: record.Manifest.Revision,
-			},
-		})
-	}
+
 	for _, trial := range record.Trials {
 		for _, g := range trial.Grades {
 			for _, a := range g.Assertions {
@@ -82,29 +51,92 @@ func ProjectEvaluations(e evaly.Experiment, policy string) ([]EvaluationRecord, 
 				if a.Pass {
 					outcome = "pass"
 				}
-				appendResult(trial, g, "assertion", a.Name, nil, outcome, nil)
+				records = append(
+					records,
+					projectResult(record, policy, trial, g, "assertion", a.Name, nil, outcome, nil),
+				)
 			}
 			for _, m := range g.Metrics {
 				value := m.Value
-				appendResult(trial, g, "metric", m.Name, &value, "", &m)
+				records = append(records, projectResult(record, policy, trial, g, "metric", m.Name, &value, "", &m))
 			}
 			if g.Status != evaly.Scored {
-				appendResult(trial, g, "status", "measurement", nil, "", nil)
+				records = append(
+					records,
+					projectResult(record, policy, trial, g, "status", "measurement", nil, "", nil),
+				)
 			}
 		}
 		for _, g := range trial.SkippedGraders {
-			appendResult(
+			records = append(records, projectResult(
+				record,
+				policy,
 				trial,
-				evaly.Grade{Revision: g.Revision, Status: evaly.InsufficientEvidence},
+				evaly.Grade{
+					Revision:     g.Revision,
+					Status:       evaly.InsufficientEvidence,
+					Dispatched:   false,
+					Metrics:      nil,
+					Assertions:   nil,
+					Reasons:      nil,
+					EvidenceRefs: nil,
+					Usage:        evaly.Usage{Known: false, Units: 0},
+				},
 				"status",
 				"measurement",
 				nil,
 				"",
 				nil,
-			)
+			))
 		}
 	}
 	return records, nil
+}
+
+func projectResult(
+	record evaly.ExperimentRecord,
+	policy string,
+	trial evaly.TrialRecord,
+	g evaly.Grade,
+	kind, name string,
+	score *float64,
+	outcome string,
+	metric *evaly.Metric,
+) EvaluationRecord {
+	status := genai.EvaluationSkipped
+	switch g.Status {
+	case evaly.Scored:
+		status = genai.EvaluationSucceeded
+	case evaly.GraderError:
+		status = genai.EvaluationFailed
+	case evaly.NotApplicable, evaly.InsufficientEvidence:
+		status = genai.EvaluationSkipped
+	}
+	return EvaluationRecord{
+		Kind: kind, GradeStatus: g.Status, Metric: metric,
+		Evaluation: genai.Evaluation{
+			ObservationID: identity(
+				[]any{record.Manifest.ID, record.Manifest.Revision, trial.ID, g.Revision, kind, name, policy},
+			),
+			Metric:         genai.EvaluationMetric(name),
+			Status:         status,
+			Score:          score,
+			Outcome:        outcome,
+			Reasoning:      "",
+			TraceReference: nil,
+			Association: genai.EvaluationAssociation{
+				ExperimentID:     record.Manifest.ID,
+				DatasetReference: record.Manifest.Dataset,
+				CaseID:           trial.CaseID,
+				TrialID:          trial.ID,
+			},
+			Provenance: genai.EvaluationProvenance{
+				TargetReference: record.Manifest.Provenance.Target,
+				GraderReference: identity(g.Revision),
+			},
+			ArtifactReference: record.Manifest.Revision,
+		},
+	}
 }
 
 // EvaluationSink requires both a privacy projection and a host atomic delivery
@@ -154,24 +186,9 @@ func (s EvaluationSink) Deliver(ctx context.Context, d evaly.DeliveryRecord) err
 		if err = ctx.Err(); err != nil {
 			return err
 		}
-		// JSON copy prevents the projection changing source score/metric by pointer.
-		raw, marshalErr := json.Marshal(original)
-		if marshalErr != nil {
-			return evaly.ErrInvalid
-		}
-		var detached EvaluationRecord
-		if json.Unmarshal(raw, &detached) != nil {
-			return evaly.ErrInvalid
-		}
-		projected, projectErr := s.Project(ctx, detached)
+		projected, projectErr := s.projectMeasurement(ctx, original)
 		if projectErr != nil {
 			return projectErr
-		}
-		if !sameMeasurement(original, projected) {
-			return evaly.ErrConflict
-		}
-		if err = validateRecord(projected); err != nil {
-			return evaly.ErrInvalid
 		}
 		results[i] = projected
 	}
@@ -184,6 +201,29 @@ func (s EvaluationSink) Deliver(ctx context.Context, d evaly.DeliveryRecord) err
 		}
 	}
 	return nil
+}
+
+func (s EvaluationSink) projectMeasurement(ctx context.Context, original EvaluationRecord) (EvaluationRecord, error) {
+	// JSON copy prevents the projection changing source score/metric by pointer.
+	raw, marshalErr := json.Marshal(original)
+	if marshalErr != nil {
+		return EvaluationRecord{}, evaly.ErrInvalid
+	}
+	var detached EvaluationRecord
+	if json.Unmarshal(raw, &detached) != nil {
+		return EvaluationRecord{}, evaly.ErrInvalid
+	}
+	projected, projectErr := s.Project(ctx, detached)
+	if projectErr != nil {
+		return EvaluationRecord{}, projectErr
+	}
+	if !sameMeasurement(original, projected) {
+		return EvaluationRecord{}, evaly.ErrConflict
+	}
+	if validationErr := validateRecord(projected); validationErr != nil {
+		return EvaluationRecord{}, evaly.ErrInvalid
+	}
+	return projected, nil
 }
 
 func sameMeasurement(a, b EvaluationRecord) bool {
@@ -216,9 +256,19 @@ func validateRecord(r EvaluationRecord) error {
 		}
 		return evaly.ValidateGrade(
 			evaly.Grade{
-				Revision: evaly.GraderRevision{ID: "export", Implementation: "export", Rubric: "export"},
-				Status:   evaly.Scored,
-				Metrics:  []evaly.Metric{*r.Metric},
+				Revision: evaly.GraderRevision{
+					ID:             exportRevision,
+					Implementation: exportRevision,
+					Rubric:         exportRevision,
+					Model:          "", Prompt: "", Configuration: "",
+				},
+				Status:       evaly.Scored,
+				Metrics:      []evaly.Metric{*r.Metric},
+				Dispatched:   false,
+				Assertions:   nil,
+				Reasons:      nil,
+				EvidenceRefs: nil,
+				Usage:        evaly.Usage{Known: false, Units: 0},
 			},
 		)
 	case "assertion":
@@ -240,6 +290,8 @@ func validateRecord(r EvaluationRecord) error {
 			if r.Evaluation.Status != genai.EvaluationSkipped {
 				return evaly.ErrInvalid
 			}
+		case evaly.Scored:
+			return evaly.ErrInvalid
 		default:
 			return evaly.ErrInvalid
 		}

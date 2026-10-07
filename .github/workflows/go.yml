@@ -1,17 +1,22 @@
 name: Go
-on: [push, pull_request]
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
 jobs:
-  contract:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: go.mod
-          cache-dependency-path: contracttest/go.sum
-      - uses: golangci/golangci-lint-action@v9.3.0
+          cache-dependency-path: "**/go.sum"
+      - name: Full registry gate on Linux
+        run: python3 scripts/checks.py check --linux-native --report /tmp/evaly-check/summary.json
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
         with:
-          version: v2.14.0
-          install-only: true
-      - run: golangci-lint config verify
-      - run: make validate
+          name: gate-evidence
+          path: /tmp/evaly-check/

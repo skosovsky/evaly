@@ -6,3 +6,4 @@ vendor/
 .cursor/
 .serena/
 .cache/
+__pycache__/

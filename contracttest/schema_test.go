@@ -346,7 +346,8 @@ func searchResult(t *testing.T) optimizer.Result {
 			Algorithm:         "enumeration-v1",
 			StopRevision:      "bounded-v1",
 			MaximumCandidates: 1,
-			Timeout:           time.Second,
+			// Schema semantics must not depend on race instrumentation or host speed.
+			Timeout: time.Minute,
 			Split: optimizer.Split[fixtures.Calculation, int]{
 				Revision:    "split-v1",
 				Training:    datasets[0],
