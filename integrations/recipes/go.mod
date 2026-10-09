@@ -3,7 +3,7 @@ module github.com/skosovsky/evaly/integrations/recipes
 go 1.27.1
 
 require (
-	github.com/skosovsky/evaly v0.3.0
+	github.com/skosovsky/evaly v0.4.2
 	github.com/skosovsky/metry v0.9.0
 	github.com/skosovsky/prompty v0.15.0
 )
@@ -34,5 +34,3 @@ require (
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 )
-
-replace github.com/skosovsky/evaly => ../..
