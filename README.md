@@ -136,17 +136,28 @@ to the supplied JSON protocol, not any vendor SDK. Optional packages live in the
 same module because they introduce no third-party dependencies; core never imports
 them. Consumers choose what to import.
 
-Development and CI use Go 1.27.1 and golangci-lint v2.14.0. Both modules
-declare Go 1.27.1.
+CI pins Go 1.27.2 and golangci-lint v2.14.0; module manifests require Go 1.27.1.
+Make discovers all modules, excluding hidden directories and vendor, and uses
+`GOWORK=off`. Install the pinned tools on PATH before running:
 
 ```sh
-make validate # config verification, formatting, vet, uncapped lint, race tests and seven examples
-make lint     # template-based golangci-lint checks in both modules
-make fmt      # apply configured formatters to both modules
-make bench    # benchmarks and allocations in both modules
-make cover    # coverage in both modules
-make fuzz     # each discovered fuzz function runs separately
+make modules
+make lint
+make test
+make test-integration
+make test-e2e
+make fix      # modifies Go source; use deliberately
+make bench
+make cover
+make fuzz     # separate 30-second campaign per target
+make test-live # opt-in; no live-provider test is currently implemented
 ```
+
+The full source gate is lint, fresh race unit tests, integration and e2e in that
+order. See [verification](docs/verification.md) for profiles, SDK source pins,
+prerequisites and the platform evidence. Schema generation is a direct command:
+`go run ./internal/schemagen`; drift is checked by contract tests. Create local
+CLI fixtures with `go run ./cmd/evaly fixture --store /tmp/evaly-fixtures --id baseline`.
 
 The shared [conformance suite](conformance/conformance.go) can validate host ports.
 Tests follow Arrange–Act–Assert, include privacy/adversarial contexts, failed reset,
@@ -163,22 +174,23 @@ reader is supplied. The format inventory is in [acceptance](docs/acceptance.md).
 [Live integration](docs/live-integration.md) is separately opt-in and has not been
 run without host credentials. Scripted checks do not establish LLM accuracy.
 
-Release targets validate both modules before invoking the shared script:
+Release targets run the selected committed source's full gate in an isolated checkout:
 
 ```sh
-make release-patch # increment patch
-make release-break # increment minor before v1, major from v1 onward
-make release       # alias for release-break
+make release-patch
+make release-break # increment minor before v1; v2+ requires import-path migration
+make release-inspect
+make release-resume
+make release-finish
 ```
 
-The script requires a branch with clean tracked files and asks for confirmation.
-It calculates the version from root tags on the push remote, prepares the selected
-commit in a temporary repository, and publishes only the new root tag with an
-atomic push. Source HEAD, index, worktree and local tags stay unchanged; untracked
-files are never copied. Only root `go.mod` may enter a generated release commit.
-Contracttest is a development module and receives no release tag.
-See [release safety and recovery](docs/release.md) for failure handling and local
-fixtures. Commit identity/signing use the resolved source Git configuration.
+Releases require a clean tracked/index state on local `main`. One confirmed
+atomic push delivers source to remote main and the prepared candidate to exact
+root and nested-module tags. Main keeps development replacements; the candidate
+removes internal replacements and aligns internal versions. All discovered
+modules are included: core, contracttest and integrations/recipes. The caller's
+HEAD, index, worktree and tags remain unchanged. See
+[release safety and recovery](docs/release.md).
 
 Optimizer candidate records use schema v2 (`ParentRevision`); search v6 includes concrete provenance and bounded received counts. See [migration](docs/optimizer-remediation.md).
 
@@ -192,7 +204,8 @@ executed checks are recorded in [the plan](docs/remediation-plan.md) and
 Optional [streaming composition recipes](integrations/recipes/README.md) live in
 an isolated consumer module. They demonstrate final stream metadata, partial
 billed errors, explicit accounting units, conservative source capture and separate
-assertion/metric export through real in-memory SDK evaluation spans. Run
-`make consumer-test` for pinned published dependencies or
-`make consumer-source CONSUMER_SOURCE_ROOT=..` for supplied SDK sources. Core and
-its normal validation remain independent of these optional dependencies.
+assertion/metric export through real in-memory SDK evaluation spans. Their unit
+checks run through `make test`, semantic SDK matrices through
+`make test-integration`, and complete disk/export roundtrips through
+`make test-e2e`. SDK dependencies stay in the optional consumer module; core has
+no external runtime dependencies.

@@ -1,3 +1,5 @@
+//go:build e2e
+
 package main
 
 import (
@@ -14,7 +16,7 @@ import (
 	"github.com/skosovsky/evaly/internal/fixtures"
 )
 
-func TestCLIExitCodesAndSealedBaseline(t *testing.T) {
+func TestE2ECLIExitCodesAndSealedBaseline(t *testing.T) {
 	// Arrange.
 	bin := filepath.Join(t.TempDir(), "evaly")
 	build := exec.Command("go", "build", "-o", bin, ".")
@@ -97,7 +99,7 @@ func TestCLIExitCodesAndSealedBaseline(t *testing.T) {
 	}
 }
 
-func TestCLINumericPolicyForHostTarget(t *testing.T) {
+func TestE2ECLINumericPolicyForHostTarget(t *testing.T) {
 	// Arrange: host-owned target metadata and a numeric metric, not a fixture gate.
 	ctx := context.Background()
 	directory := t.TempDir()

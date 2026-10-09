@@ -53,24 +53,7 @@ func (t StreamingTarget[I, O, E]) Run(
 	}
 	var consumeErr error
 	if openErr == nil {
-		for frame, err := range stream.Events() {
-			if err != nil {
-				consumeErr = err
-				break
-			}
-			if ctx.Err() != nil {
-				consumeErr = ctx.Err()
-				break
-			}
-			if frame == nil {
-				consumeErr = evaly.ErrInvalid
-				break
-			}
-			if err = t.Observe(ctx, frame, trial); err != nil {
-				consumeErr = err
-				break
-			}
-		}
+		consumeErr = t.consume(ctx, stream, trial)
 	}
 	closeErr := stream.Close()
 	if t.CloseTransport != nil {
@@ -99,6 +82,28 @@ func (t StreamingTarget[I, O, E]) Run(
 		trial.Evidence.MarkIncomplete()
 	}
 	return out, err
+}
+
+func (t StreamingTarget[I, O, E]) consume(
+	ctx context.Context,
+	stream *prompty.Stream,
+	trial evaly.TrialContext[E],
+) error {
+	for frame, err := range stream.Events() {
+		if err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if frame == nil {
+			return evaly.ErrInvalid
+		}
+		if err := t.Observe(ctx, frame, trial); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // JudgeAdapter keeps trusted rubric separate from projected data. Invoke must

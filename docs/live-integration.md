@@ -2,7 +2,7 @@
 
 Status: **not run**. No host agent/judge credentials were supplied for the current
 acceptance. Local HTTP and scripted suites do not constitute a real LLM evaluation.
-No paid external call is launched by examples, `make validate` or CI.
+No paid external call is launched by examples, ordinary/integration/e2e Make targets or CI.
 
 The host can connect a real agent as `Target[I,O,E]` and a real judge through
 `Grader`/`PairJudge`, with its own codecs, SDKs, credentials and isolated lifecycle.

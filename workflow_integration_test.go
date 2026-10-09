@@ -1,3 +1,5 @@
+//go:build integration
+
 package evaly_test
 
 import (
@@ -54,7 +56,7 @@ func workflowHTTP(t *testing.T, c *workflowConfig, s *fixtures.WorkflowStore, mo
 		Reset:    "empty-account-v1",
 	}
 }
-func TestWorkflowTransportSemantics(t *testing.T) {
+func TestIntegrationWorkflowTransportSemantics(t *testing.T) {
 	for _, mode := range []string{"refund", "alternative", "text-only", "tool-error", "effect-error"} {
 		t.Run(mode, func(t *testing.T) {
 			checkWorkflowTransportSemantics(
@@ -69,12 +71,12 @@ func TestWorkflowTransportSemantics(t *testing.T) {
 		)
 	}
 }
-func TestWorkflowTargetFailureConformance(t *testing.T) {
+func TestIntegrationWorkflowTargetFailureConformance(t *testing.T) {
 	for _, transport := range []string{"inprocess", "http"} {
 		t.Run(transport, func(t *testing.T) { checkWorkflowTargetFailureConformance(t, &transport) })
 	}
 }
-func TestWorkflowTransportDisconnectCannotProveAbsence(t *testing.T) {
+func TestIntegrationWorkflowTransportDisconnectCannotProveAbsence(t *testing.T) {
 	// Arrange: host commits action, but connection closes before delivery.
 	c, s, _ := fixtures.WorkflowConfig("disconnect", "refund")
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -114,7 +116,7 @@ func TestWorkflowTransportDisconnectCannotProveAbsence(t *testing.T) {
 		t.Fatal(audit, trial)
 	}
 }
-func TestWorkflowBudgetCancellationAndIsolation(t *testing.T) {
+func TestIntegrationWorkflowBudgetCancellationAndIsolation(t *testing.T) {
 	for _, transport := range []string{"inprocess", "http"} {
 		for _, stop := range []string{"budget", "cancel", "isolation"} {
 			t.Run(transport+"-"+stop, func(t *testing.T) {
@@ -184,7 +186,7 @@ func captureWorkflowProjection(
 	}
 	return e, saved
 }
-func TestWorkflowArtifactAssessmentLineage(t *testing.T) {
+func TestIntegrationWorkflowArtifactAssessmentLineage(t *testing.T) {
 	// Arrange: source target executes once and is then removed from scope.
 	c, s, _ := fixtures.WorkflowConfig("published-workflow", "refund")
 	e, saved := captureWorkflowProjection(t, c)
@@ -267,7 +269,7 @@ func TestWorkflowArtifactAssessmentLineage(t *testing.T) {
 		t.Fatal(comparison, err)
 	}
 }
-func TestWorkflowOnlinePartialAssessment(t *testing.T) {
+func TestIntegrationWorkflowOnlinePartialAssessment(t *testing.T) {
 	// Arrange: observation has one paid grading unit for a two-grader plan.
 	c, s, _ := fixtures.WorkflowConfig("workflow-online", "refund")
 	e, saved := captureWorkflowProjection(t, c)

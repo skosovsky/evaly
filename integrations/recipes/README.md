@@ -1,35 +1,34 @@
 # Optional host recipes
 
-This is a separate consumer Go module, not a core dependency and not a separately
-tagged SDK. The root release archive includes these reference sources. Copy the
-recipes into a host-owned integration module or use a checkout with an explicit
-local replacement; do not request the root release tag as a nested-module tag.
+This is a separate consumer Go module; core does not import its SDK dependencies.
+The shared release protocol includes it under `integrations/recipes/vX.Y.Z` for
+future releases. Historical releases through v0.4.0 contain reference sources
+in the root archive but have no separately published recipes tag.
 The host owns configuration, transport and persistent delivery. The adapter API
 is described in [the normative contract](../../docs/composition-contract.md).
 
 From the root checkout:
 
 ```sh
-make consumer-test
-make consumer-source CONSUMER_SOURCE_ROOT=.. # sibling SDK source checkouts
+make test
+make test-integration
+make test-e2e
 ```
 
-The published matrix uses the committed dependency pins, with no replacements
-and `GOWORK=off`. The source matrix creates a disposable consumer module and uses
-the current root checkout plus the supplied SDK checkout directory. It prints
-resolved module identities, SDK commit hashes and source dirtiness. CI obtains
-fresh checkouts of the audited source SHAs declared in its workflow; all fixtures use local deterministic sources/in-memory SDK
-exporters, not credentials or a live provider. Private production transport and
-live model accuracy are not covered. Core `make validate` deliberately does not
-traverse this directory; optional CI runs format checks, lint, vet and race tests.
+Development replaces evaly with the current core. The integration consumer matrix
+copies recipes into temporary modules and checks published SDK pins, clean audited
+SDK source SHAs and explicitly unsupported old SDK snapshots. The published lane
+removes all replacements. Source lanes fetch exact Git objects, without sibling
+working trees. All semantic fixtures use deterministic local sources and in-memory
+SDK exporters; credentials and live model quality are outside this proof.
+See [verification](../../docs/verification.md) for exact source provenance.
 
-Run the minimal streaming example:
+Run the streaming example or complete disk/export roundtrip directly:
 
 ```sh
 cd integrations/recipes
 GOWORK=off go test -run ExampleStreamingTarget -v
-# End-to-end: seal, streaming execution, grading, disk reopen, real SDK evaluation spans:
-GOWORK=off go test -race -count=1 -run TestRoundtripAndRealEvaluationDelivery -v
+GOWORK=off go test -race -count=1 -tags=e2e -run '^TestE2ERoundtripAndRealEvaluationDelivery' -v
 ```
 
 ## Consumer changes
@@ -99,13 +98,10 @@ regardless of delivery. Artifact privacy is independent of sink privacy.
 
 ## Unsupported source sets
 
-The audited SDK source SHAs are pinned in the workflow rather than inferred from
-moving default branches. At implementation time those default branches had older
-APIs than the audited snapshots and published SDK tags: they lacked Stream and
-EvaluationRecorder. Supplying such a source directory returns exit 2 with
-`UNSUPPORTED dependency API` before semantic fixtures; it is not a successful
-stream/evaluation integration check. Resolution/infrastructure errors remain
-failures. CI also runs a separately named unsupported matrix case pinned to these old
-source snapshots and asserts the explicit exit code/message; it does not claim
-semantic fixture success for that case. Update source pins only after running the full semantic matrix against
-the intended new source set. This keeps the tested source provenance reproducible.
+The audited SDK source SHAs are pinned in Go integration fixtures, rather than
+moving default branches. The unsupported lane checks that the legacy prompty
+snapshot lacks Stream, records the missing capabilities, and does not run semantic
+fixtures. Missing network/Git/Go prerequisites fail the selected profile. The
+negative result proves the unsupported boundary and does not count as a successful
+stream/evaluation integration. Update source pins only after rerunning the full
+semantic matrix against the intended new source set.

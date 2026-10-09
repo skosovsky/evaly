@@ -1,5 +1,11 @@
 # Validation record
 
+Infrastructure changed on 9 October 2026: current commands and module publication
+are documented in [verification](verification.md) and [release](release.md).
+References below to `make validate`, root-only tags and separate consumer workflows
+are dated evidence for earlier revisions, not current infrastructure guarantees.
+
+
 ## 6 October 2026 — strict lint and shared release template
 
 Authority: the approved lint, validation and release implementation plan.

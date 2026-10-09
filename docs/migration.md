@@ -118,6 +118,9 @@ stable identities and host dedup, not one experiment-level boolean.
 
 The [optional recipes and runnable examples](../integrations/recipes/README.md)
 show construction and exact host changes. The separate module is host reference
-source distributed in the root release archive, not a separately tagged SDK.
+source included in root archives through v0.4.0. The shared release protocol now
+includes it under the directory-prefixed `integrations/recipes/vX.Y.Z` tag for
+future releases. Development replaces the current core; prepared release
+manifests use the exact new version. See [release](release.md).
 Artifacts and telemetry require independent privacy policies. Metric semantic
 metadata remains in the host record because the telemetry DTO cannot carry it.

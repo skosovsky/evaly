@@ -1,5 +1,11 @@
 # Current acceptance — tasks 01–05
 
+Infrastructure changed on 9 October 2026: current commands and module publication
+are documented in [verification](verification.md) and [release](release.md).
+References below to `make validate`, root-only tags and separate consumer workflows
+are dated evidence for earlier revisions, not current infrastructure guarantees.
+
+
 Authority: `.cursor/task/README.md` and its five task files. The matrix below maps
 current contracts to executable evidence; it is not a percentage claim. Independent
 completeness and correctness acceptance requires both reports on the same frozen
@@ -287,7 +293,7 @@ Results will be recorded in `docs/validation.md` after full checks and reviews.
 
 Optimizer candidate records use schema v2 (`ParentRevision`). See [optimizer migration](optimizer-remediation.md).
 
-## Optional streaming composition (issue #1)
+## Historical streaming composition acceptance — 7 October 2026 (issue #1)
 
 Core API/wire records are unchanged. SDK imports occur only in the separate
 `integrations/recipes` consumer module; root and contracttest go.mod remain unchanged.
