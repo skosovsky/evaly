@@ -261,7 +261,8 @@ func TestSharedStructuralCorpus(t *testing.T) {
 func TestSchemaGenerationDoesNotDrift(t *testing.T) {
 	// Arrange: generation runs into a disposable directory, never the checked-in schemas.
 	directory := t.TempDir()
-	cmd := exec.Command("go", "run", "../internal/schemagen", directory)
+	cmd := exec.Command("go", "run", "./internal/schemagen", directory)
+	cmd.Dir = ".."
 	// Act.
 	if output, e := cmd.CombinedOutput(); e != nil {
 		t.Fatalf("generate: %v\n%s", e, output)
