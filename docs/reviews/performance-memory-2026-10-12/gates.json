@@ -1,0 +1,74 @@
+{
+  "BenchmarkAuditCapture/16384/FreshRecordAndSeal-8": {
+    "baseline": [
+      470826.0,
+      703244.0,
+      331.0
+    ],
+    "candidate": [
+      328005.0,
+      525173.0,
+      246.0
+    ],
+    "ratio": [
+      0.6966586382230379,
+      0.7467863216749805,
+      0.743202416918429
+    ],
+    "PASS": true
+  },
+  "BenchmarkAuditCapture/16384/SaturatedRecord-8": {
+    "baseline": [
+      397484.0,
+      503042.0,
+      179.0
+    ],
+    "candidate": [
+      224723.0,
+      381137.0,
+      107.0
+    ],
+    "ratio": [
+      0.5653636372784816,
+      0.7576643699730837,
+      0.5977653631284916
+    ],
+    "PASS": true
+  },
+  "BenchmarkSavedViewValidation/bytes_16384/fresh_view-8": {
+    "baseline": [
+      328178.0,
+      453356.0,
+      80.0
+    ],
+    "candidate": [
+      98952.0,
+      201999.0,
+      35.0
+    ],
+    "ratio": [
+      0.30151929745443024,
+      0.4455637512242035,
+      0.4375
+    ],
+    "PASS": true
+  },
+  "BenchmarkSavedViewValidation/bytes_16384/rescore_8-8": {
+    "baseline": [
+      3908018.0,
+      5839502.0,
+      2202.0
+    ],
+    "candidate": [
+      2201152.0,
+      3598030.0,
+      1800.0
+    ],
+    "ratio": [
+      0.5632399850768344,
+      0.6161535692598444,
+      0.8174386920980926
+    ],
+    "PASS": true
+  }
+}

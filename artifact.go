@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 )
 
 type Envelope struct {
@@ -21,8 +20,16 @@ type Envelope struct {
 }
 
 func validArtifactID(id string) bool {
-	ok, _ := regexp.MatchString(`^[a-zA-Z0-9_-]{1,128}$`, id)
-	return ok
+	if len(id) < 1 || len(id) > 128 {
+		return false
+	}
+	for i := range len(id) {
+		c := id[i]
+		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '_' && c != '-' {
+			return false
+		}
+	}
+	return true
 }
 func NewEnvelope(kind, id string, data any) (Envelope, error) {
 	b, e := canonical(data)

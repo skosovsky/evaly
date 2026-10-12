@@ -1,9 +1,11 @@
 package evaly
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/url"
 	"strings"
 	"sync"
@@ -210,7 +212,7 @@ func (c *Capture) Record(ctx context.Context, e Event) error {
 	}
 	c.last = e.Sequence
 	// A defensive copy prevents a policy mutating caller-owned raw data.
-	raw, err := cloneJSON(e)
+	raw, err := cloneCaptureInput(e)
 	if err != nil {
 		return c.failLocked(ErrInvalid)
 	}
@@ -222,11 +224,22 @@ func (c *Capture) Record(ctx context.Context, e Event) error {
 	if err != nil {
 		return c.failLocked(err)
 	}
-	b, err := canonical(out)
+	// CanonicalJSON historically normalizes invalid metadata strings before
+	// sizing. Marshal alone can use longer escaped replacements otherwise.
+	out.Kind = normalizeJSONString(out.Kind)
+	out.CorrelationID = normalizeJSONString(out.CorrelationID)
+	// Deep payloads keep the original whole-Event boundary: nesting limits
+	// include the enclosing Event object, even after payload canonicalization.
+	deep := captureNeedsJSONBoundary(out.Payload)
+	b, err := encodeProjectedEvent(out, deep)
 	if err != nil {
 		return c.failLocked(err)
 	}
-	if len(c.record.Events) >= c.config.MaxEvents || c.bytes+len(b) > c.config.MaxBytes {
+	if len(c.record.Events) >= c.config.MaxEvents {
+		c.record.Truncated = true
+		return c.failLocked(ErrIncomplete)
+	}
+	if c.bytes+len(b) > c.config.MaxBytes {
 		c.record.Truncated = true
 		return c.failLocked(ErrIncomplete)
 	}
@@ -234,7 +247,7 @@ func (c *Capture) Record(ctx context.Context, e Event) error {
 		c.record.Redactions++
 	}
 	c.bytes += len(b)
-	out, err = cloneJSON(out)
+	out, err = cloneProjectedEvent(out, deep)
 	if err != nil {
 		return c.failLocked(err)
 	}
@@ -269,7 +282,22 @@ func (c *Capture) Seal() EvidenceRecord {
 		}
 		c.record.Revision = digest(b)
 	}
-	return mustCloneJSON(c.record)
+	// Config strings are host-owned and historically normalized by the JSON
+	// round trip. Keep that boundary for non-UTF-8 policy IDs/coverage keys.
+	if !utf8.ValidString(c.record.Policy) {
+		return mustCloneJSON(c.record)
+	}
+	for kind := range c.record.Coverage {
+		if !utf8.ValidString(kind) {
+			return mustCloneJSON(c.record)
+		}
+	}
+	for _, event := range c.record.Events {
+		if captureNeedsJSONBoundary(event.Payload) {
+			return mustCloneJSON(c.record)
+		}
+	}
+	return cloneEvidenceRecord(c.record)
 }
 func ValidateEvidence(r EvidenceRecord) error {
 	if r.Version != 1 {
@@ -384,4 +412,95 @@ func mustValidatedCapture(config CaptureConfig) *Capture {
 		panic("evaly: validated capture configuration changed")
 	}
 	return capture
+}
+
+// cloneCaptureInput mirrors the Event JSON round trip at the untrusted caller
+// boundary. RawMessage marshaling validates and compacts JSON, including the
+// default HTML escaping, without encoding and decoding the surrounding Event.
+func cloneCaptureInput(e Event) (Event, error) {
+	if captureNeedsJSONBoundary(e.Payload) {
+		return cloneJSON(e)
+	}
+	if len(e.Payload) > 0 {
+		payload, err := json.Marshal(e.Payload)
+		if err != nil {
+			return Event{}, err
+		}
+		e.Payload = payload
+	} else {
+		e.Payload = nil
+	}
+	e.Kind = normalizeJSONString(e.Kind)
+	e.CorrelationID = normalizeJSONString(e.CorrelationID)
+	if len(e.References) == 0 {
+		e.References = nil
+	} else {
+		references := make([]string, len(e.References))
+		for i, reference := range e.References {
+			references[i] = normalizeJSONString(reference)
+		}
+		e.References = references
+	}
+	return e, nil
+}
+
+// encoding/json replaces each invalid UTF-8 decoding unit independently.
+// [strings.ToValidUTF8] coalesces adjacent invalid bytes and is not equivalent.
+func normalizeJSONString(s string) string {
+	if utf8.ValidString(s) {
+		return s
+	}
+	var out strings.Builder
+	out.Grow(len(s))
+	for _, r := range s {
+		out.WriteRune(r)
+	}
+	return out.String()
+}
+
+// cloneEvidenceRecord copies only validated, privately owned wire records.
+// It must not replace normalization or validation at a caller/BYOT boundary.
+func cloneEvidenceRecord(r EvidenceRecord) EvidenceRecord {
+	if r.Events != nil {
+		events := make([]Event, len(r.Events))
+		for i, event := range r.Events {
+			event.Payload = append(json.RawMessage(nil), event.Payload...)
+			event.References = append([]string(nil), event.References...)
+			events[i] = event
+		}
+		r.Events = events
+	}
+	if r.Coverage != nil {
+		r.Coverage = maps.Clone(r.Coverage)
+	}
+	r.Gaps = append([]int(nil), r.Gaps...)
+	r.Errors = append([]string(nil), r.Errors...)
+	return r
+}
+
+// Counting opening containers conservatively bounds nesting without a second
+// parser. Brackets inside strings may trigger the legacy path unnecessarily,
+// but cannot cause deeply nested JSON to miss the original boundary checks.
+func captureNeedsJSONBoundary(payload []byte) bool {
+	const fastPathContainerLimit = 128
+	return bytes.Count(payload, []byte{'{'})+bytes.Count(payload, []byte{'['}) >= fastPathContainerLimit
+}
+
+// encodeProjectedEvent keeps the original wrapper validation for complex JSON.
+// For shallow canonical payloads, sorting fixed Event keys cannot change size.
+func encodeProjectedEvent(e Event, useJSONBoundary bool) ([]byte, error) {
+	if useJSONBoundary {
+		return canonical(e)
+	}
+	return json.Marshal(e)
+}
+
+// cloneProjectedEvent receives a validated canonical payload owned by evaly.
+// Complex JSON retains the original whole-Event copy and depth validation.
+func cloneProjectedEvent(e Event, useJSONBoundary bool) (Event, error) {
+	if useJSONBoundary {
+		return cloneJSON(e)
+	}
+	e.References = append([]string(nil), e.References...)
+	return e, nil
 }

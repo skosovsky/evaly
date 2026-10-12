@@ -1,0 +1,68 @@
+File: evaly.test
+Type: alloc_space
+Time: 2026-10-12 15:11:01 +07
+Showing nodes accounting for 9986.95MB, 99.06% of 10081.50MB total
+Dropped 131 nodes (cum <= 50.41MB)
+      flat  flat%   sum%        cum   cum%
+ 5369.75MB 53.26% 53.26%  5370.25MB 53.27%  encoding/json/jsontext.(*decoderState).fetch
+ 1984.19MB 19.68% 72.94%  1984.19MB 19.68%  bytes.Clone (inline)
+  827.75MB  8.21% 81.16%   827.75MB  8.21%  encoding/json/jsontext.Token.String (inline)
+  615.19MB  6.10% 87.26%   615.19MB  6.10%  slices.Clone[go.shape.[]uint8,go.shape.uint8] (inline)
+  576.91MB  5.72% 92.98%   576.91MB  5.72%  encoding/json/v2.makeString
+  300.72MB  2.98% 95.96%   300.72MB  2.98%  encoding/json/jsontext.(*Value).UnmarshalJSON
+  103.37MB  1.03% 96.99%   103.37MB  1.03%  encoding/json/jsontext.(*encoderState).reformatValue
+   64.62MB  0.64% 97.63%    65.12MB  0.65%  github.com/skosovsky/evaly.cloneEvidenceRecord
+   61.33MB  0.61% 98.24%    61.33MB  0.61%  slices.Grow[go.shape.[]uint8,go.shape.uint8] (inline)
+   37.51MB  0.37% 98.61%  2613.54MB 25.92%  github.com/skosovsky/evaly.readJSONObject
+   18.59MB  0.18% 98.79%   595.50MB  5.91%  encoding/json/v2.makeStringArshaler.func2
+       7MB 0.069% 98.86%  3920.71MB 38.89%  encoding/json.(*Decoder).Token
+    3.50MB 0.035% 98.90%  3064.31MB 30.40%  github.com/skosovsky/evaly.Rescore[go.shape.string,go.shape.string,go.shape.string]
+       3MB  0.03% 98.93%   350.41MB  3.48%  github.com/skosovsky/evaly.cloneJSON[go.shape.b2701b2df9bbb5ce16df9ed68e9946f1ed9b1d36d38d25cdad4166c26bcde7f1]
+       3MB  0.03% 98.96%  1916.51MB 19.01%  github.com/skosovsky/evaly.FieldPolicy.Project
+    2.51MB 0.025% 98.98%   105.33MB  1.04%  encoding/json/v2.makeStructArshaler.func2
+    2.50MB 0.025% 99.01%  3784.12MB 37.54%  github.com/skosovsky/evaly.RestoreSavedView[go.shape.string,go.shape.string,go.shape.string]
+       2MB  0.02% 99.03%   153.09MB  1.52%  github.com/skosovsky/evaly.encodeProjectedEvent
+       1MB 0.0099% 99.04%  2715.70MB 26.94%  github.com/skosovsky/evaly.SaveView[go.shape.string,go.shape.string,go.shape.string]
+       1MB 0.0099% 99.05%   788.56MB  7.82%  github.com/skosovsky/evaly.Assess[go.shape.string,go.shape.string,go.shape.string]
+    0.50MB 0.005% 99.05%  3043.85MB 30.19%  github.com/skosovsky/evaly.(*Capture).Record
+    0.50MB 0.005% 99.06%   149.59MB  1.48%  github.com/skosovsky/evaly.cloneCaptureInput
+    0.50MB 0.005% 99.06%  2556.12MB 25.35%  github.com/skosovsky/evaly.decodeSavedJSON[go.shape.string]
+         0     0% 99.06%  2870.24MB 28.47%  encoding/json.(*Decoder).Decode
+         0     0% 99.06%  2173.39MB 21.56%  encoding/json.Marshal (inline)
+         0     0% 99.06%   327.80MB  3.25%  encoding/json.Unmarshal (inline)
+         0     0% 99.06%    61.33MB  0.61%  encoding/json/internal/jsonwire.AppendQuote
+         0     0% 99.06%  3085.95MB 30.61%  encoding/json/jsontext.(*Decoder).ReadToken (inline)
+         0     0% 99.06%  2286.80MB 22.68%  encoding/json/jsontext.(*Decoder).ReadValue (inline)
+         0     0% 99.06%   103.37MB  1.03%  encoding/json/jsontext.(*Encoder).WriteValue (inline)
+         0     0% 99.06%  3085.95MB 30.61%  encoding/json/jsontext.(*decoderState).ReadToken
+         0     0% 99.06%  2286.80MB 22.68%  encoding/json/jsontext.(*decoderState).ReadValue
+         0     0% 99.06%  5363.75MB 53.20%  encoding/json/jsontext.(*decoderState).consumeString
+         0     0% 99.06%  2285.30MB 22.67%  encoding/json/jsontext.(*decoderState).consumeValue
+         0     0% 99.06%   103.37MB  1.03%  encoding/json/jsontext.(*encoderState).WriteValue
+         0     0% 99.06%  2173.39MB 21.56%  encoding/json/v2.Marshal
+         0     0% 99.06%   911.24MB  9.04%  encoding/json/v2.Unmarshal
+         0     0% 99.06%    50.47MB   0.5%  encoding/json/v2.makeMapArshaler.func2
+         0     0% 99.06%   169.28MB  1.68%  encoding/json/v2.makeMapArshaler.func3
+         0     0% 99.06%   103.37MB  1.03%  encoding/json/v2.makeMethodArshaler.func3
+         0     0% 99.06%   300.72MB  2.98%  encoding/json/v2.makeMethodArshaler.func6
+         0     0% 99.06%   154.52MB  1.53%  encoding/json/v2.makeStructArshaler.func3
+         0     0% 99.06%   185.70MB  1.84%  encoding/json/v2.marshalEncode
+         0     0% 99.06%   903.73MB  8.96%  encoding/json/v2.unmarshalDecode
+         0     0% 99.06%   444.70MB  4.41%  github.com/skosovsky/evaly.(*Capture).Seal
+         0     0% 99.06%  1679.61MB 16.66%  github.com/skosovsky/evaly.BenchmarkAuditCapture.func1.1
+         0     0% 99.06%  1811.94MB 17.97%  github.com/skosovsky/evaly.BenchmarkAuditCapture.func1.2
+         0     0% 99.06%  1585.15MB 15.72%  github.com/skosovsky/evaly.BenchmarkSavedViewValidation.func1.1
+         0     0% 99.06%  1931.44MB 19.16%  github.com/skosovsky/evaly.BenchmarkSavedViewValidation.func1.2
+         0     0% 99.06%  5002.75MB 49.62%  github.com/skosovsky/evaly.CanonicalJSON
+         0     0% 99.06%   756.33MB  7.50%  github.com/skosovsky/evaly.JSONCodec[go.shape.string].Decode
+         0     0% 99.06%  1730.10MB 17.16%  github.com/skosovsky/evaly.JSONCodec[go.shape.string].Encode
+         0     0% 99.06%  3128.56MB 31.03%  github.com/skosovsky/evaly.SavedView[go.shape.string,go.shape.string,go.shape.string].View
+         0     0% 99.06%   787.56MB  7.81%  github.com/skosovsky/evaly.assessOne[go.shape.string,go.shape.string,go.shape.string]
+         0     0% 99.06%  3064.31MB 30.40%  github.com/skosovsky/evaly.benchmarkSavedViewRescore.func2
+         0     0% 99.06%  2239.60MB 22.21%  github.com/skosovsky/evaly.canonical
+         0     0% 99.06%   615.19MB  6.10%  github.com/skosovsky/evaly.cloneSavedViewRecord
+         0     0% 99.06%  3956.72MB 39.25%  github.com/skosovsky/evaly.readJSON
+         0     0% 99.06%   261.45MB  2.59%  github.com/skosovsky/evaly.readJSONArray
+         0     0% 99.06%   823.66MB  8.17%  github.com/skosovsky/evaly.validateProjectedEvent
+         0     0% 99.06% 10074.51MB 99.93%  testing.(*B).run1.func1
+         0     0% 99.06% 10075.53MB 99.94%  testing.(*B).runN

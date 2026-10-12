@@ -1,8 +1,12 @@
 package evaly
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"maps"
+	"slices"
 )
 
 // SavedView stores only an explicitly permitted grading projection, encoded by
@@ -106,10 +110,11 @@ func (s SavedView[I, O, R]) View() (View[I, O, R], error) {
 		ValidatePort(s.reference) != nil {
 		return out, ErrUnsealed
 	}
-	r, e := cloneJSON(s.record)
-	if e != nil {
-		return out, e
-	}
+	// Constructors and external restore validate and normalize private records.
+	// Copy only their owned wire fields here; domain values still pass through
+	// host codecs on every read, yielding a fresh view for each grader.
+	r := cloneSavedViewRecord(s.record)
+	var e error
 	out.Case = Case[I, R]{
 		ID:               r.Case.ID,
 		Revision:         r.Case.Revision,
@@ -117,16 +122,16 @@ func (s SavedView[I, O, R]) View() (View[I, O, R], error) {
 		RequiredEvidence: r.Case.RequiredEvidence,
 		Generation:       r.Case.Generation, Input: zeroI, Reference: nil,
 	}
-	out.Case.Input, e = s.input.Decode(r.Case.Input)
+	out.Case.Input, e = decodeSavedJSON(s.input, r.Case.Input)
 	if e != nil {
 		return out, e
 	}
-	out.Output, e = s.output.Decode(r.Output)
+	out.Output, e = decodeSavedJSON(s.output, r.Output)
 	if e != nil {
 		return out, e
 	}
 	if len(r.Case.Reference) > 0 {
-		v, e := s.reference.Decode(r.Case.Reference)
+		v, e := decodeSavedJSON(s.reference, r.Case.Reference)
 		if e != nil {
 			return out, e
 		}
@@ -134,6 +139,24 @@ func (s SavedView[I, O, R]) View() (View[I, O, R], error) {
 	}
 	out.Evidence = r.Evidence
 	return out, nil
+}
+
+// decodeSavedJSON skips repeated canonicalization only for the concrete built-in
+// codec reading validated private JSON. Host codecs (including wrappers around
+// JSONCodec) keep their Decode callback and its validation behavior unchanged.
+func decodeSavedJSON[T any](codec Codec[T], b []byte) (T, error) {
+	switch codec.(type) {
+	case JSONCodec[T], *JSONCodec[T]:
+		var value T
+		decoder := json.NewDecoder(bytes.NewReader(b))
+		decoder.UseNumber()
+		if err := decoder.Decode(&value); err != nil {
+			return value, fmt.Errorf("%w: decode: %w", ErrInvalid, err)
+		}
+		return value, nil
+	default:
+		return codec.Decode(b)
+	}
 }
 
 type Assessment struct {
@@ -283,7 +306,30 @@ func Rescore[I, O, R any](
 }
 
 // Record returns a portable permitted projection with explicit consumer codecs.
-func (s SavedView[I, O, R]) Record() SavedViewRecord { return mustCloneJSON(s.record) }
+func (s SavedView[I, O, R]) Record() SavedViewRecord {
+	if s.record.Revision == "" {
+		// The zero value has not crossed constructor normalization; in particular
+		// its required RawMessage fields still need JSON null normalization.
+		return mustCloneJSON(s.record)
+	}
+	return cloneSavedViewRecord(s.record)
+}
+
+// cloneSavedViewRecord copies an already validated and JSON-normalized private
+// record. External records must still go through RestoreSavedView in full.
+func cloneSavedViewRecord(r SavedViewRecord) SavedViewRecord {
+	r.Case.Input = slices.Clone(r.Case.Input)
+	r.Case.Reference = slices.Clone(r.Case.Reference)
+	r.Case.Metadata = maps.Clone(r.Case.Metadata)
+	r.Case.RequiredEvidence = slices.Clone(r.Case.RequiredEvidence)
+	if r.Case.Generation != nil {
+		generation := *r.Case.Generation
+		r.Case.Generation = &generation
+	}
+	r.Output = slices.Clone(r.Output)
+	r.Evidence = cloneEvidenceRecord(r.Evidence)
+	return r
+}
 
 func RestoreSavedView[I, O, R any](
 	r SavedViewRecord,

@@ -1,0 +1,15 @@
+fuzz: elapsed: 0s, gathering baseline coverage: 0/54 completed
+fuzz: elapsed: 0s, gathering baseline coverage: 54/54 completed, now fuzzing with 8 workers
+fuzz: elapsed: 3s, execs: 304860 (101585/sec), new interesting: 1 (total: 55)
+fuzz: elapsed: 6s, execs: 641236 (112157/sec), new interesting: 1 (total: 55)
+fuzz: elapsed: 9s, execs: 959067 (105938/sec), new interesting: 2 (total: 56)
+fuzz: elapsed: 12s, execs: 1286968 (109290/sec), new interesting: 2 (total: 56)
+fuzz: elapsed: 15s, execs: 1606366 (106489/sec), new interesting: 2 (total: 56)
+fuzz: elapsed: 18s, execs: 1915329 (102846/sec), new interesting: 2 (total: 56)
+fuzz: elapsed: 21s, execs: 2224795 (103297/sec), new interesting: 2 (total: 56)
+fuzz: elapsed: 24s, execs: 2543690 (106262/sec), new interesting: 2 (total: 56)
+fuzz: elapsed: 27s, execs: 2893041 (116490/sec), new interesting: 2 (total: 56)
+fuzz: elapsed: 30s, execs: 3280456 (129070/sec), new interesting: 2 (total: 56)
+fuzz: elapsed: 30s, execs: 3280456 (0/sec), new interesting: 2 (total: 56)
+PASS
+ok  	github.com/skosovsky/evaly	30.293s

@@ -1,0 +1,16 @@
+ok  	github.com/skosovsky/evaly	0.948s
+ok  	github.com/skosovsky/evaly/adapters/httpjson	0.453s
+ok  	github.com/skosovsky/evaly/cmd/evaly	0.402s
+ok  	github.com/skosovsky/evaly/conformance	0.528s
+?   	github.com/skosovsky/evaly/examples/calculation	[no test files]
+?   	github.com/skosovsky/evaly/examples/crm	[no test files]
+?   	github.com/skosovsky/evaly/examples/http	[no test files]
+?   	github.com/skosovsky/evaly/examples/integration	[no test files]
+?   	github.com/skosovsky/evaly/examples/observation	[no test files]
+?   	github.com/skosovsky/evaly/examples/optimizer	[no test files]
+?   	github.com/skosovsky/evaly/examples/protocols	[no test files]
+ok  	github.com/skosovsky/evaly/internal/fixtures	0.392s
+?   	github.com/skosovsky/evaly/internal/schemagen	[no test files]
+?   	github.com/skosovsky/evaly/internal/wirecontract	[no test files]
+ok  	github.com/skosovsky/evaly/observation	0.393s
+ok  	github.com/skosovsky/evaly/optimizer	0.855s

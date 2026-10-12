@@ -1,0 +1,5 @@
+=== RUN   TestInvalidStringSizeProbe
+    depth_probe_test.go:35: Record err=<nil> countedbytes=80 want=80
+--- PASS: TestInvalidStringSizeProbe (0.00s)
+PASS
+ok  	github.com/skosovsky/evaly	0.408s
