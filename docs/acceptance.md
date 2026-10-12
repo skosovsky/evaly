@@ -338,10 +338,8 @@ Correctness review found two export defects, now covered by
 enter the registry, and privacy projection permits identity removal but rejects
 foreign association/provenance/artifact/trace substitutions before any delivery.
 
-Final independent technical acceptance: [completeness](reviews/composition-completeness.md)
-reports 100% (10/10 criteria); [correctness](reviews/composition-correctness.md)
-confirms both reproduced defects fixed and no open findings. Final published and
-source matrix commands both exited successfully after remediation. Full root
+Final published and source matrix commands both exited successfully after
+remediation. Full root
 `make validate` exited successfully; updated root formatter isolation passed
 `make config-check fmt-check`. Hosted CI/release/closeout are verified separately
 when publishing the accepted commit.

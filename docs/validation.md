@@ -81,10 +81,8 @@ Toolchain: `go version go1.27.1 darwin/arm64`.
   no paid external calls were made. Scripted tests establish infrastructure behavior,
   not LLM accuracy, injection immunity or production durability.
 
-Independent task-05 reports are `reviews/integration-completeness.md` and
-`reviews/integration-correctness.md`; each records its own commands and the same
-source fingerprint. Prior entries below are historical command records for their
-named source snapshots and must not substitute for this current verification.
+Prior entries below are historical command records for their named source
+snapshots and must not substitute for this current verification.
 Strict lint is separate from `make validate`; the pre-existing strict style findings
 recorded below were not weakened or represented as a passing lint run.
 
@@ -116,9 +114,8 @@ contracts. Source fingerprint:
 - `git diff --check` — PASS. Current formats: experiment/assessment/
   observation-result/search v3, comparison v2, calibration v1.
 
-Independent final acceptance reports: `docs/reviews/measurement-completeness.md`
-and `measurement-correctness.md`. Repairs invalidate the fingerprint and require
-both reviewers to recheck; this journal records executed checks separately.
+Repairs invalidate the source fingerprint and require new verification.
+This journal records executed checks for each source snapshot.
 
 ## 5 October 2026 — evidence and HTTP revision 2
 
@@ -141,10 +138,8 @@ Authority: `.cursor/task/02-evidence-and-wire-contracts.md`, common README,
   `aabce87e5dec89ddeaeaae3592c44f0319d23260e150ec63242f9c63819c27b0`
   (93 files; review reports and this journal excluded).
 
-Final independent acceptance is recorded in `docs/reviews/evidence-completeness.md`
-and `evidence-correctness.md`. A source repair requires a new fingerprint and
-both reviewers' rechecks; this entry records actual checks, not an unconditional
-claim of acceptance.
+A source repair requires a new fingerprint and verification; this entry records
+actual checks for the named source snapshot.
 
 ## 5 October 2026 — execution revision 2
 
@@ -166,11 +161,9 @@ README and `docs/execution-contract.md`. Earlier records below are historical.
 - `git diff --check` — PASS. Updated schemas generated from current types; no
   legacy revision-1 schemas retained for changed formats.
 
-Independent completeness and correctness acceptance are recorded separately in
-`docs/reviews/execution-completeness.md` and `execution-correctness.md`. Their
-fingerprints cover implementation, tests, schemas, applicable contracts and task
-authority, excluding generated review reports and this validation journal. Any
-implementation repair requires new verification and both reviewers' rechecks.
+Source fingerprints cover implementation, tests, schemas, applicable contracts
+and task authority, excluding generated reports and this validation journal.
+Any implementation repair requires new verification.
 
 Current toolchain/dependency update: see the 5 October entry below. Earlier
 versions and acceptance results are preserved as historical evidence.
@@ -211,8 +204,7 @@ remain explicit unsupported or host-owned boundaries in design/README.
 Initial independent completeness audit: 150/171 (87.72%). The denominator is
 unchanged. Repairs add saved-view persistence, versioned scenario lineage, full
 schemas, shared protocol conformance suites, report/replay provenance and explicit
-missing synthetic-fixture assertions. Final independent audit status is recorded
-in `reviews/completeness.md`; correctness in `reviews/correctness.md`.
+missing synthetic-fixture assertions.
 
 ## Final post-repair gates
 
@@ -272,8 +264,7 @@ Executed update verification:
   CI preserves the existing format/vet/test gate; lint remains an explicit local
   target pending the user's choice about a full strict-style refactor.
 
-The independent acceptance reports above describe the prior implementation state;
-this update was verified through the commands here, not a new independent audit.
+This update was verified through the commands recorded here.
 No commits or releases were created.
 
 ## Sequential task 04 — bounded optimizer
@@ -285,5 +276,3 @@ Final source fingerprint: `08eba985354d909f1ac16e7bc9012618d604ee897f41e00c46f35
 format, vet and race tests in both modules; contracttest race completed in 93.815s.
 All six runnable examples completed with exit 0. `git diff --check` passed.
 The final formatter fix split assertions without removing any condition.
-Independent completeness and correctness reports are in `reviews/search-completeness.md`
-and `reviews/search-correctness.md` and refer to the same source fingerprint.
